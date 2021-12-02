@@ -27,6 +27,12 @@ pub enum Token<'a> {
     Error(&'a str, ErrorMessage),
 }
 
+impl<'a> Token<'a> {
+    pub fn is_comment(&self) -> bool {
+        matches!(self, Token::Comment(_))
+    }
+}
+
 lazy_static! {
     static ref KEYWORDS: HashMap<&'static str, Token<'static>> = {
         let mut m = HashMap::new();
@@ -87,6 +93,7 @@ struct LexResult<'a> {
     end: usize,
 }
 
+#[derive(Clone, Debug)]
 pub struct Lexer<'a> {
     buf: &'a str,
     char_indices: CharIndices<'a>,
@@ -98,6 +105,10 @@ impl<'a> Lexer<'a> {
             buf,
             char_indices: buf.char_indices(),
         }
+    }
+
+    pub fn skip_comments(self) -> CommentSkippingLexer<'a> {
+        CommentSkippingLexer::new(self)
     }
 
     fn substr<I: SliceIndex<str>>(&self, slice: I) -> &'a <I as SliceIndex<str>>::Output {
@@ -273,6 +284,24 @@ impl<'a> Iterator for Lexer<'a> {
     }
 }
 
+pub struct CommentSkippingLexer<'a> {
+    lexer: Lexer<'a>,
+}
+
+impl<'a> CommentSkippingLexer<'a> {
+    pub fn new(lexer: Lexer<'a>) -> Self {
+        Self { lexer }
+    }
+}
+
+impl<'a> Iterator for CommentSkippingLexer<'a> {
+    type Item = <Lexer<'a> as Iterator>::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.lexer.find(|token| !token.is_comment())
+    }
+}
+
 #[test]
 fn lex() {
     let lex = |buf| Lexer::new(buf).collect::<Vec<_>>();
@@ -373,6 +402,13 @@ fn lex_errors() {
             ErrorMessage("Identifier may not contain non-alphabetic characters")
         )]
     );
+    assert_eq!(
+        lex("ab3c"),
+        vec![Token::Error(
+            "ab3c",
+            ErrorMessage("Identifier may not contain non-alphabetic characters")
+        )]
+    );
 
     // underscores are technically ascii punctuation, but I'm specifically disallowing them attached to identifiers
     assert_eq!(
@@ -396,4 +432,12 @@ fn lex_errors() {
             )
         ]
     )
+}
+
+#[test]
+fn skip_comments() {
+    let lex = |buf| Lexer::new(buf).skip_comments().collect::<Vec<_>>();
+    assert_eq!(lex(""), vec![]);
+    assert_eq!(lex("()"), vec![]);
+    assert_eq!(lex("hi(hi)hi"), vec![Token::Word("hi"), Token::Word("hi")]);
 }
