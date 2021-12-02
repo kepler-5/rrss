@@ -6,6 +6,7 @@ pub struct ErrorMessage(&'static str);
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Token<'a> {
     Word(&'a str),
+    StringLiteral(&'a str),
     Number(f64),
     Mysterious,
     Null,
@@ -71,6 +72,10 @@ fn is_ignorable_whitespace(c: char) -> bool {
     c.is_whitespace() && c != '\n'
 }
 
+fn is_ignorable_punctuation(c: char) -> bool {
+    c.is_ascii_punctuation() && c != '_'
+}
+
 fn find_word_start<'a>(
     char_indices: &mut CharIndices,
 ) -> Option<<CharIndices<'a> as Iterator>::Item> {
@@ -96,14 +101,12 @@ impl<'a> Lexer<'a> {
     }
 
     fn substr<I: SliceIndex<str>>(&self, slice: I) -> &'a <I as SliceIndex<str>>::Output {
-        // unsafe { self.buf.get_unchecked(slice) }
+        #[cfg(not(debug_assertions))]
+        unsafe {
+            self.buf.get_unchecked(slice)
+        }
+        #[cfg(debug_assertions)]
         &self.buf[slice]
-    }
-
-    fn find_next_iter<P: Fn(char) -> bool>(&self, pred: P) -> CharIndices<'a> {
-        let mut iter = self.char_indices.clone();
-        iter.find(|t| pred(t.1));
-        iter
     }
 
     fn find_next_index<P: Fn(char) -> bool>(&self, pred: P) -> usize {
@@ -126,7 +129,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn find_next_word_end(&self) -> usize {
-        self.find_next_index(|c| c.is_whitespace() || c.is_ascii_punctuation())
+        self.find_next_index(|c| c.is_whitespace() || is_ignorable_punctuation(c))
     }
 
     fn scan_word(&self, start: usize) -> LexResult<'a> {
@@ -151,25 +154,49 @@ impl<'a> Lexer<'a> {
         match_keyword(self.substr(start..end)).map(|token| LexResult { token, end })
     }
 
-    fn scan_comment(&self, open: usize) -> LexResult<'a> {
+    fn scan_delimited<F: FnOnce(&'a str) -> Token<'a>>(
+        &self,
+        open: usize,
+        close_char: char,
+        factory: F,
+        error: ErrorMessage,
+    ) -> LexResult<'a> {
         let mut iter = self.char_indices.clone();
-        if let Some((close, _)) = iter.find(|&(_, c)| c == ')') {
+        if let Some((close, _)) = iter.find(|&(_, c)| c == close_char) {
             LexResult {
-                token: Token::Comment(self.substr((open + 1)..close)),
+                token: factory(self.substr((open + 1)..close)),
                 end: close + 1,
             }
         } else {
             LexResult {
-                token: Token::Error(self.substr(open..), ErrorMessage("Unterminated comment")),
+                token: Token::Error(self.substr(open..), error),
                 end: self.buf.len(),
             }
         }
     }
 
-    fn make_error_token(&self, start: usize) -> LexResult<'a> {
+    fn scan_comment(&self, open: usize) -> LexResult<'a> {
+        self.scan_delimited(
+            open,
+            ')',
+            |s| Token::Comment(s),
+            ErrorMessage("Unterminated comment"),
+        )
+    }
+
+    fn scan_string_literal(&self, open: usize) -> LexResult<'a> {
+        self.scan_delimited(
+            open,
+            '"',
+            |s| Token::StringLiteral(s),
+            ErrorMessage("Unterminated string literal"),
+        )
+    }
+
+    fn make_error_token(&self, start: usize, error: ErrorMessage) -> LexResult<'a> {
         let end = self.find_next_word_end();
         LexResult {
-            token: Token::Error(self.substr(start..end), ErrorMessage("Invalid token")),
+            token: Token::Error(self.substr(start..end), error),
             end,
         }
     }
@@ -207,13 +234,19 @@ impl<'a> Lexer<'a> {
                     '*' => char_token(Token::Multiply),
                     '/' => char_token(Token::Divide),
 
+                    '"' => self.scan_string_literal(start),
                     '(' => self.scan_comment(start),
 
+                    '_' => self.make_error_token(
+                        start,
+                        ErrorMessage("'_' is not a valid character because it can't be sung"),
+                    ),
+
                     c => {
-                        if c.is_ascii_punctuation() {
+                        if is_ignorable_punctuation(c) {
                             continue;
                         }
-                        let error = || self.make_error_token(start);
+                        let error = || self.make_error_token(start, ErrorMessage("Invalid token"));
                         if c.is_numeric() {
                             self.scan_number(start).unwrap_or_else(error)
                         } else if c.is_alphabetic() {
@@ -294,6 +327,10 @@ fn lex() {
         vec![Token::Word("hello"), Token::Word("world")]
     );
     assert_eq!(
+        lex("hello?world!"), // the spec isn't crystal clear here, but I'm allowing this
+        vec![Token::Word("hello"), Token::Word("world")]
+    );
+    assert_eq!(
         lex("\n\n\n"),
         vec![Token::Newline, Token::Newline, Token::Newline]
     );
@@ -314,6 +351,11 @@ fn lex() {
         lex("hi(hi)hi"),
         vec![Token::Word("hi"), Token::Comment("hi"), Token::Word("hi")]
     );
+
+    assert_eq!(
+        lex("\"Hello San Francisco\""),
+        vec![Token::StringLiteral("Hello San Francisco")]
+    );
 }
 
 #[test]
@@ -331,6 +373,8 @@ fn lex_errors() {
             ErrorMessage("Identifier may not contain non-alphabetic characters")
         )]
     );
+
+    // underscores are technically ascii punctuation, but I'm specifically disallowing them attached to identifiers
     assert_eq!(
         lex("ab_c"),
         vec![Token::Error(
@@ -338,4 +382,18 @@ fn lex_errors() {
             ErrorMessage("Identifier may not contain non-alphabetic characters")
         )]
     );
+
+    assert_eq!(
+        lex("_ _hilarious_easter_egg"),
+        vec![
+            Token::Error(
+                "_",
+                ErrorMessage("'_' is not a valid character because it can't be sung")
+            ),
+            Token::Error(
+                "_hilarious_easter_egg",
+                ErrorMessage("'_' is not a valid character because it can't be sung")
+            )
+        ]
+    )
 }
