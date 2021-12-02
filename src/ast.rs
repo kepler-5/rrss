@@ -23,6 +23,17 @@ impl From<LiteralExpression> for PrimaryExpression {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum UnaryOperator {
+    Minus,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct UnaryExpression {
+    pub operator: UnaryOperator,
+    pub operand: Box<Expression>,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum BinaryOperator {
     Plus,
     Minus,
@@ -41,6 +52,7 @@ pub struct BinaryExpression {
 pub enum Expression {
     Primary(PrimaryExpression),
     Binary(BinaryExpression),
+    Unary(UnaryExpression),
 }
 
 impl From<PrimaryExpression> for Expression {
@@ -52,6 +64,12 @@ impl From<PrimaryExpression> for Expression {
 impl From<LiteralExpression> for Expression {
     fn from(expr: LiteralExpression) -> Self {
         Expression::Primary(expr.into())
+    }
+}
+
+impl From<UnaryExpression> for Expression {
+    fn from(expr: UnaryExpression) -> Self {
+        Expression::Unary(expr)
     }
 }
 

@@ -129,7 +129,8 @@ impl<'a> Lexer<'a> {
     }
 
     fn scan_number(&self, start: usize) -> Option<LexResult<'a>> {
-        let end = self.find_next_index(|c| c.is_whitespace());
+        let end = self
+            .find_next_index(|c| c.is_whitespace() || (is_ignorable_punctuation(c) && c != '.'));
         self.substr(start..end)
             .parse::<f64>()
             .ok()
@@ -239,9 +240,7 @@ impl<'a> Lexer<'a> {
                     }
 
                     '+' => char_token(Token::Plus),
-                    '-' => self
-                        .scan_number(start)
-                        .unwrap_or_else(|| char_token(Token::Minus)),
+                    '-' => char_token(Token::Minus),
                     '*' => char_token(Token::Multiply),
                     '/' => char_token(Token::Divide),
 
@@ -332,7 +331,8 @@ fn lex() {
             Token::Number(2.0),
             Token::Number(3.4),
             Token::Number(0.6),
-            Token::Number(-7.0)
+            Token::Minus,
+            Token::Number(7.0)
         ]
     );
     assert_eq!(
@@ -384,6 +384,59 @@ fn lex() {
     assert_eq!(
         lex("\"Hello San Francisco\""),
         vec![Token::StringLiteral("Hello San Francisco")]
+    );
+
+    assert_eq!(
+        lex("1+1"),
+        vec![Token::Number(1.0), Token::Plus, Token::Number(1.0)]
+    );
+    assert_eq!(
+        lex("1+-1"),
+        vec![
+            Token::Number(1.0),
+            Token::Plus,
+            Token::Minus,
+            Token::Number(1.0)
+        ]
+    );
+    assert_eq!(
+        lex("foo+1"),
+        vec![Token::Word("foo"), Token::Plus, Token::Number(1.0)]
+    );
+    assert_eq!(
+        lex("foo+-1"),
+        vec![
+            Token::Word("foo"),
+            Token::Plus,
+            Token::Minus,
+            Token::Number(1.0)
+        ]
+    );
+    assert_eq!(
+        lex("1+foo"),
+        vec![Token::Number(1.0), Token::Plus, Token::Word("foo")]
+    );
+    assert_eq!(
+        lex("1+-foo"),
+        vec![
+            Token::Number(1.0),
+            Token::Plus,
+            Token::Minus,
+            Token::Word("foo")
+        ]
+    );
+    assert_eq!(
+        lex("foo+foo"),
+        vec![Token::Word("foo"), Token::Plus, Token::Word("foo")]
+    );
+    assert_eq!(
+        lex("foo+-foo"),
+        vec![
+            Token::Word("foo"),
+            Token::Plus,
+            Token::Minus,
+            Token::Word("foo")
+        ]
     );
 }
 

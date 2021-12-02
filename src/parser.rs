@@ -1,8 +1,9 @@
-use std::iter::Peekable;
+use std::{boxed, iter::Peekable};
 
 use crate::{
     ast::{
-        BinaryExpression, BinaryOperator, Expression, LiteralExpression, PrimaryExpression, Program,
+        BinaryExpression, BinaryOperator, Expression, LiteralExpression, PrimaryExpression,
+        Program, UnaryExpression, UnaryOperator,
     },
     lexer::{CommentSkippingLexer, Lexer, Token},
 };
@@ -45,6 +46,14 @@ impl<'a> Parser<'a> {
     }
 }
 
+fn get_unary_operator(token: Token) -> Option<UnaryOperator> {
+    match token {
+        Token::Minus => Some(UnaryOperator::Minus),
+
+        _ => None,
+    }
+}
+
 fn get_binary_operator(token: Token) -> Option<BinaryOperator> {
     match token {
         Token::Plus => Some(BinaryOperator::Plus),
@@ -61,25 +70,36 @@ fn boxed_expr(x: impl Into<Expression>) -> Box<Expression> {
 }
 
 impl<'a> Parser<'a> {
+    fn match_and_consume(&mut self, tokens: &[Token]) -> Option<Token> {
+        if self
+            .lexer
+            .peek()
+            .filter(|token| tokens.contains(token))
+            .is_some()
+        {
+            self.lexer.next()
+        } else {
+            None
+        }
+    }
+
     fn parse_expression(&mut self) -> Result<Expression, ParseError<'a>> {
         self.parse_term()
     }
 
     fn parse_term(&mut self) -> Result<Expression, ParseError<'a>> {
-        self.parse_binary_expression(&[BinaryOperator::Plus, BinaryOperator::Minus], |p| {
-            p.parse_factor()
-        })
+        self.parse_binary_expression(&[Token::Plus, Token::Minus], |p| p.parse_factor())
     }
 
     fn parse_factor(&mut self) -> Result<Expression, ParseError<'a>> {
-        self.parse_binary_expression(&[BinaryOperator::Multiply, BinaryOperator::Divide], |p| {
-            p.parse_primary_expression().map(Into::into)
+        self.parse_binary_expression(&[Token::Multiply, Token::Divide], |p| {
+            p.parse_unary_expression()
         })
     }
 
     fn parse_binary_expression<F>(
         &mut self,
-        operators: &[BinaryOperator],
+        operators: &[Token],
         next: F,
     ) -> Result<Expression, ParseError<'a>>
     where
@@ -87,12 +107,9 @@ impl<'a> Parser<'a> {
     {
         let mut expr = next(self)?;
         while let Some(operator) = self
-            .lexer
-            .peek()
-            .and_then(|token| get_binary_operator(*token))
-            .filter(|op| operators.iter().any(|o| o == op))
+            .match_and_consume(operators)
+            .map(|token| get_binary_operator(token).unwrap())
         {
-            self.lexer.next();
             let rhs = boxed_expr(next(self)?);
             expr = BinaryExpression {
                 operator,
@@ -102,6 +119,21 @@ impl<'a> Parser<'a> {
             .into();
         }
         Ok(expr)
+    }
+
+    fn parse_unary_expression(&mut self) -> Result<Expression, ParseError<'a>> {
+        if let Some(operator) = self
+            .match_and_consume(&[Token::Minus])
+            .map(|token| get_unary_operator(token).unwrap())
+        {
+            Ok(UnaryExpression {
+                operator,
+                operand: boxed_expr(self.parse_unary_expression()?),
+            }
+            .into())
+        } else {
+            self.parse_primary_expression().map(Into::into)
+        }
     }
 
     fn parse_primary_expression(&mut self) -> Result<PrimaryExpression, ParseError<'a>> {
@@ -142,7 +174,31 @@ fn parse_literal_expression() {
 }
 
 #[test]
-fn parse_expression() {
+fn parse_unary_expression() {
+    let parse = |text| Parser::for_source_code(text).parse_unary_expression();
+    assert_eq!(
+        parse("-1"),
+        Ok(UnaryExpression {
+            operator: UnaryOperator::Minus,
+            operand: boxed_expr(LiteralExpression::Number(1.0))
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("--1"),
+        Ok(UnaryExpression {
+            operator: UnaryOperator::Minus,
+            operand: boxed_expr(UnaryExpression {
+                operator: UnaryOperator::Minus,
+                operand: boxed_expr(LiteralExpression::Number(1.0))
+            })
+        }
+        .into())
+    );
+}
+
+#[test]
+fn parse_binary_expression() {
     let parse = |text| Parser::for_source_code(text).parse_expression();
     assert_eq!(
         parse("1 + 1"),
@@ -158,6 +214,17 @@ fn parse_expression() {
             operator: BinaryOperator::Minus,
             lhs: boxed_expr(LiteralExpression::Number(1.0)),
             rhs: boxed_expr(LiteralExpression::Number(1.0))
+        }))
+    );
+    assert_eq!(
+        parse("1 - -1"),
+        Ok(Expression::Binary(BinaryExpression {
+            operator: BinaryOperator::Minus,
+            lhs: boxed_expr(LiteralExpression::Number(1.0)),
+            rhs: boxed_expr(UnaryExpression {
+                operator: UnaryOperator::Minus,
+                operand: boxed_expr(LiteralExpression::Number(1.0))
+            })
         }))
     );
     assert_eq!(
