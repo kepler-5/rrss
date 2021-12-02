@@ -12,13 +12,42 @@ pub enum LiteralExpression {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct SimpleIdentifier(pub String);
+#[derive(Clone, Debug, PartialEq)]
+pub struct CommonIdentifier(pub String, pub String);
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProperIdentifier(pub Vec<String>);
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum PrimaryExpression {
     Literal(LiteralExpression),
+    Pronoun,
+    SimpleIdentifier(SimpleIdentifier),
+    CommonIdentifier(CommonIdentifier),
+    ProperIdentifier(ProperIdentifier),
 }
 
 impl From<LiteralExpression> for PrimaryExpression {
     fn from(expr: LiteralExpression) -> Self {
         PrimaryExpression::Literal(expr)
+    }
+}
+
+impl From<SimpleIdentifier> for PrimaryExpression {
+    fn from(expr: SimpleIdentifier) -> Self {
+        PrimaryExpression::SimpleIdentifier(expr)
+    }
+}
+
+impl From<CommonIdentifier> for PrimaryExpression {
+    fn from(expr: CommonIdentifier) -> Self {
+        PrimaryExpression::CommonIdentifier(expr)
+    }
+}
+
+impl From<ProperIdentifier> for PrimaryExpression {
+    fn from(expr: ProperIdentifier) -> Self {
+        PrimaryExpression::ProperIdentifier(expr)
     }
 }
 

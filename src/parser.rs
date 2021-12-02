@@ -1,9 +1,9 @@
-use std::{boxed, iter::Peekable};
+use std::iter::Peekable;
 
 use crate::{
     ast::{
-        BinaryExpression, BinaryOperator, Expression, LiteralExpression, PrimaryExpression,
-        Program, UnaryExpression, UnaryOperator,
+        BinaryExpression, BinaryOperator, CommonIdentifier, Expression, LiteralExpression,
+        PrimaryExpression, Program, SimpleIdentifier, UnaryExpression, UnaryOperator,
     },
     lexer::{CommentSkippingLexer, Lexer, Token},
 };
@@ -11,15 +11,18 @@ use crate::{
 #[derive(Debug, PartialEq)]
 pub struct ParseError<'a> {
     pub token: Option<Token<'a>>,
-    pub message: &'a str,
+    pub message: String,
 }
 
 impl<'a> ParseError<'a> {
-    pub fn new(token: Option<Token<'a>>, message: &'a str) -> Self {
-        Self { token, message }
+    pub fn new<S: Into<String>>(token: Option<Token<'a>>, message: S) -> Self {
+        Self {
+            token,
+            message: message.into(),
+        }
     }
 
-    pub fn saying(message: &'a str) -> Self {
+    pub fn saying<S: Into<String>>(message: S) -> Self {
         Self::new(None, message)
     }
 }
@@ -70,17 +73,16 @@ fn boxed_expr(x: impl Into<Expression>) -> Box<Expression> {
 }
 
 impl<'a> Parser<'a> {
-    fn match_and_consume(&mut self, tokens: &[Token]) -> Option<Token> {
-        if self
-            .lexer
-            .peek()
-            .filter(|token| tokens.contains(token))
-            .is_some()
-        {
+    fn match_and_consume_if<F: FnOnce(&Token) -> bool>(&mut self, f: F) -> Option<Token> {
+        if self.lexer.peek().filter(|tok| f(*tok)).is_some() {
             self.lexer.next()
         } else {
             None
         }
+    }
+
+    fn match_and_consume(&mut self, tokens: &[Token]) -> Option<Token> {
+        self.match_and_consume_if(|token| tokens.contains(token))
     }
 
     fn parse_expression(&mut self) -> Result<Expression, ParseError<'a>> {
@@ -137,22 +139,59 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_primary_expression(&mut self) -> Result<PrimaryExpression, ParseError<'a>> {
-        self.parse_literal_expression().map(Into::into)
+        self.parse_identifier()?
+            .or_else(|| {
+                self.parse_pronoun()
+                    .or_else(|| self.parse_literal_expression().map(Into::into))
+            })
+            .ok_or_else(|| ParseError::saying("Expected primary expression"))
     }
 
-    fn parse_literal_expression(&mut self) -> Result<LiteralExpression, ParseError<'a>> {
-        let error = || ParseError::saying("Expected literal");
-        self.lexer
-            .next()
-            .ok_or_else(error)
-            .and_then(|token| match token {
-                Token::Null => Ok(LiteralExpression::Null),
-                Token::Number(n) => Ok(LiteralExpression::Number(n)),
-                Token::StringLiteral(s) => Ok(LiteralExpression::String(s.to_owned())),
-                Token::True => Ok(LiteralExpression::Boolean(true)),
-                Token::False => Ok(LiteralExpression::Boolean(false)),
-                _ => Err(error()),
-            })
+    fn parse_pronoun(&mut self) -> Option<PrimaryExpression> {
+        self.match_and_consume(&[Token::Pronoun])
+            .map(|_| PrimaryExpression::Pronoun)
+    }
+
+    fn parse_literal_expression(&mut self) -> Option<LiteralExpression> {
+        self.lexer.next().and_then(|token| match token {
+            Token::Null => Some(LiteralExpression::Null),
+            Token::Number(n) => Some(LiteralExpression::Number(n)),
+            Token::StringLiteral(s) => Some(LiteralExpression::String(s.to_owned())),
+            Token::True => Some(LiteralExpression::Boolean(true)),
+            Token::False => Some(LiteralExpression::Boolean(false)),
+            _ => None,
+        })
+    }
+
+    fn match_and_extract_text<F: FnOnce(&Token) -> bool>(&mut self, f: F) -> Option<String> {
+        self.match_and_consume_if(f).and_then(|tok| match tok {
+            Token::Word(text) => Some(text.to_owned()),
+            Token::CommonVariablePrefix(text) => Some(text.to_owned()),
+
+            _ => None,
+        })
+    }
+
+    fn parse_identifier(&mut self) -> Result<Option<PrimaryExpression>, ParseError<'a>> {
+        if let Some(prefix) =
+            self.match_and_extract_text(|tok| matches!(tok, Token::CommonVariablePrefix(_)))
+        {
+            let identifier = Some(
+                self.match_and_extract_text(|tok| matches!(tok, Token::Word(_)))
+                    .ok_or_else(|| {
+                        ParseError::saying("Expected identifier after '".to_owned() + &prefix + "'")
+                    })?,
+            )
+            .filter(|text| text.chars().all(|c| c.is_ascii_lowercase()))
+            .ok_or_else(|| {
+                ParseError::saying(
+                    "Common variables must be all-lowercase (after '".to_owned() + &prefix + "')",
+                )
+            })?;
+            Ok(Some(CommonIdentifier(prefix, identifier).into()))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -163,14 +202,17 @@ pub fn parse(text: &str) -> Result<Program, ParseError> {
 #[test]
 fn parse_literal_expression() {
     let parse = |text| Parser::for_source_code(text).parse_literal_expression();
-    assert_eq!(parse("null"), Ok(LiteralExpression::Null));
-    assert_eq!(parse("true"), Ok(LiteralExpression::Boolean(true)));
-    assert_eq!(parse("false"), Ok(LiteralExpression::Boolean(false)));
-    assert_eq!(parse("\"\""), Ok(LiteralExpression::String("".to_owned())));
-    assert_eq!(parse("5"), Ok(LiteralExpression::Number(5.0)));
+    assert_eq!(parse("null"), Some(LiteralExpression::Null));
+    assert_eq!(parse("true"), Some(LiteralExpression::Boolean(true)));
+    assert_eq!(parse("false"), Some(LiteralExpression::Boolean(false)));
+    assert_eq!(
+        parse("\"\""),
+        Some(LiteralExpression::String("".to_owned()))
+    );
+    assert_eq!(parse("5"), Some(LiteralExpression::Number(5.0)));
 
-    assert_eq!(parse(""), Err(ParseError::saying("Expected literal")));
-    assert_eq!(parse("foo"), Err(ParseError::saying("Expected literal")));
+    assert_eq!(parse(""), None);
+    assert_eq!(parse("foo"), None);
 }
 
 #[test]
@@ -317,4 +359,76 @@ fn parse_binary_expression() {
             })),
         }))
     );
+}
+
+#[test]
+fn parse_identifier() {
+    let parse = |text| Parser::for_source_code(text).parse_identifier();
+    assert_eq!(parse(""), Ok(None));
+    assert_eq!(parse("1"), Ok(None));
+
+    assert_eq!(
+        parse("my heart"),
+        Ok(Some(CommonIdentifier("my".into(), "heart".into()).into()))
+    );
+    assert_eq!(
+        parse("your heart"),
+        Ok(Some(CommonIdentifier("your".into(), "heart".into()).into()))
+    );
+
+    assert_eq!(
+        parse("my"),
+        Err(ParseError::saying("Expected identifier after 'my'"))
+    );
+    assert_eq!(
+        parse("your"),
+        Err(ParseError::saying("Expected identifier after 'your'"))
+    );
+
+    assert_eq!(
+        parse("my Heart"),
+        Err(ParseError::saying(
+            "Common variables must be all-lowercase (after 'my')"
+        ))
+    );
+    assert_eq!(
+        parse("your Heart"),
+        Err(ParseError::saying(
+            "Common variables must be all-lowercase (after 'your')"
+        ))
+    );
+}
+
+#[test]
+fn parse_pronoun() {
+    for p in [
+        "it", "he", "she", "him", "her", "they", "them", "ze", "hir", "zie", "zir", "xe", "xem",
+        "ve", "ver",
+    ] {
+        assert_eq!(
+            Parser::for_source_code(p).parse_pronoun(),
+            Some(PrimaryExpression::Pronoun)
+        );
+    }
+}
+
+#[test]
+fn parse_expression() {
+    let parse = |text| Parser::for_source_code(text).parse_expression();
+
+    assert_eq!(
+        parse("my heart * your heart"),
+        Ok(BinaryExpression {
+            operator: BinaryOperator::Multiply,
+            lhs: boxed_expr(PrimaryExpression::from(CommonIdentifier(
+                "my".into(),
+                "heart".into()
+            ))),
+            rhs: boxed_expr(PrimaryExpression::from(CommonIdentifier(
+                "your".into(),
+                "heart".into()
+            )))
+        }
+        .into())
+    )
 }
