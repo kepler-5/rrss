@@ -2,9 +2,9 @@ use std::iter::Peekable;
 
 use crate::{
     ast::{
-        BinaryExpression, BinaryOperator, CommonIdentifier, Expression, LiteralExpression,
-        PrimaryExpression, Program, ProperIdentifier, SimpleIdentifier, UnaryExpression,
-        UnaryOperator,
+        BinaryExpression, BinaryOperator, CommonIdentifier, Expression, Identifier,
+        LiteralExpression, PrimaryExpression, Program, ProperIdentifier, SimpleIdentifier,
+        UnaryExpression, UnaryOperator,
     },
     lexer::{CommentSkippingLexer, Lexer, Token},
 };
@@ -169,6 +169,7 @@ impl<'a> Parser<'a> {
 
     fn parse_primary_expression(&mut self) -> Result<PrimaryExpression, ParseError<'a>> {
         self.parse_identifier()?
+            .map(Into::into)
             .or_else(|| {
                 self.parse_pronoun()
                     .or_else(|| self.parse_literal_expression().map(Into::into))
@@ -232,7 +233,7 @@ impl<'a> Parser<'a> {
         (!names.is_empty()).then(|| ProperIdentifier(names))
     }
 
-    fn parse_identifier(&mut self) -> Result<Option<PrimaryExpression>, ParseError<'a>> {
+    fn parse_identifier(&mut self) -> Result<Option<Identifier>, ParseError<'a>> {
         Ok(self.parse_common_identifier()?.map(Into::into).or_else(|| {
             self.parse_proper_identifier()
                 .map(Into::into)

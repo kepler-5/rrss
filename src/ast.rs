@@ -19,12 +19,35 @@ pub struct CommonIdentifier(pub String, pub String);
 pub struct ProperIdentifier(pub Vec<String>);
 
 #[derive(Clone, Debug, PartialEq)]
+pub enum Identifier {
+    Simple(SimpleIdentifier),
+    Common(CommonIdentifier),
+    Proper(ProperIdentifier),
+}
+
+impl From<SimpleIdentifier> for Identifier {
+    fn from(expr: SimpleIdentifier) -> Self {
+        Identifier::Simple(expr)
+    }
+}
+
+impl From<CommonIdentifier> for Identifier {
+    fn from(expr: CommonIdentifier) -> Self {
+        Identifier::Common(expr)
+    }
+}
+
+impl From<ProperIdentifier> for Identifier {
+    fn from(expr: ProperIdentifier) -> Self {
+        Identifier::Proper(expr)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum PrimaryExpression {
     Literal(LiteralExpression),
     Pronoun,
-    SimpleIdentifier(SimpleIdentifier),
-    CommonIdentifier(CommonIdentifier),
-    ProperIdentifier(ProperIdentifier),
+    Identifier(Identifier),
 }
 
 impl From<LiteralExpression> for PrimaryExpression {
@@ -33,21 +56,27 @@ impl From<LiteralExpression> for PrimaryExpression {
     }
 }
 
+impl From<Identifier> for PrimaryExpression {
+    fn from(expr: Identifier) -> Self {
+        PrimaryExpression::Identifier(expr)
+    }
+}
+
 impl From<SimpleIdentifier> for PrimaryExpression {
     fn from(expr: SimpleIdentifier) -> Self {
-        PrimaryExpression::SimpleIdentifier(expr)
+        PrimaryExpression::Identifier(expr.into())
     }
 }
 
 impl From<CommonIdentifier> for PrimaryExpression {
     fn from(expr: CommonIdentifier) -> Self {
-        PrimaryExpression::CommonIdentifier(expr)
+        PrimaryExpression::Identifier(expr.into())
     }
 }
 
 impl From<ProperIdentifier> for PrimaryExpression {
     fn from(expr: ProperIdentifier) -> Self {
-        PrimaryExpression::ProperIdentifier(expr)
+        PrimaryExpression::Identifier(expr.into())
     }
 }
 
