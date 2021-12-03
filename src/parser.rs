@@ -9,22 +9,28 @@ use crate::{
     lexer::{CommentSkippingLexer, Lexer, Token},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ParseErrorCode {
+    Generic(String),
+    MissingIDAfterCommonPrefix(String),
+    UppercaseAfterCommonPrefix(String, String),
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct ParseError<'a> {
+    pub code: ParseErrorCode,
     pub token: Option<Token<'a>>,
-    pub message: String,
 }
 
 impl<'a> ParseError<'a> {
-    pub fn new<S: Into<String>>(token: Option<Token<'a>>, message: S) -> Self {
-        Self {
-            token,
-            message: message.into(),
-        }
+    pub fn new(code: ParseErrorCode, token: Option<Token<'a>>) -> Self {
+        Self { code, token }
     }
+}
 
-    pub fn saying<S: Into<String>>(message: S) -> Self {
-        Self::new(None, message)
+impl<'a> From<ParseErrorCode> for ParseError<'a> {
+    fn from(code: ParseErrorCode) -> Self {
+        ParseError::new(code, None)
     }
 }
 
@@ -167,7 +173,7 @@ impl<'a> Parser<'a> {
                 self.parse_pronoun()
                     .or_else(|| self.parse_literal_expression().map(Into::into))
             })
-            .ok_or_else(|| ParseError::saying("Expected primary expression"))
+            .ok_or_else(|| ParseErrorCode::Generic("Expected primary expression".into()).into())
     }
 
     fn parse_pronoun(&mut self) -> Option<PrimaryExpression> {
@@ -194,18 +200,19 @@ impl<'a> Parser<'a> {
         if let Some(prefix) =
             self.match_and_extract_text(|tok| matches!(tok, Token::CommonVariablePrefix(_)))
         {
-            let identifier_tokens = |tok: &Token| {
-                matches!(tok, Token::Word(_) | Token::CapitalizedWord(_)) // capitalized words are invalid, but we want to match them for good error messages
-            };
-            let identifier = Some(self.match_and_extract_text(identifier_tokens).ok_or_else(
-                || ParseError::saying("Expected identifier after '".to_owned() + &prefix + "'"),
-            )?)
-            .filter(|text| text.chars().all(|c| c.is_ascii_lowercase()))
-            .ok_or_else(|| {
-                ParseError::saying(
-                    "Common variables must be all-lowercase (after '".to_owned() + &prefix + "')",
-                )
-            })?;
+            let next_word = self
+                .match_and_extract_text(|tok: &Token| {
+                    matches!(tok, Token::Word(_) | Token::CapitalizedWord(_)) // capitalized words are invalid, but we want to match them for good error messages
+                })
+                .ok_or_else(|| ParseErrorCode::MissingIDAfterCommonPrefix(prefix.clone()))?;
+            // TODO there's an extra string clone here in both paths
+            let identifier = next_word
+                .chars()
+                .all(|c| c.is_ascii_lowercase())
+                .then(|| next_word.clone())
+                .ok_or_else(|| {
+                    ParseErrorCode::UppercaseAfterCommonPrefix(prefix.clone(), next_word.clone())
+                })?;
             Ok(Some(CommonIdentifier(prefix, identifier)))
         } else {
             Ok(None)
@@ -222,11 +229,7 @@ impl<'a> Parser<'a> {
             |tok| matches!(tok, Token::CapitalizedWord(_)),
             |tok| extract_text(tok).unwrap(),
         );
-        if !names.is_empty() {
-            Some(ProperIdentifier(names))
-        } else {
-            None
-        }
+        (!names.is_empty()).then(|| ProperIdentifier(names))
     }
 
     fn parse_identifier(&mut self) -> Result<Option<PrimaryExpression>, ParseError<'a>> {
@@ -465,42 +468,32 @@ fn parse_identifier() {
 
     assert_eq!(
         parse("my"),
-        Err(ParseError::saying("Expected identifier after 'my'"))
+        Err(ParseErrorCode::MissingIDAfterCommonPrefix("my".into()).into())
     );
     assert_eq!(
         parse("your"),
-        Err(ParseError::saying("Expected identifier after 'your'"))
+        Err(ParseErrorCode::MissingIDAfterCommonPrefix("your".into()).into())
     );
 
     assert_eq!(
         parse("my Heart"),
-        Err(ParseError::saying(
-            "Common variables must be all-lowercase (after 'my')"
-        ))
+        Err(ParseErrorCode::UppercaseAfterCommonPrefix("my".into(), "Heart".into()).into())
     );
     assert_eq!(
         parse("your Heart"),
-        Err(ParseError::saying(
-            "Common variables must be all-lowercase (after 'your')"
-        ))
+        Err(ParseErrorCode::UppercaseAfterCommonPrefix("your".into(), "Heart".into()).into())
     );
     assert_eq!(
         parse("My Heart"),
-        Err(ParseError::saying(
-            "Common variables must be all-lowercase (after 'My')"
-        ))
+        Err(ParseErrorCode::UppercaseAfterCommonPrefix("My".into(), "Heart".into()).into())
     );
     assert_eq!(
         parse("Your Heart"),
-        Err(ParseError::saying(
-            "Common variables must be all-lowercase (after 'Your')"
-        ))
+        Err(ParseErrorCode::UppercaseAfterCommonPrefix("Your".into(), "Heart".into()).into())
     );
     assert_eq!(
         parse("your heArt"),
-        Err(ParseError::saying(
-            "Common variables must be all-lowercase (after 'your')"
-        ))
+        Err(ParseErrorCode::UppercaseAfterCommonPrefix("your".into(), "heArt".into()).into())
     );
 }
 
