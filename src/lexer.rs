@@ -27,6 +27,7 @@ pub enum Token<'a> {
     Into,
     Let,
     Be,
+    With,
 
     Newline,
     Comment(&'a str),
@@ -66,10 +67,12 @@ lazy_static! {
             ],
         );
 
-        alias(Token::Plus, &["plus", "with"]);
+        alias(Token::Plus, &["plus"]);
         alias(Token::Minus, &["minus", "without"]);
         alias(Token::Multiply, &["times", "of"]);
         alias(Token::Divide, &["over", "between"]);
+
+        m.insert("with", Token::With);
 
         m.extend(
             ["a", "an", "the", "my", "your", "our"]
@@ -424,7 +427,7 @@ fn lex() {
         vec![Token::Plus, Token::Minus, Token::Multiply, Token::Divide]
     );
 
-    assert_eq!(lex("plus with"), vec![Token::Plus, Token::Plus]);
+    assert_eq!(lex("plus with"), vec![Token::Plus, Token::With]);
     assert_eq!(lex("minus without"), vec![Token::Minus, Token::Minus]);
     assert_eq!(lex("times of"), vec![Token::Multiply, Token::Multiply]);
     assert_eq!(lex("over between"), vec![Token::Divide, Token::Divide]);

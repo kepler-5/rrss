@@ -64,7 +64,7 @@ fn get_unary_operator(token: Token) -> Option<UnaryOperator> {
 
 fn get_binary_operator(token: Token) -> Option<BinaryOperator> {
     match token {
-        Token::Plus => Some(BinaryOperator::Plus),
+        Token::Plus | Token::With => Some(BinaryOperator::Plus),
         Token::Minus => Some(BinaryOperator::Minus),
         Token::Multiply => Some(BinaryOperator::Multiply),
         Token::Divide => Some(BinaryOperator::Divide),
@@ -300,14 +300,31 @@ impl<'a> Parser<'a> {
         let value = boxed_expr(self.parse_expression()?);
         self.expect_token(Token::Into)?;
         let dest = self.expect_identifier()?;
-        Ok(Assignment { dest, value })
+        Ok(Assignment {
+            dest,
+            value,
+            operator: None,
+        })
     }
     fn parse_let_assignment(&mut self) -> Result<Assignment, ParseError<'a>> {
         self.consume(Token::Let);
         let dest = self.expect_identifier()?;
         self.expect_token(Token::Be)?;
+        let operator = self
+            .match_and_consume_any(&[
+                Token::Plus,
+                Token::With,
+                Token::Minus,
+                Token::Multiply,
+                Token::Divide,
+            ])
+            .map(|tok| get_binary_operator(tok).unwrap());
         let value = boxed_expr(self.parse_expression()?);
-        Ok(Assignment { dest, value })
+        Ok(Assignment {
+            dest,
+            value,
+            operator,
+        })
     }
 }
 
@@ -630,7 +647,8 @@ fn parse_assignment() {
         parse("Put 123 into X"),
         Ok(Assignment {
             dest: ProperIdentifier(vec!["X".into()]).into(),
-            value: boxed_expr(LiteralExpression::Number(123.0))
+            value: boxed_expr(LiteralExpression::Number(123.0)),
+            operator: None
         }
         .into())
     );
@@ -638,7 +656,8 @@ fn parse_assignment() {
         parse("Put \"Hello San Francisco\" into the message"),
         Ok(Assignment {
             dest: CommonIdentifier("the".into(), "message".into()).into(),
-            value: boxed_expr(LiteralExpression::String("Hello San Francisco".into()))
+            value: boxed_expr(LiteralExpression::String("Hello San Francisco".into())),
+            operator: None
         }
         .into())
     );
@@ -646,7 +665,8 @@ fn parse_assignment() {
         parse("Let my balance be 1000000"),
         Ok(Assignment {
             dest: CommonIdentifier("my".into(), "balance".into()).into(),
-            value: boxed_expr(LiteralExpression::Number(1000000.0))
+            value: boxed_expr(LiteralExpression::Number(1000000.0)),
+            operator: None
         }
         .into())
     );
@@ -658,7 +678,36 @@ fn parse_assignment() {
                 operator: BinaryOperator::Minus,
                 lhs: boxed_expr(CommonIdentifier("the".into(), "brave".into())),
                 rhs: boxed_expr(CommonIdentifier("the".into(), "fallen".into()))
-            })
+            }),
+            operator: None
+        }
+        .into())
+    );
+
+    assert_eq!(
+        parse("Let X be with 10"),
+        Ok(Assignment {
+            dest: ProperIdentifier(vec!["X".into()]).into(),
+            value: boxed_expr(LiteralExpression::Number(10.0)),
+            operator: Some(BinaryOperator::Plus),
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("Let the children be without fear"),
+        Ok(Assignment {
+            dest: CommonIdentifier("the".into(), "children".into()).into(),
+            value: boxed_expr(SimpleIdentifier("fear".into())),
+            operator: Some(BinaryOperator::Minus),
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("Let my heart be over the moon"),
+        Ok(Assignment {
+            dest: CommonIdentifier("my".into(), "heart".into()).into(),
+            value: boxed_expr(CommonIdentifier("the".into(), "moon".into())),
+            operator: Some(BinaryOperator::Divide),
         }
         .into())
     );

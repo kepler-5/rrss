@@ -117,6 +117,7 @@ impl From<BinaryExpression> for Expression {
 pub struct Assignment {
     pub dest: Identifier,
     pub value: Box<Expression>,
+    pub operator: Option<BinaryOperator>, // for compound assignments
 }
 
 #[derive(Debug, PartialEq)]
