@@ -1,6 +1,6 @@
 #[derive(Debug, PartialEq)]
 pub struct Program {
-    pub code: Vec<Expression>,
+    pub code: Vec<Statement>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -56,27 +56,9 @@ impl From<LiteralExpression> for PrimaryExpression {
     }
 }
 
-impl From<Identifier> for PrimaryExpression {
-    fn from(expr: Identifier) -> Self {
-        PrimaryExpression::Identifier(expr)
-    }
-}
-
-impl From<SimpleIdentifier> for PrimaryExpression {
-    fn from(expr: SimpleIdentifier) -> Self {
-        PrimaryExpression::Identifier(expr.into())
-    }
-}
-
-impl From<CommonIdentifier> for PrimaryExpression {
-    fn from(expr: CommonIdentifier) -> Self {
-        PrimaryExpression::Identifier(expr.into())
-    }
-}
-
-impl From<ProperIdentifier> for PrimaryExpression {
-    fn from(expr: ProperIdentifier) -> Self {
-        PrimaryExpression::Identifier(expr.into())
+impl<I: Into<Identifier>> From<I> for PrimaryExpression {
+    fn from(id: I) -> Self {
+        PrimaryExpression::Identifier(id.into())
     }
 }
 
@@ -113,14 +95,8 @@ pub enum Expression {
     Unary(UnaryExpression),
 }
 
-impl From<PrimaryExpression> for Expression {
-    fn from(expr: PrimaryExpression) -> Self {
-        Expression::Primary(expr)
-    }
-}
-
-impl From<LiteralExpression> for Expression {
-    fn from(expr: LiteralExpression) -> Self {
+impl<E: Into<PrimaryExpression>> From<E> for Expression {
+    fn from(expr: E) -> Self {
         Expression::Primary(expr.into())
     }
 }
@@ -134,5 +110,22 @@ impl From<UnaryExpression> for Expression {
 impl From<BinaryExpression> for Expression {
     fn from(expr: BinaryExpression) -> Self {
         Expression::Binary(expr)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Assignment {
+    pub dest: Identifier,
+    pub value: Box<Expression>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Statement {
+    Assignment(Assignment),
+}
+
+impl From<Assignment> for Statement {
+    fn from(a: Assignment) -> Self {
+        Statement::Assignment(a.into())
     }
 }

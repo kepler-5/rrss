@@ -23,6 +23,11 @@ pub enum Token<'a> {
     Multiply,
     Divide,
 
+    Put,
+    Into,
+    Let,
+    Be,
+
     Newline,
     Comment(&'a str),
     Error(&'a str, ErrorMessage),
@@ -61,11 +66,21 @@ lazy_static! {
             ],
         );
 
+        alias(Token::Plus, &["plus", "with"]);
+        alias(Token::Minus, &["minus", "without"]);
+        alias(Token::Multiply, &["times", "of"]);
+        alias(Token::Divide, &["over", "between"]);
+
         m.extend(
             ["a", "an", "the", "my", "your", "our"]
                 .iter()
                 .map(|pre| (*pre, Token::CommonVariablePrefix(pre))),
         );
+
+        m.insert("put", Token::Put);
+        m.insert("into", Token::Into);
+        m.insert("let", Token::Let);
+        m.insert("be", Token::Be);
 
         m
     };
@@ -408,6 +423,11 @@ fn lex() {
         lex("+ - * /"),
         vec![Token::Plus, Token::Minus, Token::Multiply, Token::Divide]
     );
+
+    assert_eq!(lex("plus with"), vec![Token::Plus, Token::Plus]);
+    assert_eq!(lex("minus without"), vec![Token::Minus, Token::Minus]);
+    assert_eq!(lex("times of"), vec![Token::Multiply, Token::Multiply]);
+    assert_eq!(lex("over between"), vec![Token::Divide, Token::Divide]);
 
     assert_eq!(lex("()"), vec![Token::Comment("")]);
     assert_eq!(lex("(hi)"), vec![Token::Comment("hi")]);

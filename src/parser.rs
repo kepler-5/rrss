@@ -2,35 +2,33 @@ use std::iter::Peekable;
 
 use crate::{
     ast::{
-        BinaryExpression, BinaryOperator, CommonIdentifier, Expression, Identifier,
+        Assignment, BinaryExpression, BinaryOperator, CommonIdentifier, Expression, Identifier,
         LiteralExpression, PrimaryExpression, Program, ProperIdentifier, SimpleIdentifier,
-        UnaryExpression, UnaryOperator,
+        Statement, UnaryExpression, UnaryOperator,
     },
     lexer::{CommentSkippingLexer, Lexer, Token},
 };
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ParseErrorCode {
+#[derive(Clone, Debug, PartialEq)]
+pub enum ParseErrorCode<'a> {
     Generic(String),
     MissingIDAfterCommonPrefix(String),
     UppercaseAfterCommonPrefix(String, String),
+    ExpectedIdentifier,
+    ExpectedToken(Token<'a>),
+    UnexpectedToken,
+    UnexpectedEndOfTokens,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParseError<'a> {
-    pub code: ParseErrorCode,
+    pub code: ParseErrorCode<'a>,
     pub token: Option<Token<'a>>,
 }
 
 impl<'a> ParseError<'a> {
-    pub fn new(code: ParseErrorCode, token: Option<Token<'a>>) -> Self {
+    pub fn new(code: ParseErrorCode<'a>, token: Option<Token<'a>>) -> Self {
         Self { code, token }
-    }
-}
-
-impl<'a> From<ParseErrorCode> for ParseError<'a> {
-    fn from(code: ParseErrorCode) -> Self {
-        ParseError::new(code, None)
     }
 }
 
@@ -51,7 +49,7 @@ impl<'a> Parser<'a> {
 
     pub fn parse(mut self) -> Result<Program, ParseError<'a>> {
         Ok(Program {
-            code: vec![self.parse_expression()?],
+            code: vec![self.parse_statement()?],
         })
     }
 }
@@ -90,7 +88,15 @@ fn boxed_expr(x: impl Into<Expression>) -> Box<Expression> {
 }
 
 impl<'a> Parser<'a> {
-    fn match_and_consume_if<F: FnOnce(&Token) -> bool>(&mut self, f: F) -> Option<Token> {
+    fn current(&mut self) -> Option<Token<'a>> {
+        self.lexer.peek().copied()
+    }
+
+    fn new_parse_error(&mut self, code: ParseErrorCode<'a>) -> ParseError<'a> {
+        ParseError::new(code, self.current())
+    }
+
+    fn match_and_consume_if<F: FnOnce(&Token) -> bool>(&mut self, f: F) -> Option<Token<'a>> {
         if self.lexer.peek().filter(|tok| f(*tok)).is_some() {
             self.lexer.next()
         } else {
@@ -98,8 +104,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn match_and_consume(&mut self, tokens: &[Token]) -> Option<Token> {
+    fn match_and_consume_any(&mut self, tokens: &[Token]) -> Option<Token<'a>> {
         self.match_and_consume_if(|token| tokens.contains(token))
+    }
+
+    fn match_and_consume(&mut self, token: Token) -> Option<Token<'a>> {
+        self.match_and_consume_if(|tok| *tok == token)
     }
 
     fn match_and_consume_while<F, R, Tx>(&mut self, f: F, tx: Tx) -> Vec<R>
@@ -112,6 +122,15 @@ impl<'a> Parser<'a> {
             result.push(tx(&token));
         }
         result
+    }
+
+    // step past a token we *know* satisfies the predicate
+    fn consume_if<F: FnOnce(&Token) -> bool>(&mut self, f: F) {
+        let tok = self.lexer.next();
+        assert!(tok.filter(f).is_some());
+    }
+    fn consume(&mut self, token: Token) {
+        self.consume_if(|tok| *tok == token)
     }
 
     fn parse_expression(&mut self) -> Result<Expression, ParseError<'a>> {
@@ -138,7 +157,7 @@ impl<'a> Parser<'a> {
     {
         let mut expr = next(self)?;
         while let Some(operator) = self
-            .match_and_consume(operators)
+            .match_and_consume_any(operators)
             .map(|token| get_binary_operator(token).unwrap())
         {
             let rhs = boxed_expr(next(self)?);
@@ -154,7 +173,7 @@ impl<'a> Parser<'a> {
 
     fn parse_unary_expression(&mut self) -> Result<Expression, ParseError<'a>> {
         if let Some(operator) = self
-            .match_and_consume(&[Token::Minus])
+            .match_and_consume(Token::Minus)
             .map(|token| get_unary_operator(token).unwrap())
         {
             Ok(UnaryExpression {
@@ -174,11 +193,15 @@ impl<'a> Parser<'a> {
                 self.parse_pronoun()
                     .or_else(|| self.parse_literal_expression().map(Into::into))
             })
-            .ok_or_else(|| ParseErrorCode::Generic("Expected primary expression".into()).into())
+            .ok_or_else(|| {
+                self.new_parse_error(ParseErrorCode::Generic(
+                    "Expected primary expression".into(),
+                ))
+            })
     }
 
     fn parse_pronoun(&mut self) -> Option<PrimaryExpression> {
-        self.match_and_consume(&[Token::Pronoun])
+        self.match_and_consume(Token::Pronoun)
             .map(|_| PrimaryExpression::Pronoun)
     }
 
@@ -205,14 +228,19 @@ impl<'a> Parser<'a> {
                 .match_and_extract_text(|tok: &Token| {
                     matches!(tok, Token::Word(_) | Token::CapitalizedWord(_)) // capitalized words are invalid, but we want to match them for good error messages
                 })
-                .ok_or_else(|| ParseErrorCode::MissingIDAfterCommonPrefix(prefix.clone()))?;
+                .ok_or_else(|| {
+                    self.new_parse_error(ParseErrorCode::MissingIDAfterCommonPrefix(prefix.clone()))
+                })?;
             // TODO there's an extra string clone here in both paths
             let identifier = next_word
                 .chars()
                 .all(|c| c.is_ascii_lowercase())
                 .then(|| next_word.clone())
                 .ok_or_else(|| {
-                    ParseErrorCode::UppercaseAfterCommonPrefix(prefix.clone(), next_word.clone())
+                    self.new_parse_error(ParseErrorCode::UppercaseAfterCommonPrefix(
+                        prefix.clone(),
+                        next_word.clone(),
+                    ))
                 })?;
             Ok(Some(CommonIdentifier(prefix, identifier)))
         } else {
@@ -239,6 +267,47 @@ impl<'a> Parser<'a> {
                 .map(Into::into)
                 .or_else(|| self.parse_simple_identifier().map(Into::into))
         }))
+    }
+
+    fn parse_statement(&mut self) -> Result<Statement, ParseError<'a>> {
+        let current_token = self
+            .current()
+            .ok_or_else(|| self.new_parse_error(ParseErrorCode::UnexpectedEndOfTokens))?;
+        Ok(match current_token {
+            Token::Put => self.parse_put_assignment()?.into(),
+            Token::Let => self.parse_let_assignment()?.into(),
+
+            _ => {
+                let error = self.new_parse_error(ParseErrorCode::UnexpectedToken);
+                self.lexer.next();
+                Err(error)?
+            }
+        })
+    }
+
+    fn expect_token(&mut self, tok: Token<'a>) -> Result<Token<'a>, ParseError<'a>> {
+        self.match_and_consume(tok)
+            .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedToken(tok)))
+    }
+
+    fn expect_identifier(&mut self) -> Result<Identifier, ParseError<'a>> {
+        self.parse_identifier()?
+            .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedIdentifier))
+    }
+
+    fn parse_put_assignment<'b>(&'b mut self) -> Result<Assignment, ParseError<'a>> {
+        self.consume(Token::Put);
+        let value = boxed_expr(self.parse_expression()?);
+        self.expect_token(Token::Into)?;
+        let dest = self.expect_identifier()?;
+        Ok(Assignment { dest, value })
+    }
+    fn parse_let_assignment(&mut self) -> Result<Assignment, ParseError<'a>> {
+        self.consume(Token::Let);
+        let dest = self.expect_identifier()?;
+        self.expect_token(Token::Be)?;
+        let value = boxed_expr(self.parse_expression()?);
+        Ok(Assignment { dest, value })
     }
 }
 
@@ -469,32 +538,53 @@ fn parse_identifier() {
 
     assert_eq!(
         parse("my"),
-        Err(ParseErrorCode::MissingIDAfterCommonPrefix("my".into()).into())
+        Err(ParseError::new(
+            ParseErrorCode::MissingIDAfterCommonPrefix("my".into()),
+            None
+        ))
     );
     assert_eq!(
         parse("your"),
-        Err(ParseErrorCode::MissingIDAfterCommonPrefix("your".into()).into())
+        Err(ParseError::new(
+            ParseErrorCode::MissingIDAfterCommonPrefix("your".into()),
+            None
+        ))
     );
 
     assert_eq!(
         parse("my Heart"),
-        Err(ParseErrorCode::UppercaseAfterCommonPrefix("my".into(), "Heart".into()).into())
+        Err(ParseError::new(
+            ParseErrorCode::UppercaseAfterCommonPrefix("my".into(), "Heart".into()).into(),
+            None
+        ))
     );
     assert_eq!(
         parse("your Heart"),
-        Err(ParseErrorCode::UppercaseAfterCommonPrefix("your".into(), "Heart".into()).into())
+        Err(ParseError::new(
+            ParseErrorCode::UppercaseAfterCommonPrefix("your".into(), "Heart".into()).into(),
+            None
+        ))
     );
     assert_eq!(
         parse("My Heart"),
-        Err(ParseErrorCode::UppercaseAfterCommonPrefix("My".into(), "Heart".into()).into())
+        Err(ParseError::new(
+            ParseErrorCode::UppercaseAfterCommonPrefix("My".into(), "Heart".into()).into(),
+            None
+        ))
     );
     assert_eq!(
         parse("Your Heart"),
-        Err(ParseErrorCode::UppercaseAfterCommonPrefix("Your".into(), "Heart".into()).into())
+        Err(ParseError::new(
+            ParseErrorCode::UppercaseAfterCommonPrefix("Your".into(), "Heart".into()).into(),
+            None
+        ))
     );
     assert_eq!(
         parse("your heArt"),
-        Err(ParseErrorCode::UppercaseAfterCommonPrefix("your".into(), "heArt".into()).into())
+        Err(ParseError::new(
+            ParseErrorCode::UppercaseAfterCommonPrefix("your".into(), "heArt".into()).into(),
+            None
+        ))
     );
 }
 
@@ -527,6 +617,48 @@ fn parse_expression() {
                 "your".into(),
                 "heart".into()
             )))
+        }
+        .into())
+    );
+}
+
+#[test]
+fn parse_assignment() {
+    let parse = |text| Parser::for_source_code(text).parse_statement();
+
+    assert_eq!(
+        parse("Put 123 into X"),
+        Ok(Assignment {
+            dest: ProperIdentifier(vec!["X".into()]).into(),
+            value: boxed_expr(LiteralExpression::Number(123.0))
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("Put \"Hello San Francisco\" into the message"),
+        Ok(Assignment {
+            dest: CommonIdentifier("the".into(), "message".into()).into(),
+            value: boxed_expr(LiteralExpression::String("Hello San Francisco".into()))
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("Let my balance be 1000000"),
+        Ok(Assignment {
+            dest: CommonIdentifier("my".into(), "balance".into()).into(),
+            value: boxed_expr(LiteralExpression::Number(1000000.0))
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("Let the survivors be the brave without the fallen"),
+        Ok(Assignment {
+            dest: CommonIdentifier("the".into(), "survivors".into()).into(),
+            value: boxed_expr(BinaryExpression {
+                operator: BinaryOperator::Minus,
+                lhs: boxed_expr(CommonIdentifier("the".into(), "brave".into())),
+                rhs: boxed_expr(CommonIdentifier("the".into(), "fallen".into()))
+            })
         }
         .into())
     );
