@@ -3,7 +3,8 @@ use std::iter::Peekable;
 use crate::{
     ast::{
         BinaryExpression, BinaryOperator, CommonIdentifier, Expression, LiteralExpression,
-        PrimaryExpression, Program, SimpleIdentifier, UnaryExpression, UnaryOperator,
+        PrimaryExpression, Program, ProperIdentifier, SimpleIdentifier, UnaryExpression,
+        UnaryOperator,
     },
     lexer::{CommentSkippingLexer, Lexer, Token},
 };
@@ -68,6 +69,16 @@ fn get_binary_operator(token: Token) -> Option<BinaryOperator> {
     }
 }
 
+fn extract_text(tok: &Token) -> Option<String> {
+    match tok {
+        Token::Word(text) => Some((*text).to_owned()),
+        Token::CapitalizedWord(text) => Some((*text).to_owned()),
+        Token::CommonVariablePrefix(text) => Some((*text).to_owned()),
+
+        _ => None,
+    }
+}
+
 fn boxed_expr(x: impl Into<Expression>) -> Box<Expression> {
     Box::new(x.into())
 }
@@ -83,6 +94,18 @@ impl<'a> Parser<'a> {
 
     fn match_and_consume(&mut self, tokens: &[Token]) -> Option<Token> {
         self.match_and_consume_if(|token| tokens.contains(token))
+    }
+
+    fn match_and_consume_while<F, R, Tx>(&mut self, f: F, tx: Tx) -> Vec<R>
+    where
+        F: Fn(&Token) -> bool,
+        Tx: Fn(&Token) -> R,
+    {
+        let mut result = Vec::new();
+        while let Some(token) = self.match_and_consume_if(&f) {
+            result.push(tx(&token));
+        }
+        result
     }
 
     fn parse_expression(&mut self) -> Result<Expression, ParseError<'a>> {
@@ -164,34 +187,54 @@ impl<'a> Parser<'a> {
     }
 
     fn match_and_extract_text<F: FnOnce(&Token) -> bool>(&mut self, f: F) -> Option<String> {
-        self.match_and_consume_if(f).and_then(|tok| match tok {
-            Token::Word(text) => Some(text.to_owned()),
-            Token::CommonVariablePrefix(text) => Some(text.to_owned()),
-
-            _ => None,
-        })
+        self.match_and_consume_if(f).as_ref().and_then(extract_text)
     }
 
-    fn parse_identifier(&mut self) -> Result<Option<PrimaryExpression>, ParseError<'a>> {
+    fn parse_common_identifier(&mut self) -> Result<Option<CommonIdentifier>, ParseError<'a>> {
         if let Some(prefix) =
             self.match_and_extract_text(|tok| matches!(tok, Token::CommonVariablePrefix(_)))
         {
-            let identifier = Some(
-                self.match_and_extract_text(|tok| matches!(tok, Token::Word(_)))
-                    .ok_or_else(|| {
-                        ParseError::saying("Expected identifier after '".to_owned() + &prefix + "'")
-                    })?,
-            )
+            let identifier_tokens = |tok: &Token| {
+                matches!(tok, Token::Word(_) | Token::CapitalizedWord(_)) // capitalized words are invalid, but we want to match them for good error messages
+            };
+            let identifier = Some(self.match_and_extract_text(identifier_tokens).ok_or_else(
+                || ParseError::saying("Expected identifier after '".to_owned() + &prefix + "'"),
+            )?)
             .filter(|text| text.chars().all(|c| c.is_ascii_lowercase()))
             .ok_or_else(|| {
                 ParseError::saying(
                     "Common variables must be all-lowercase (after '".to_owned() + &prefix + "')",
                 )
             })?;
-            Ok(Some(CommonIdentifier(prefix, identifier).into()))
+            Ok(Some(CommonIdentifier(prefix, identifier)))
         } else {
             Ok(None)
         }
+    }
+
+    fn parse_simple_identifier(&mut self) -> Option<SimpleIdentifier> {
+        self.match_and_extract_text(|tok| matches!(tok, Token::Word(_)))
+            .map(|text| SimpleIdentifier(text))
+    }
+
+    fn parse_proper_identifier(&mut self) -> Option<ProperIdentifier> {
+        let names = self.match_and_consume_while(
+            |tok| matches!(tok, Token::CapitalizedWord(_)),
+            |tok| extract_text(tok).unwrap(),
+        );
+        if !names.is_empty() {
+            Some(ProperIdentifier(names))
+        } else {
+            None
+        }
+    }
+
+    fn parse_identifier(&mut self) -> Result<Option<PrimaryExpression>, ParseError<'a>> {
+        Ok(self.parse_common_identifier()?.map(Into::into).or_else(|| {
+            self.parse_proper_identifier()
+                .map(Into::into)
+                .or_else(|| self.parse_simple_identifier().map(Into::into))
+        }))
     }
 }
 
@@ -375,6 +418,50 @@ fn parse_identifier() {
         parse("your heart"),
         Ok(Some(CommonIdentifier("your".into(), "heart".into()).into()))
     );
+    assert_eq!(
+        parse("My heart"),
+        Ok(Some(CommonIdentifier("My".into(), "heart".into()).into()))
+    );
+    assert_eq!(
+        parse("Your heart"),
+        Ok(Some(CommonIdentifier("Your".into(), "heart".into()).into()))
+    );
+
+    assert_eq!(
+        parse("Billie Jean"),
+        Ok(Some(
+            ProperIdentifier(vec!["Billie".into(), "Jean".into()]).into()
+        ))
+    );
+    assert_eq!(
+        parse("Distance In KM"),
+        Ok(Some(
+            ProperIdentifier(vec!["Distance".into(), "In".into(), "KM".into()]).into()
+        ))
+    );
+    assert_eq!(
+        parse("Tom Sawyer"),
+        Ok(Some(
+            ProperIdentifier(vec!["Tom".into(), "Sawyer".into()]).into()
+        ))
+    );
+    assert_eq!(
+        parse("TOM SAWYER"),
+        Ok(Some(
+            ProperIdentifier(vec!["TOM".into(), "SAWYER".into()]).into()
+        ))
+    );
+    assert_eq!(
+        parse("TOm SAWyer"),
+        Ok(Some(
+            ProperIdentifier(vec!["TOm".into(), "SAWyer".into()]).into()
+        ))
+    );
+
+    assert_eq!(
+        parse("DOCTOR feelgood"),
+        Ok(Some(ProperIdentifier(vec!["DOCTOR".into()]).into())) // TODO ParseError here?
+    );
 
     assert_eq!(
         parse("my"),
@@ -393,6 +480,24 @@ fn parse_identifier() {
     );
     assert_eq!(
         parse("your Heart"),
+        Err(ParseError::saying(
+            "Common variables must be all-lowercase (after 'your')"
+        ))
+    );
+    assert_eq!(
+        parse("My Heart"),
+        Err(ParseError::saying(
+            "Common variables must be all-lowercase (after 'My')"
+        ))
+    );
+    assert_eq!(
+        parse("Your Heart"),
+        Err(ParseError::saying(
+            "Common variables must be all-lowercase (after 'Your')"
+        ))
+    );
+    assert_eq!(
+        parse("your heArt"),
         Err(ParseError::saying(
             "Common variables must be all-lowercase (after 'your')"
         ))
@@ -430,5 +535,5 @@ fn parse_expression() {
             )))
         }
         .into())
-    )
+    );
 }

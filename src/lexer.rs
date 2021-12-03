@@ -6,6 +6,7 @@ pub struct ErrorMessage(&'static str);
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Token<'a> {
     Word(&'a str),
+    CapitalizedWord(&'a str),
     StringLiteral(&'a str),
     Number(f64),
     Mysterious,
@@ -71,7 +72,16 @@ lazy_static! {
 }
 
 fn match_keyword<'a>(word: &'a str) -> Option<Token<'a>> {
-    KEYWORDS.get(word.to_lowercase().as_str()).cloned()
+    fn transform<'a>(tok: &Token<'static>, word: &'a str) -> Token<'a> {
+        match tok {
+            Token::CommonVariablePrefix(_) => Token::CommonVariablePrefix(word), // keep the capitalization of CommonVariablePrefix as written in the source
+
+            _ => tok.clone(),
+        }
+    }
+    KEYWORDS
+        .get(word.to_lowercase().as_str())
+        .map(|tok| transform(tok, word))
 }
 
 fn is_ignorable_whitespace(c: char) -> bool {
@@ -144,12 +154,21 @@ impl<'a> Lexer<'a> {
         self.find_next_index(|c| c.is_whitespace() || is_ignorable_punctuation(c))
     }
 
+    fn find_word_type(&self, word: &'a str) -> Token<'a> {
+        assert!(!word.is_empty());
+        if word.chars().next().unwrap().is_uppercase() {
+            Token::CapitalizedWord(word)
+        } else {
+            Token::Word(word)
+        }
+    }
+
     fn scan_word(&self, start: usize) -> LexResult<'a> {
         let end = self.find_next_word_end();
         Some(self.substr(start..end))
             .filter(|s| s.chars().all(|c| c.is_alphabetic()))
             .map(|word| LexResult {
-                token: Token::Word(word),
+                token: self.find_word_type(word),
                 end,
             })
             .unwrap_or_else(|| LexResult {
@@ -336,6 +355,15 @@ fn lex() {
         ]
     );
     assert_eq!(
+        lex("my MY My mY"),
+        vec![
+            Token::CommonVariablePrefix("my"),
+            Token::CommonVariablePrefix("MY"),
+            Token::CommonVariablePrefix("My"),
+            Token::CommonVariablePrefix("mY"),
+        ]
+    );
+    assert_eq!(
         lex("hello world"),
         vec![Token::Word("hello"), Token::Word("world")]
     );
@@ -358,6 +386,14 @@ fn lex() {
     assert_eq!(
         lex("hello?world!"), // the spec isn't crystal clear here, but I'm allowing this
         vec![Token::Word("hello"), Token::Word("world")]
+    );
+    assert_eq!(
+        lex("Hello World world"),
+        vec![
+            Token::CapitalizedWord("Hello"),
+            Token::CapitalizedWord("World"),
+            Token::Word("world"),
+        ]
     );
     assert_eq!(
         lex("\n\n\n"),
