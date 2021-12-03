@@ -73,17 +73,19 @@ lazy_static! {
         alias(Token::Divide, &["over", "between"]);
 
         alias(Token::Into, &["in", "into"]);
-        m.insert("with", Token::With);
+
+        m.extend([
+            ("with", Token::With),
+            ("put", Token::Put),
+            ("let", Token::Let),
+            ("be", Token::Be),
+        ]);
 
         m.extend(
             ["a", "an", "the", "my", "your", "our"]
                 .iter()
                 .map(|pre| (*pre, Token::CommonVariablePrefix(pre))),
         );
-
-        m.insert("put", Token::Put);
-        m.insert("let", Token::Let);
-        m.insert("be", Token::Be);
 
         m
     };
@@ -433,6 +435,7 @@ fn lex() {
     assert_eq!(lex("over between"), vec![Token::Divide, Token::Divide]);
 
     assert_eq!(lex("in into"), vec![Token::Into, Token::Into]);
+    assert_eq!(lex("put let be"), vec![Token::Put, Token::Let, Token::Be]);
 
     assert_eq!(lex("()"), vec![Token::Comment("")]);
     assert_eq!(lex("(hi)"), vec![Token::Comment("hi")]);
