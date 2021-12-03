@@ -72,6 +72,7 @@ lazy_static! {
         alias(Token::Multiply, &["times", "of"]);
         alias(Token::Divide, &["over", "between"]);
 
+        alias(Token::Into, &["in", "into"]);
         m.insert("with", Token::With);
 
         m.extend(
@@ -81,7 +82,6 @@ lazy_static! {
         );
 
         m.insert("put", Token::Put);
-        m.insert("into", Token::Into);
         m.insert("let", Token::Let);
         m.insert("be", Token::Be);
 
@@ -431,6 +431,8 @@ fn lex() {
     assert_eq!(lex("minus without"), vec![Token::Minus, Token::Minus]);
     assert_eq!(lex("times of"), vec![Token::Multiply, Token::Multiply]);
     assert_eq!(lex("over between"), vec![Token::Divide, Token::Divide]);
+
+    assert_eq!(lex("in into"), vec![Token::Into, Token::Into]);
 
     assert_eq!(lex("()"), vec![Token::Comment("")]);
     assert_eq!(lex("(hi)"), vec![Token::Comment("hi")]);
