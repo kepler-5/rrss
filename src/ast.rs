@@ -120,13 +120,61 @@ pub struct Assignment {
     pub operator: Option<BinaryOperator>, // for compound assignments
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum PoeticNumberLiteralElem {
+    Word(String),
+    Dot,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PoeticNumberLiteral {
+    pub elems: Vec<PoeticNumberLiteralElem>,
+}
+
+impl PoeticNumberLiteral {
+    pub fn compute_value(&self) -> f64 {
+        todo!()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum PoeticNumberAssignmentRHS {
+    Literal(LiteralExpression),
+    PoeticNumberLiteral(PoeticNumberLiteral),
+}
+
+impl From<LiteralExpression> for PoeticNumberAssignmentRHS {
+    fn from(e: LiteralExpression) -> Self {
+        PoeticNumberAssignmentRHS::Literal(e)
+    }
+}
+
+impl From<PoeticNumberLiteral> for PoeticNumberAssignmentRHS {
+    fn from(p: PoeticNumberLiteral) -> Self {
+        PoeticNumberAssignmentRHS::PoeticNumberLiteral(p)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PoeticNumberAssignment {
+    pub dest: Identifier,
+    pub rhs: PoeticNumberAssignmentRHS,
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Statement {
     Assignment(Assignment),
+    PoeticNumberAssignment(PoeticNumberAssignment),
 }
 
 impl From<Assignment> for Statement {
     fn from(a: Assignment) -> Self {
-        Statement::Assignment(a.into())
+        Statement::Assignment(a)
+    }
+}
+
+impl From<PoeticNumberAssignment> for Statement {
+    fn from(a: PoeticNumberAssignment) -> Self {
+        Statement::PoeticNumberAssignment(a)
     }
 }
