@@ -4,9 +4,9 @@ use std::{collections::HashMap, iter::repeat, slice::SliceIndex, str::CharIndice
 pub struct ErrorMessage(&'static str);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Token<'a> {
-    Word(&'a str),
-    CapitalizedWord(&'a str),
+pub enum TokenType<'a> {
+    Word,
+    CapitalizedWord,
     StringLiteral(&'a str),
     Number(f64),
     Mysterious,
@@ -15,7 +15,7 @@ pub enum Token<'a> {
     False,
     Empty,
 
-    CommonVariablePrefix(&'a str),
+    CommonVariablePrefix,
     Pronoun,
 
     Plus,
@@ -36,52 +36,67 @@ pub enum Token<'a> {
 
     Newline,
     Comment(&'a str),
-    Error(&'a str, ErrorMessage),
+    Error(ErrorMessage),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Token<'a> {
+    pub id: TokenType<'a>,
+    pub spelling: &'a str,
 }
 
 impl<'a> Token<'a> {
+    pub fn new(id: TokenType<'a>, spelling: &'a str) -> Self {
+        Token { id, spelling }
+    }
     pub fn is_comment(&self) -> bool {
-        matches!(self, Token::Comment(_))
+        self.id.is_comment()
+    }
+}
+
+impl<'a> TokenType<'a> {
+    pub fn is_comment(&self) -> bool {
+        matches!(self, TokenType::Comment(_))
     }
 }
 
 lazy_static! {
-    static ref KEYWORDS: HashMap<&'static str, Token<'static>> = {
+    static ref KEYWORDS: HashMap<&'static str, TokenType<'static>> = {
         let mut m = HashMap::new();
-        m.insert("mysterious", Token::Mysterious);
+        m.insert("mysterious", TokenType::Mysterious);
 
         let mut alias = |token, names: &[&'static str]| {
             m.extend(names.iter().cloned().zip(repeat(token)));
         };
 
         alias(
-            Token::Null,
+            TokenType::Null,
             &["null", "nothing", "nowhere", "nobody", "gone"],
         );
 
-        alias(Token::True, &["true", "right", "yes", "ok"]);
-        alias(Token::False, &["false", "wrong", "no", "lies"]);
+        alias(TokenType::True, &["true", "right", "yes", "ok"]);
+        alias(TokenType::False, &["false", "wrong", "no", "lies"]);
 
-        alias(Token::Empty, &["empty", "silent", "silence"]);
+        alias(TokenType::Empty, &["empty", "silent", "silence"]);
 
         alias(
-            Token::Pronoun,
+            TokenType::Pronoun,
             &[
                 "it", "he", "she", "him", "her", "they", "them", "ze", "hir", "zie", "zir", "xe",
                 "xem", "ve", "ver",
             ],
         );
 
-        alias(Token::Plus, &["plus"]);
-        alias(Token::Minus, &["minus", "without"]);
-        alias(Token::Multiply, &["times", "of"]);
-        alias(Token::Divide, &["over", "between"]);
+        alias(TokenType::Plus, &["plus"]);
+        alias(TokenType::Minus, &["minus", "without"]);
+        alias(TokenType::Multiply, &["times", "of"]);
+        alias(TokenType::Divide, &["over", "between"]);
 
-        alias(Token::Into, &["in", "into"]);
+        alias(TokenType::Into, &["in", "into"]);
 
-        alias(Token::Is, &["is", "are", "was", "were"]);
+        alias(TokenType::Is, &["is", "are", "was", "were"]);
         alias(
-            Token::Isnt,
+            TokenType::Isnt,
             &[
                 "isnt", "isn't", "aint", "ain't", "arent", "aren't", "wasnt", "wasn't", "werent",
                 "weren't",
@@ -89,16 +104,16 @@ lazy_static! {
         );
 
         m.extend([
-            ("with", Token::With),
-            ("put", Token::Put),
-            ("let", Token::Let),
-            ("be", Token::Be),
+            ("with", TokenType::With),
+            ("put", TokenType::Put),
+            ("let", TokenType::Let),
+            ("be", TokenType::Be),
         ]);
 
         m.extend(
             ["a", "an", "the", "my", "your", "our"]
                 .iter()
-                .map(|pre| (*pre, Token::CommonVariablePrefix(pre))),
+                .map(|pre| (*pre, TokenType::CommonVariablePrefix)),
         );
 
         m
@@ -106,16 +121,9 @@ lazy_static! {
 }
 
 fn match_keyword<'a>(word: &'a str) -> Option<Token<'a>> {
-    fn transform<'a>(tok: &Token<'static>, word: &'a str) -> Token<'a> {
-        match tok {
-            Token::CommonVariablePrefix(_) => Token::CommonVariablePrefix(word), // keep the capitalization of CommonVariablePrefix as written in the source
-
-            _ => tok.clone(),
-        }
-    }
     KEYWORDS
         .get(word.to_lowercase().as_str())
-        .map(|tok| transform(tok, word))
+        .map(|tok| Token::new(*tok, word))
 }
 
 fn is_ignorable_whitespace(c: char) -> bool {
@@ -177,13 +185,11 @@ impl<'a> Lexer<'a> {
     fn scan_number(&self, start: usize) -> Option<LexResult<'a>> {
         let end = self
             .find_next_index(|c| c.is_whitespace() || (is_ignorable_punctuation(c) && c != '.'));
-        self.substr(start..end)
-            .parse::<f64>()
-            .ok()
-            .map(|n| LexResult {
-                token: Token::Number(n),
-                end,
-            })
+        let text = self.substr(start..end);
+        text.parse::<f64>().ok().map(|n| LexResult {
+            token: Token::new(TokenType::Number(n), text),
+            end,
+        })
     }
 
     fn find_next_word_end(&self) -> usize {
@@ -193,38 +199,49 @@ impl<'a> Lexer<'a> {
     fn find_word_type(&self, word: &'a str) -> Token<'a> {
         assert!(!word.is_empty());
         match_keyword(word).unwrap_or_else(|| {
-            word.chars()
-                .next()
-                .unwrap()
-                .is_uppercase()
-                .then(|| Token::CapitalizedWord(word))
-                .unwrap_or_else(|| Token::Word(word))
+            Token::new(
+                word.chars()
+                    .next()
+                    .unwrap()
+                    .is_uppercase()
+                    .then(|| TokenType::CapitalizedWord)
+                    .unwrap_or(TokenType::Word),
+                word,
+            )
         })
     }
 
+    fn last_n(text: &str, n: usize) -> &str {
+        assert!(text.len() >= n);
+        &text[(text.len() - n)..]
+    }
+
     fn tokenize_word(&mut self, word: &'a str, end: usize) -> LexResult<'a> {
-        let (stripped, staged) = word
+        let (stripped, staged_type) = word
             .strip_suffix("'s")
-            .map(|stripped| (stripped, Some(Token::ApostropheS)))
+            .map(|stripped| (stripped, Some((TokenType::ApostropheS, 2))))
             .or_else(|| {
                 word.strip_suffix("'re")
-                    .map(|stripped| (stripped, Some(Token::ApostropheRE)))
+                    .map(|stripped| (stripped, Some((TokenType::ApostropheRE, 3))))
             })
             .unwrap_or_else(|| (word.trim_matches('\''), None));
-        self.staged = staged;
+        self.staged = staged_type.map(|(id, len)| Token::new(id, Self::last_n(word, len)));
         let token = self.find_word_type(stripped);
         LexResult { token, end }
     }
 
     fn scan_word(&mut self, start: usize) -> LexResult<'a> {
         let end = self.find_next_word_end();
-        Some(self.substr(start..end))
+        let text = self.substr(start..end);
+        Some(text)
             .filter(|s| s.chars().all(|c| c.is_alphabetic() || c == '\''))
             .map(|word| self.tokenize_word(word, end))
             .unwrap_or_else(|| LexResult {
-                token: Token::Error(
-                    self.substr(start..end),
-                    ErrorMessage("Identifier may not contain non-alphabetic characters"),
+                token: Token::new(
+                    TokenType::Error(ErrorMessage(
+                        "Identifier may not contain non-alphabetic characters",
+                    )),
+                    text,
                 ),
                 end,
             })
@@ -235,7 +252,7 @@ impl<'a> Lexer<'a> {
         match_keyword(self.substr(start..end)).map(|token| LexResult { token, end })
     }
 
-    fn scan_delimited<F: FnOnce(&'a str) -> Token<'a>>(
+    fn scan_delimited<F: FnOnce(&'a str) -> TokenType<'a>>(
         &self,
         open: usize,
         close_char: char,
@@ -244,13 +261,15 @@ impl<'a> Lexer<'a> {
     ) -> LexResult<'a> {
         let mut iter = self.char_indices.clone();
         if let Some((close, _)) = iter.find(|&(_, c)| c == close_char) {
+            let end = close + 1;
+            let text = self.substr(open..end);
             LexResult {
-                token: factory(self.substr((open + 1)..close)),
-                end: close + 1,
+                token: Token::new(factory(self.substr((open + 1)..close)), text),
+                end,
             }
         } else {
             LexResult {
-                token: Token::Error(self.substr(open..), error),
+                token: Token::new(TokenType::Error(error), self.substr(open..)),
                 end: self.buf.len(),
             }
         }
@@ -260,7 +279,7 @@ impl<'a> Lexer<'a> {
         self.scan_delimited(
             open,
             ')',
-            |s| Token::Comment(s),
+            |s| TokenType::Comment(s),
             ErrorMessage("Unterminated comment"),
         )
     }
@@ -269,7 +288,7 @@ impl<'a> Lexer<'a> {
         self.scan_delimited(
             open,
             '"',
-            |s| Token::StringLiteral(s),
+            |s| TokenType::StringLiteral(s),
             ErrorMessage("Unterminated string literal"),
         )
     }
@@ -277,7 +296,7 @@ impl<'a> Lexer<'a> {
     fn make_error_token(&self, start: usize, error: ErrorMessage) -> LexResult<'a> {
         let end = self.find_next_word_end();
         LexResult {
-            token: Token::Error(self.substr(start..end), error),
+            token: Token::new(TokenType::Error(error), self.substr(start..end)),
             end,
         }
     }
@@ -292,12 +311,12 @@ impl<'a> Lexer<'a> {
     fn match_loop(&mut self) -> Option<<Self as Iterator>::Item> {
         loop {
             if let Some((start, start_char)) = find_word_start(&mut self.char_indices) {
-                let char_token = |token| LexResult {
-                    token,
+                let char_token = |token_type| LexResult {
+                    token: Token::new(token_type, self.substr(start..(start + 1))),
                     end: start + 1,
                 };
                 let LexResult { token, end } = match start_char {
-                    '\n' => char_token(Token::Newline),
+                    '\n' => char_token(TokenType::Newline),
 
                     '.' => {
                         // might be a number starting with a decimal, like .123
@@ -310,10 +329,10 @@ impl<'a> Lexer<'a> {
 
                     '\'' => continue,
 
-                    '+' => char_token(Token::Plus),
-                    '-' => char_token(Token::Minus),
-                    '*' => char_token(Token::Multiply),
-                    '/' => char_token(Token::Divide),
+                    '+' => char_token(TokenType::Plus),
+                    '-' => char_token(TokenType::Minus),
+                    '*' => char_token(TokenType::Multiply),
+                    '/' => char_token(TokenType::Divide),
 
                     '"' => self.scan_string_literal(start),
                     '(' => self.scan_comment(start),
@@ -375,170 +394,287 @@ impl<'a> Iterator for CommentSkippingLexer<'a> {
 #[test]
 fn lex() {
     let lex = |buf| Lexer::new(buf).collect::<Vec<_>>();
+    fn types<'a>(tokens: Vec<Token<'a>>) -> Vec<TokenType<'a>> {
+        tokens.into_iter().map(|tok| tok.id).collect()
+    }
+
     assert_eq!(lex(""), vec![]);
     assert_eq!(lex("       "), vec![]);
-    assert_eq!(lex("mysterious"), vec![Token::Mysterious]);
-    assert_eq!(lex("      mysterious"), vec![Token::Mysterious]);
+    assert_eq!(
+        lex("mysterious"),
+        vec![Token::new(TokenType::Mysterious, "mysterious")]
+    );
+    assert_eq!(
+        lex("      mysterious"),
+        vec![Token::new(TokenType::Mysterious, "mysterious")]
+    );
     assert_eq!(
         lex("  mysterious   mysterious    "),
-        vec![Token::Mysterious, Token::Mysterious]
+        vec![
+            Token::new(TokenType::Mysterious, "mysterious"),
+            Token::new(TokenType::Mysterious, "mysterious")
+        ]
     );
     assert_eq!(
         lex("right yes ok true"),
-        vec![Token::True, Token::True, Token::True, Token::True]
+        vec![
+            Token::new(TokenType::True, "right"),
+            Token::new(TokenType::True, "yes"),
+            Token::new(TokenType::True, "ok"),
+            Token::new(TokenType::True, "true"),
+        ]
     );
     assert_eq!(
         lex("wrong no lies false"),
-        vec![Token::False, Token::False, Token::False, Token::False],
+        vec![
+            Token::new(TokenType::False, "wrong"),
+            Token::new(TokenType::False, "no"),
+            Token::new(TokenType::False, "lies"),
+            Token::new(TokenType::False, "false"),
+        ],
     );
     assert_eq!(
         lex("empty silence silent"),
-        vec![Token::Empty, Token::Empty, Token::Empty]
+        vec![
+            Token::new(TokenType::Empty, "empty"),
+            Token::new(TokenType::Empty, "silence"),
+            Token::new(TokenType::Empty, "silent")
+        ]
     );
     assert_eq!(
-        lex("1 2 3.4  .6 -7"),
+        lex("1 2.0 3.4  .6 -7"),
         vec![
-            Token::Number(1.0),
-            Token::Number(2.0),
-            Token::Number(3.4),
-            Token::Number(0.6),
-            Token::Minus,
-            Token::Number(7.0)
+            Token::new(TokenType::Number(1.0), "1"),
+            Token::new(TokenType::Number(2.0), "2.0"),
+            Token::new(TokenType::Number(3.4), "3.4"),
+            Token::new(TokenType::Number(0.6), ".6"),
+            Token::new(TokenType::Minus, "-"),
+            Token::new(TokenType::Number(7.0), "7"),
         ]
     );
     assert_eq!(
         lex("my MY My mY"),
         vec![
-            Token::CommonVariablePrefix("my"),
-            Token::CommonVariablePrefix("MY"),
-            Token::CommonVariablePrefix("My"),
-            Token::CommonVariablePrefix("mY"),
+            Token::new(TokenType::CommonVariablePrefix, "my"),
+            Token::new(TokenType::CommonVariablePrefix, "MY"),
+            Token::new(TokenType::CommonVariablePrefix, "My"),
+            Token::new(TokenType::CommonVariablePrefix, "mY"),
+        ]
+    );
+
+    assert_eq!(
+        lex("hello world"),
+        vec![
+            Token::new(TokenType::Word, "hello"),
+            Token::new(TokenType::Word, "world")
+        ]
+    );
+
+    assert_eq!(
+        lex("hello\n world"),
+        vec![
+            Token::new(TokenType::Word, "hello"),
+            Token::new(TokenType::Newline, "\n"),
+            Token::new(TokenType::Word, "world"),
         ]
     );
     assert_eq!(
-        lex("hello world"),
-        vec![Token::Word("hello"), Token::Word("world")]
-    );
-    assert_eq!(
-        lex("hello\n world"),
-        vec![Token::Word("hello"), Token::Newline, Token::Word("world")]
-    );
-    assert_eq!(
         lex("hello \n world"),
-        vec![Token::Word("hello"), Token::Newline, Token::Word("world")]
+        vec![
+            Token::new(TokenType::Word, "hello"),
+            Token::new(TokenType::Newline, "\n"),
+            Token::new(TokenType::Word, "world"),
+        ]
     );
     assert_eq!(
         lex("hello\nworld"),
-        vec![Token::Word("hello"), Token::Newline, Token::Word("world")]
+        vec![
+            Token::new(TokenType::Word, "hello"),
+            Token::new(TokenType::Newline, "\n"),
+            Token::new(TokenType::Word, "world"),
+        ]
     );
     assert_eq!(
         lex("hello, world."),
-        vec![Token::Word("hello"), Token::Word("world")]
+        vec![
+            Token::new(TokenType::Word, "hello"),
+            Token::new(TokenType::Word, "world"),
+        ]
     );
     assert_eq!(
         lex("hello?world!"), // the spec isn't crystal clear here, but I'm allowing this
-        vec![Token::Word("hello"), Token::Word("world")]
+        vec![
+            Token::new(TokenType::Word, "hello"),
+            Token::new(TokenType::Word, "world"),
+        ]
     );
     assert_eq!(
         lex("Hello World world"),
         vec![
-            Token::CapitalizedWord("Hello"),
-            Token::CapitalizedWord("World"),
-            Token::Word("world"),
+            Token::new(TokenType::CapitalizedWord, "Hello"),
+            Token::new(TokenType::CapitalizedWord, "World"),
+            Token::new(TokenType::Word, "world"),
         ]
     );
     assert_eq!(
-        lex("\n\n\n"),
-        vec![Token::Newline, Token::Newline, Token::Newline]
+        types(lex("\n\n\n")),
+        vec![TokenType::Newline, TokenType::Newline, TokenType::Newline]
     );
     assert_eq!(
-        lex("\r\n \r\n \r\n"),
-        vec![Token::Newline, Token::Newline, Token::Newline]
+        types(lex("\r\n \r\n \r\n")),
+        vec![TokenType::Newline, TokenType::Newline, TokenType::Newline]
     );
 
     assert_eq!(
         lex("+ - * /"),
-        vec![Token::Plus, Token::Minus, Token::Multiply, Token::Divide]
+        vec![
+            Token::new(TokenType::Plus, "+"),
+            Token::new(TokenType::Minus, "-"),
+            Token::new(TokenType::Multiply, "*"),
+            Token::new(TokenType::Divide, "/")
+        ]
     );
 
-    assert_eq!(lex("plus with"), vec![Token::Plus, Token::With]);
-    assert_eq!(lex("minus without"), vec![Token::Minus, Token::Minus]);
-    assert_eq!(lex("times of"), vec![Token::Multiply, Token::Multiply]);
-    assert_eq!(lex("over between"), vec![Token::Divide, Token::Divide]);
+    assert_eq!(
+        lex("plus with"),
+        vec![
+            Token::new(TokenType::Plus, "plus"),
+            Token::new(TokenType::With, "with")
+        ]
+    );
+    assert_eq!(
+        lex("minus without"),
+        vec![
+            Token::new(TokenType::Minus, "minus"),
+            Token::new(TokenType::Minus, "without")
+        ]
+    );
+    assert_eq!(
+        lex("times of"),
+        vec![
+            Token::new(TokenType::Multiply, "times"),
+            Token::new(TokenType::Multiply, "of")
+        ]
+    );
+    assert_eq!(
+        lex("over between"),
+        vec![
+            Token::new(TokenType::Divide, "over"),
+            Token::new(TokenType::Divide, "between")
+        ]
+    );
 
-    assert_eq!(lex("in into"), vec![Token::Into, Token::Into]);
+    assert_eq!(
+        lex("in into"),
+        vec![
+            Token::new(TokenType::Into, "in"),
+            Token::new(TokenType::Into, "into")
+        ]
+    );
     assert_eq!(
         lex("is isn't put let be"),
-        vec![Token::Is, Token::Isnt, Token::Put, Token::Let, Token::Be]
+        vec![
+            Token::new(TokenType::Is, "is"),
+            Token::new(TokenType::Isnt, "isn't"),
+            Token::new(TokenType::Put, "put"),
+            Token::new(TokenType::Let, "let"),
+            Token::new(TokenType::Be, "be"),
+        ]
     );
     assert_eq!(
         lex("is are was were"),
-        vec![Token::Is, Token::Is, Token::Is, Token::Is]
+        vec![
+            Token::new(TokenType::Is, "is"),
+            Token::new(TokenType::Is, "are"),
+            Token::new(TokenType::Is, "was"),
+            Token::new(TokenType::Is, "were")
+        ]
     );
 
-    assert_eq!(lex("()"), vec![Token::Comment("")]);
-    assert_eq!(lex("(hi)"), vec![Token::Comment("hi")]);
-    assert_eq!(lex("(hi there)"), vec![Token::Comment("hi there")]);
+    assert_eq!(lex("()"), vec![Token::new(TokenType::Comment(""), "()")]);
+    assert_eq!(
+        lex("(hi)"),
+        vec![Token::new(TokenType::Comment("hi"), "(hi)")]
+    );
+    assert_eq!(
+        lex("(hi there)"),
+        vec![Token::new(TokenType::Comment("hi there"), "(hi there)")]
+    );
     assert_eq!(
         lex("hi(hi)hi"),
-        vec![Token::Word("hi"), Token::Comment("hi"), Token::Word("hi")]
+        vec![
+            Token::new(TokenType::Word, "hi"),
+            Token::new(TokenType::Comment("hi"), "(hi)"),
+            Token::new(TokenType::Word, "hi")
+        ]
     );
 
     assert_eq!(
         lex("\"Hello San Francisco\""),
-        vec![Token::StringLiteral("Hello San Francisco")]
+        vec![Token::new(
+            TokenType::StringLiteral("Hello San Francisco"),
+            "\"Hello San Francisco\""
+        )]
     );
 
     assert_eq!(
-        lex("1+1"),
-        vec![Token::Number(1.0), Token::Plus, Token::Number(1.0)]
+        types(lex("1+1")),
+        vec![
+            TokenType::Number(1.0),
+            TokenType::Plus,
+            TokenType::Number(1.0)
+        ]
     );
     assert_eq!(
-        lex("1+-1"),
+        types(lex("1+-1")),
         vec![
-            Token::Number(1.0),
-            Token::Plus,
-            Token::Minus,
-            Token::Number(1.0)
+            TokenType::Number(1.0),
+            TokenType::Plus,
+            TokenType::Minus,
+            TokenType::Number(1.0)
         ]
     );
     assert_eq!(
         lex("foo+1"),
-        vec![Token::Word("foo"), Token::Plus, Token::Number(1.0)]
-    );
-    assert_eq!(
-        lex("foo+-1"),
         vec![
-            Token::Word("foo"),
-            Token::Plus,
-            Token::Minus,
-            Token::Number(1.0)
+            Token::new(TokenType::Word, "foo"),
+            Token::new(TokenType::Plus, "+"),
+            Token::new(TokenType::Number(1.0), "1")
         ]
     );
     assert_eq!(
-        lex("1+foo"),
-        vec![Token::Number(1.0), Token::Plus, Token::Word("foo")]
-    );
-    assert_eq!(
-        lex("1+-foo"),
+        types(lex("foo+-1")),
         vec![
-            Token::Number(1.0),
-            Token::Plus,
-            Token::Minus,
-            Token::Word("foo")
+            TokenType::Word,
+            TokenType::Plus,
+            TokenType::Minus,
+            TokenType::Number(1.0)
         ]
     );
     assert_eq!(
-        lex("foo+foo"),
-        vec![Token::Word("foo"), Token::Plus, Token::Word("foo")]
+        types(lex("1+foo")),
+        vec![TokenType::Number(1.0), TokenType::Plus, TokenType::Word]
     );
     assert_eq!(
-        lex("foo+-foo"),
+        types(lex("1+-foo")),
         vec![
-            Token::Word("foo"),
-            Token::Plus,
-            Token::Minus,
-            Token::Word("foo")
+            TokenType::Number(1.0),
+            TokenType::Plus,
+            TokenType::Minus,
+            TokenType::Word
+        ]
+    );
+    assert_eq!(
+        types(lex("foo+foo")),
+        vec![TokenType::Word, TokenType::Plus, TokenType::Word]
+    );
+    assert_eq!(
+        types(lex("foo+-foo")),
+        vec![
+            TokenType::Word,
+            TokenType::Plus,
+            TokenType::Minus,
+            TokenType::Word
         ]
     );
 }
@@ -549,28 +685,84 @@ fn lex_apostrophe_stuff() {
 
     assert_eq!(
         lex("isnt isn't aint ain't"),
-        vec![Token::Isnt, Token::Isnt, Token::Isnt, Token::Isnt]
+        vec![
+            Token::new(TokenType::Isnt, "isnt"),
+            Token::new(TokenType::Isnt, "isn't"),
+            Token::new(TokenType::Isnt, "aint"),
+            Token::new(TokenType::Isnt, "ain't")
+        ]
     );
-    assert_eq!(lex("foo's"), vec![Token::Word("foo"), Token::ApostropheS]);
-    assert_eq!(lex("he's"), vec![Token::Pronoun, Token::ApostropheS]);
-    assert_eq!(lex("nothing's"), vec![Token::Null, Token::ApostropheS]);
-    assert_eq!(lex("we're"), vec![Token::Word("we"), Token::ApostropheRE]);
+    assert_eq!(
+        lex("foo's"),
+        vec![
+            Token::new(TokenType::Word, "foo"),
+            Token::new(TokenType::ApostropheS, "'s")
+        ]
+    );
+    assert_eq!(
+        lex("he's"),
+        vec![
+            Token::new(TokenType::Pronoun, "he"),
+            Token::new(TokenType::ApostropheS, "'s")
+        ]
+    );
+    assert_eq!(
+        lex("nothing's"),
+        vec![
+            Token::new(TokenType::Null, "nothing"),
+            Token::new(TokenType::ApostropheS, "'s")
+        ]
+    );
+    assert_eq!(
+        lex("we're"),
+        vec![
+            Token::new(TokenType::Word, "we"),
+            Token::new(TokenType::ApostropheRE, "'re")
+        ]
+    );
 
-    assert_eq!(lex("foo 's"), vec![Token::Word("foo"), Token::Word("s")]);
-    assert_eq!(lex("he' s"), vec![Token::Pronoun, Token::Word("s")]);
-    assert_eq!(lex("nothing 's"), vec![Token::Null, Token::Word("s")]);
-    assert_eq!(lex("we' re"), vec![Token::Word("we"), Token::Word("re")]);
+    assert_eq!(
+        lex("foo 's"),
+        vec![
+            Token::new(TokenType::Word, "foo"),
+            Token::new(TokenType::Word, "s")
+        ]
+    );
+    assert_eq!(
+        lex("he' s"),
+        vec![
+            Token::new(TokenType::Pronoun, "he"),
+            Token::new(TokenType::Word, "s")
+        ]
+    );
+    assert_eq!(
+        lex("nothing 's"),
+        vec![
+            Token::new(TokenType::Null, "nothing"),
+            Token::new(TokenType::Word, "s")
+        ]
+    );
+    assert_eq!(
+        lex("we' re"),
+        vec![
+            Token::new(TokenType::Word, "we"),
+            Token::new(TokenType::Word, "re")
+        ]
+    );
 
     assert_eq!(
         lex("ain't talkin' 'bout love"),
         vec![
-            Token::Isnt,
-            Token::Word("talkin"),
-            Token::Word("bout"),
-            Token::Word("love")
+            Token::new(TokenType::Isnt, "ain't"),
+            Token::new(TokenType::Word, "talkin"),
+            Token::new(TokenType::Word, "bout"),
+            Token::new(TokenType::Word, "love")
         ]
     );
-    assert_eq!(lex("rock'n'roll"), vec![Token::Word("rock'n'roll")]);
+    assert_eq!(
+        lex("rock'n'roll"),
+        vec![Token::new(TokenType::Word, "rock'n'roll")]
+    );
 }
 
 #[test]
@@ -579,42 +771,55 @@ fn lex_errors() {
 
     assert_eq!(
         lex("3bca"),
-        vec![Token::Error("3bca", ErrorMessage("Invalid token"))]
+        vec![Token::new(
+            TokenType::Error(ErrorMessage("Invalid token")),
+            "3bca"
+        )]
     );
     assert_eq!(
         lex("abc3"),
-        vec![Token::Error(
-            "abc3",
-            ErrorMessage("Identifier may not contain non-alphabetic characters")
+        vec![Token::new(
+            TokenType::Error(ErrorMessage(
+                "Identifier may not contain non-alphabetic characters"
+            )),
+            "abc3"
         )]
     );
     assert_eq!(
         lex("ab3c"),
-        vec![Token::Error(
-            "ab3c",
-            ErrorMessage("Identifier may not contain non-alphabetic characters")
+        vec![Token::new(
+            TokenType::Error(ErrorMessage(
+                "Identifier may not contain non-alphabetic characters"
+            )),
+            "ab3c"
         )]
     );
 
     // underscores are technically ascii punctuation, but I'm specifically disallowing them attached to identifiers
     assert_eq!(
         lex("ab_c"),
-        vec![Token::Error(
-            "ab_c",
-            ErrorMessage("Identifier may not contain non-alphabetic characters")
+        vec![Token::new(
+            TokenType::Error(ErrorMessage(
+                "Identifier may not contain non-alphabetic characters"
+            )),
+            "ab_c"
         )]
     );
 
     assert_eq!(
         lex("_ _hilarious_easter_egg"),
         vec![
-            Token::Error(
-                "_",
-                ErrorMessage("'_' is not a valid character because it can't be sung")
+            Token::new(
+                TokenType::Error(ErrorMessage(
+                    "'_' is not a valid character because it can't be sung"
+                )),
+                "_"
             ),
-            Token::Error(
-                "_hilarious_easter_egg",
-                ErrorMessage("'_' is not a valid character because it can't be sung")
+            Token::new(
+                TokenType::Error(ErrorMessage(
+                    "'_' is not a valid character because it can't be sung"
+                )),
+                "_hilarious_easter_egg"
             )
         ]
     )
@@ -625,5 +830,11 @@ fn skip_comments() {
     let lex = |buf| Lexer::new(buf).skip_comments().collect::<Vec<_>>();
     assert_eq!(lex(""), vec![]);
     assert_eq!(lex("()"), vec![]);
-    assert_eq!(lex("hi(hi)hi"), vec![Token::Word("hi"), Token::Word("hi")]);
+    assert_eq!(
+        lex("hi(hi)hi"),
+        vec![
+            Token::new(TokenType::Word, "hi"),
+            Token::new(TokenType::Word, "hi")
+        ]
+    );
 }

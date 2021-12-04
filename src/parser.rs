@@ -6,7 +6,7 @@ use crate::{
         LiteralExpression, PrimaryExpression, Program, ProperIdentifier, SimpleIdentifier,
         Statement, UnaryExpression, UnaryOperator,
     },
-    lexer::{CommentSkippingLexer, Lexer, Token},
+    lexer::{CommentSkippingLexer, Lexer, Token, TokenType},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -15,7 +15,7 @@ pub enum ParseErrorCode<'a> {
     MissingIDAfterCommonPrefix(String),
     UppercaseAfterCommonPrefix(String, String),
     ExpectedIdentifier,
-    ExpectedToken(Token<'a>),
+    ExpectedToken(TokenType<'a>),
     UnexpectedToken,
     UnexpectedEndOfTokens,
 }
@@ -54,30 +54,20 @@ impl<'a> Parser<'a> {
     }
 }
 
-fn get_unary_operator(token: Token) -> Option<UnaryOperator> {
+fn get_unary_operator(token: TokenType) -> Option<UnaryOperator> {
     match token {
-        Token::Minus => Some(UnaryOperator::Minus),
+        TokenType::Minus => Some(UnaryOperator::Minus),
 
         _ => None,
     }
 }
 
-fn get_binary_operator(token: Token) -> Option<BinaryOperator> {
+fn get_binary_operator(token: TokenType) -> Option<BinaryOperator> {
     match token {
-        Token::Plus | Token::With => Some(BinaryOperator::Plus),
-        Token::Minus => Some(BinaryOperator::Minus),
-        Token::Multiply => Some(BinaryOperator::Multiply),
-        Token::Divide => Some(BinaryOperator::Divide),
-
-        _ => None,
-    }
-}
-
-fn extract_text(tok: &Token) -> Option<String> {
-    match tok {
-        Token::Word(text) => Some((*text).to_owned()),
-        Token::CapitalizedWord(text) => Some((*text).to_owned()),
-        Token::CommonVariablePrefix(text) => Some((*text).to_owned()),
+        TokenType::Plus | TokenType::With => Some(BinaryOperator::Plus),
+        TokenType::Minus => Some(BinaryOperator::Minus),
+        TokenType::Multiply => Some(BinaryOperator::Multiply),
+        TokenType::Divide => Some(BinaryOperator::Divide),
 
         _ => None,
     }
@@ -109,12 +99,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn match_and_consume_any(&mut self, tokens: &[Token]) -> Option<Token<'a>> {
-        self.match_and_consume_if(|token| tokens.contains(token))
+    fn match_and_consume_any(&mut self, tokens: &[TokenType]) -> Option<Token<'a>> {
+        self.match_and_consume_if(|token| tokens.contains(&token.id))
     }
 
-    fn match_and_consume(&mut self, token: Token) -> Option<Token<'a>> {
-        self.match_and_consume_if(|tok| *tok == token)
+    fn match_and_consume(&mut self, token: TokenType) -> Option<Token<'a>> {
+        self.match_and_consume_if(|tok| tok.id == token)
     }
 
     fn match_and_consume_while<F, R, Tx>(&mut self, f: F, tx: Tx) -> Vec<R>
@@ -134,8 +124,8 @@ impl<'a> Parser<'a> {
         let tok = self.lexer.next();
         assert!(tok.filter(f).is_some());
     }
-    fn consume(&mut self, token: Token) {
-        self.consume_if(|tok| *tok == token)
+    fn consume(&mut self, token: TokenType) {
+        self.consume_if(|tok| tok.id == token)
     }
 
     fn parse_expression(&mut self) -> Result<Expression, ParseError<'a>> {
@@ -143,18 +133,18 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_term(&mut self) -> Result<Expression, ParseError<'a>> {
-        self.parse_binary_expression(&[Token::Plus, Token::Minus], |p| p.parse_factor())
+        self.parse_binary_expression(&[TokenType::Plus, TokenType::Minus], |p| p.parse_factor())
     }
 
     fn parse_factor(&mut self) -> Result<Expression, ParseError<'a>> {
-        self.parse_binary_expression(&[Token::Multiply, Token::Divide], |p| {
+        self.parse_binary_expression(&[TokenType::Multiply, TokenType::Divide], |p| {
             p.parse_unary_expression()
         })
     }
 
     fn parse_binary_expression<F>(
         &mut self,
-        operators: &[Token],
+        operators: &[TokenType],
         next: F,
     ) -> Result<Expression, ParseError<'a>>
     where
@@ -163,7 +153,7 @@ impl<'a> Parser<'a> {
         let mut expr = next(self)?;
         while let Some(operator) = self
             .match_and_consume_any(operators)
-            .map(|token| get_binary_operator(token).unwrap())
+            .map(|token| get_binary_operator(token.id).unwrap())
         {
             let rhs = boxed_expr(next(self)?);
             expr = BinaryExpression {
@@ -178,8 +168,8 @@ impl<'a> Parser<'a> {
 
     fn parse_unary_expression(&mut self) -> Result<Expression, ParseError<'a>> {
         if let Some(operator) = self
-            .match_and_consume(Token::Minus)
-            .map(|token| get_unary_operator(token).unwrap())
+            .match_and_consume(TokenType::Minus)
+            .map(|token| get_unary_operator(token.id).unwrap())
         {
             Ok(UnaryExpression {
                 operator,
@@ -206,63 +196,63 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_pronoun(&mut self) -> Option<PrimaryExpression> {
-        self.match_and_consume(Token::Pronoun)
+        self.match_and_consume(TokenType::Pronoun)
             .map(|_| PrimaryExpression::Pronoun)
     }
 
     fn parse_literal_expression(&mut self) -> Option<LiteralExpression> {
-        self.lexer.next().and_then(|token| match token {
-            Token::Null => Some(LiteralExpression::Null),
-            Token::Number(n) => Some(LiteralExpression::Number(n)),
-            Token::StringLiteral(s) => Some(LiteralExpression::String(s.to_owned())),
-            Token::Empty => Some(LiteralExpression::String(String::new())),
-            Token::True => Some(LiteralExpression::Boolean(true)),
-            Token::False => Some(LiteralExpression::Boolean(false)),
+        self.lexer.next().and_then(|token| match token.id {
+            TokenType::Null => Some(LiteralExpression::Null),
+            TokenType::Number(n) => Some(LiteralExpression::Number(n)),
+            TokenType::StringLiteral(s) => Some(LiteralExpression::String(s.to_owned())),
+            TokenType::Empty => Some(LiteralExpression::String(String::new())),
+            TokenType::True => Some(LiteralExpression::Boolean(true)),
+            TokenType::False => Some(LiteralExpression::Boolean(false)),
             _ => None,
         })
     }
 
     fn match_and_extract_text<F: FnOnce(&Token) -> bool>(&mut self, f: F) -> Option<String> {
-        self.match_and_consume_if(f).as_ref().and_then(extract_text)
+        self.match_and_consume_if(f)
+            .map(|tok| tok.spelling.to_owned())
     }
 
     fn parse_common_identifier(&mut self) -> Result<Option<CommonIdentifier>, ParseError<'a>> {
-        if let Some(prefix) =
-            self.match_and_extract_text(|tok| matches!(tok, Token::CommonVariablePrefix(_)))
+        if let Some(prefix) = self
+            .match_and_consume(TokenType::CommonVariablePrefix)
+            .map(|tok| tok.spelling)
         {
             let next_word = self
-                .match_and_extract_text(|tok: &Token| {
-                    matches!(tok, Token::Word(_) | Token::CapitalizedWord(_)) // capitalized words are invalid, but we want to match them for good error messages
-                })
+                .match_and_consume_any(&[TokenType::Word, TokenType::CapitalizedWord]) // capitalized words are invalid, but we want to match them for good error messages
+                .map(|tok| tok.spelling)
                 .ok_or_else(|| {
-                    self.new_parse_error(ParseErrorCode::MissingIDAfterCommonPrefix(prefix.clone()))
+                    self.new_parse_error(ParseErrorCode::MissingIDAfterCommonPrefix(prefix.into()))
                 })?;
-            // TODO there's an extra string clone here in both paths
             let identifier = next_word
                 .chars()
                 .all(|c| c.is_ascii_lowercase())
-                .then(|| next_word.clone())
+                .then(|| next_word)
                 .ok_or_else(|| {
                     self.new_parse_error(ParseErrorCode::UppercaseAfterCommonPrefix(
-                        prefix.clone(),
-                        next_word.clone(),
+                        prefix.into(),
+                        next_word.into(),
                     ))
                 })?;
-            Ok(Some(CommonIdentifier(prefix, identifier)))
+            Ok(Some(CommonIdentifier(prefix.into(), identifier.into())))
         } else {
             Ok(None)
         }
     }
 
     fn parse_simple_identifier(&mut self) -> Option<SimpleIdentifier> {
-        self.match_and_extract_text(|tok| matches!(tok, Token::Word(_) | Token::CapitalizedWord(_)))
-            .map(|text| SimpleIdentifier(text))
+        self.match_and_consume_any(&[TokenType::Word, TokenType::CapitalizedWord])
+            .map(|tok| SimpleIdentifier(tok.spelling.into()))
     }
 
     fn parse_capitalized_identifier(&mut self) -> Option<Identifier> {
         let names = self.match_and_consume_while(
-            |tok| matches!(tok, Token::CapitalizedWord(_)),
-            |tok| extract_text(tok).unwrap(),
+            |tok| tok.id == TokenType::CapitalizedWord,
+            |tok| tok.spelling.to_owned(),
         );
         match names.len() {
             0 => None,
@@ -282,10 +272,10 @@ impl<'a> Parser<'a> {
         let current_token = self
             .current()
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::UnexpectedEndOfTokens))?;
-        Ok(match current_token {
-            Token::Put => self.parse_put_assignment()?.into(),
-            Token::Let => self.parse_let_assignment()?.into(),
-            Token::Word(_) | Token::CapitalizedWord(_) | Token::CommonVariablePrefix(_) => {
+        Ok(match current_token.id {
+            TokenType::Put => self.parse_put_assignment()?.into(),
+            TokenType::Let => self.parse_let_assignment()?.into(),
+            TokenType::Word | TokenType::CapitalizedWord | TokenType::CommonVariablePrefix => {
                 self.parse_basic_assignment()?.into()
             }
 
@@ -297,17 +287,17 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn expect_token(&mut self, tok: Token<'a>) -> Result<Token<'a>, ParseError<'a>> {
+    fn expect_token(&mut self, tok: TokenType<'a>) -> Result<Token<'a>, ParseError<'a>> {
         self.match_and_consume(tok)
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedToken(tok)))
     }
 
     fn expect_token_or_aliases(
         &mut self,
-        token: Token<'a>,
-        aliases: &[Token<'a>],
+        token: TokenType<'a>,
+        aliases: &[TokenType<'a>],
     ) -> Result<Token<'a>, ParseError<'a>> {
-        self.match_and_consume_if(|tok| *tok == token || aliases.contains(tok))
+        self.match_and_consume_if(|tok| tok.id == token || aliases.contains(&tok.id))
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedToken(token)))
     }
 
@@ -317,9 +307,9 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_put_assignment(&mut self) -> Result<Assignment, ParseError<'a>> {
-        self.consume(Token::Put);
+        self.consume(TokenType::Put);
         let value = boxed_expr(self.parse_expression()?);
-        self.expect_token(Token::Into)?;
+        self.expect_token(TokenType::Into)?;
         let dest = self.expect_identifier()?;
         Ok(Assignment {
             dest,
@@ -328,18 +318,18 @@ impl<'a> Parser<'a> {
         })
     }
     fn parse_let_assignment(&mut self) -> Result<Assignment, ParseError<'a>> {
-        self.consume(Token::Let);
+        self.consume(TokenType::Let);
         let dest = self.expect_identifier()?;
-        self.expect_token(Token::Be)?;
+        self.expect_token(TokenType::Be)?;
         let operator = self
             .match_and_consume_any(&[
-                Token::Plus,
-                Token::With,
-                Token::Minus,
-                Token::Multiply,
-                Token::Divide,
+                TokenType::Plus,
+                TokenType::With,
+                TokenType::Minus,
+                TokenType::Multiply,
+                TokenType::Divide,
             ])
-            .map(|tok| get_binary_operator(tok).unwrap());
+            .map(|tok| get_binary_operator(tok.id).unwrap());
         let value = boxed_expr(self.parse_expression()?);
         Ok(Assignment {
             dest,
@@ -351,7 +341,10 @@ impl<'a> Parser<'a> {
         // not using expect_identifier since we know for sure the first token is a Word or CapitalizedWord,
         // so we either have an identifier or a parse error at the beginning
         let dest = self.parse_identifier()?.unwrap();
-        self.expect_token_or_aliases(Token::Is, &[Token::ApostropheS, Token::ApostropheRE])?;
+        self.expect_token_or_aliases(
+            TokenType::Is,
+            &[TokenType::ApostropheS, TokenType::ApostropheRE],
+        )?;
         let value = boxed_expr(self.parse_expression()?);
         Ok(Assignment {
             dest,
