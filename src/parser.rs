@@ -212,11 +212,6 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn match_and_extract_text<F: FnOnce(&Token) -> bool>(&mut self, f: F) -> Option<String> {
-        self.match_and_consume_if(f)
-            .map(|tok| tok.spelling.to_owned())
-    }
-
     fn parse_common_identifier(&mut self) -> Result<Option<CommonIdentifier>, ParseError<'a>> {
         if let Some(prefix) = self
             .match_and_consume(TokenType::CommonVariablePrefix)
