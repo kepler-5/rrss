@@ -574,7 +574,11 @@ fn parse_identifier() {
             ProperIdentifier(vec!["TOm".into(), "SAWyer".into()]).into()
         ))
     );
+}
+#[test]
 
+fn parse_identifier_errors() {
+    let parse = |text| Parser::for_source_code(text).parse_identifier();
     assert_eq!(
         parse("DOCTOR feelgood"),
         Ok(Some(SimpleIdentifier("DOCTOR".into()).into())) // TODO ParseError here?
@@ -850,5 +854,61 @@ fn parse_assignment() {
             operator: None
         }
         .into())
+    );
+}
+
+#[test]
+fn parse_assignment_errors() {
+    let parse = |text| Parser::for_source_code(text).parse_statement();
+
+    assert_eq!(
+        parse("Let 5 be 6"),
+        Err(ParseError {
+            code: ParseErrorCode::ExpectedIdentifier,
+            token: Some(Token {
+                id: TokenType::Number(5.0),
+                spelling: "5"
+            })
+        })
+    );
+    assert_eq!(
+        parse("Put 6 into 5"),
+        Err(ParseError {
+            code: ParseErrorCode::ExpectedIdentifier,
+            token: Some(Token {
+                id: TokenType::Number(5.0),
+                spelling: "5"
+            })
+        })
+    );
+    assert_eq!(
+        parse("Let five bee 6"),
+        Err(ParseError {
+            code: ParseErrorCode::ExpectedToken(TokenType::Be),
+            token: Some(Token {
+                id: TokenType::Word,
+                spelling: "bee"
+            })
+        })
+    );
+    assert_eq!(
+        parse("Put five intoo six"),
+        Err(ParseError {
+            code: ParseErrorCode::ExpectedToken(TokenType::Into),
+            token: Some(Token {
+                id: TokenType::Word,
+                spelling: "intoo"
+            })
+        })
+    );
+    assert_eq!(
+        parse("My world. is nothing without your love"),
+        Err(ParseError {
+            code: ParseErrorCode::ExpectedToken(TokenType::Is),
+            token: Some(Token {
+                id: TokenType::Dot,
+                spelling: "."
+            })
+        })
     );
 }
