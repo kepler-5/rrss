@@ -24,11 +24,15 @@ pub enum Token<'a> {
     Divide,
 
     Is,
+    Isnt,
     Put,
     Into,
     Let,
     Be,
     With,
+
+    ApostropheS,
+    ApostropheRE,
 
     Newline,
     Comment(&'a str),
@@ -75,8 +79,16 @@ lazy_static! {
 
         alias(Token::Into, &["in", "into"]);
 
+        alias(Token::Is, &["is", "are", "was", "were"]);
+        alias(
+            Token::Isnt,
+            &[
+                "isnt", "isn't", "aint", "ain't", "arent", "aren't", "wasnt", "wasn't", "werent",
+                "weren't",
+            ],
+        );
+
         m.extend([
-            ("is", Token::Is),
             ("with", Token::With),
             ("put", Token::Put),
             ("let", Token::Let),
@@ -111,7 +123,7 @@ fn is_ignorable_whitespace(c: char) -> bool {
 }
 
 fn is_ignorable_punctuation(c: char) -> bool {
-    c.is_ascii_punctuation() && c != '_'
+    c.is_ascii_punctuation() && c != '_' && c != '\''
 }
 
 fn find_word_start<'a>(
@@ -129,6 +141,7 @@ struct LexResult<'a> {
 pub struct Lexer<'a> {
     buf: &'a str,
     char_indices: CharIndices<'a>,
+    staged: Option<Token<'a>>,
 }
 
 impl<'a> Lexer<'a> {
@@ -136,6 +149,7 @@ impl<'a> Lexer<'a> {
         Self {
             buf,
             char_indices: buf.char_indices(),
+            staged: None,
         }
     }
 
@@ -178,21 +192,35 @@ impl<'a> Lexer<'a> {
 
     fn find_word_type(&self, word: &'a str) -> Token<'a> {
         assert!(!word.is_empty());
-        if word.chars().next().unwrap().is_uppercase() {
-            Token::CapitalizedWord(word)
-        } else {
-            Token::Word(word)
-        }
+        match_keyword(word).unwrap_or_else(|| {
+            word.chars()
+                .next()
+                .unwrap()
+                .is_uppercase()
+                .then(|| Token::CapitalizedWord(word))
+                .unwrap_or_else(|| Token::Word(word))
+        })
     }
 
-    fn scan_word(&self, start: usize) -> LexResult<'a> {
+    fn tokenize_word(&mut self, word: &'a str, end: usize) -> LexResult<'a> {
+        let (stripped, staged) = word
+            .strip_suffix("'s")
+            .map(|stripped| (stripped, Some(Token::ApostropheS)))
+            .or_else(|| {
+                word.strip_suffix("'re")
+                    .map(|stripped| (stripped, Some(Token::ApostropheRE)))
+            })
+            .unwrap_or_else(|| (word.trim_matches('\''), None));
+        self.staged = staged;
+        let token = self.find_word_type(stripped);
+        LexResult { token, end }
+    }
+
+    fn scan_word(&mut self, start: usize) -> LexResult<'a> {
         let end = self.find_next_word_end();
         Some(self.substr(start..end))
-            .filter(|s| s.chars().all(|c| c.is_alphabetic()))
-            .map(|word| LexResult {
-                token: self.find_word_type(word),
-                end,
-            })
+            .filter(|s| s.chars().all(|c| c.is_alphabetic() || c == '\''))
+            .map(|word| self.tokenize_word(word, end))
             .unwrap_or_else(|| LexResult {
                 token: Token::Error(
                     self.substr(start..end),
@@ -280,6 +308,8 @@ impl<'a> Lexer<'a> {
                         }
                     }
 
+                    '\'' => continue,
+
                     '+' => char_token(Token::Plus),
                     '-' => char_token(Token::Minus),
                     '*' => char_token(Token::Multiply),
@@ -320,7 +350,7 @@ impl<'a> Lexer<'a> {
 impl<'a> Iterator for Lexer<'a> {
     type Item = Token<'a>;
     fn next(&mut self) -> Option<Self::Item> {
-        self.match_loop()
+        self.staged.take().or_else(|| self.match_loop())
     }
 }
 
@@ -438,8 +468,12 @@ fn lex() {
 
     assert_eq!(lex("in into"), vec![Token::Into, Token::Into]);
     assert_eq!(
-        lex("is put let be"),
-        vec![Token::Is, Token::Put, Token::Let, Token::Be]
+        lex("is isn't put let be"),
+        vec![Token::Is, Token::Isnt, Token::Put, Token::Let, Token::Be]
+    );
+    assert_eq!(
+        lex("is are was were"),
+        vec![Token::Is, Token::Is, Token::Is, Token::Is]
     );
 
     assert_eq!(lex("()"), vec![Token::Comment("")]);
@@ -507,6 +541,36 @@ fn lex() {
             Token::Word("foo")
         ]
     );
+}
+
+#[test]
+fn lex_apostrophe_stuff() {
+    let lex = |buf| Lexer::new(buf).collect::<Vec<_>>();
+
+    assert_eq!(
+        lex("isnt isn't aint ain't"),
+        vec![Token::Isnt, Token::Isnt, Token::Isnt, Token::Isnt]
+    );
+    assert_eq!(lex("foo's"), vec![Token::Word("foo"), Token::ApostropheS]);
+    assert_eq!(lex("he's"), vec![Token::Pronoun, Token::ApostropheS]);
+    assert_eq!(lex("nothing's"), vec![Token::Null, Token::ApostropheS]);
+    assert_eq!(lex("we're"), vec![Token::Word("we"), Token::ApostropheRE]);
+
+    assert_eq!(lex("foo 's"), vec![Token::Word("foo"), Token::Word("s")]);
+    assert_eq!(lex("he' s"), vec![Token::Pronoun, Token::Word("s")]);
+    assert_eq!(lex("nothing 's"), vec![Token::Null, Token::Word("s")]);
+    assert_eq!(lex("we' re"), vec![Token::Word("we"), Token::Word("re")]);
+
+    assert_eq!(
+        lex("ain't talkin' 'bout love"),
+        vec![
+            Token::Isnt,
+            Token::Word("talkin"),
+            Token::Word("bout"),
+            Token::Word("love")
+        ]
+    );
+    assert_eq!(lex("rock'n'roll"), vec![Token::Word("rock'n'roll")]);
 }
 
 #[test]

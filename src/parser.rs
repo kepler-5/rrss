@@ -284,7 +284,9 @@ impl<'a> Parser<'a> {
         Ok(match current_token {
             Token::Put => self.parse_put_assignment()?.into(),
             Token::Let => self.parse_let_assignment()?.into(),
-            Token::Word(_) | Token::CapitalizedWord(_) => self.parse_basic_assignment()?.into(),
+            Token::Word(_) | Token::CapitalizedWord(_) | Token::CommonVariablePrefix(_) => {
+                self.parse_basic_assignment()?.into()
+            }
 
             _ => {
                 let error = self.new_parse_error(ParseErrorCode::UnexpectedToken);
@@ -297,6 +299,15 @@ impl<'a> Parser<'a> {
     fn expect_token(&mut self, tok: Token<'a>) -> Result<Token<'a>, ParseError<'a>> {
         self.match_and_consume(tok)
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedToken(tok)))
+    }
+
+    fn expect_token_or_aliases(
+        &mut self,
+        token: Token<'a>,
+        aliases: &[Token<'a>],
+    ) -> Result<Token<'a>, ParseError<'a>> {
+        self.match_and_consume_if(|tok| *tok == token || aliases.contains(tok))
+            .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedToken(token)))
     }
 
     fn expect_identifier(&mut self) -> Result<Identifier, ParseError<'a>> {
@@ -339,7 +350,7 @@ impl<'a> Parser<'a> {
         // not using expect_identifier since we know for sure the first token is a Word or CapitalizedWord,
         // so we either have an identifier or a parse error at the beginning
         let dest = self.parse_identifier()?.unwrap();
-        self.expect_token(Token::Is)?;
+        self.expect_token_or_aliases(Token::Is, &[Token::ApostropheS, Token::ApostropheRE])?;
         let value = boxed_expr(self.parse_expression()?);
         Ok(Assignment {
             dest,
@@ -678,7 +689,7 @@ fn parse_assignment() {
         parse("Tommy is a rockstar"),
         Ok(Assignment {
             dest: SimpleIdentifier("Tommy".into()).into(),
-            value: boxed_expr(CommonIdentifier("a".into(), "rockstar".into())),
+            value: boxed_expr(CommonIdentifier("a".into(), "rockstar".into())), // might be wrong--this should be a poetic literal instead?
             operator: None
         }
         .into())
@@ -710,6 +721,34 @@ fn parse_assignment() {
                 lhs: boxed_expr(SimpleIdentifier("x".into())),
                 rhs: boxed_expr(SimpleIdentifier("y".into()))
             }),
+            operator: None
+        }
+        .into())
+    );
+
+    assert_eq!(
+        parse("Variable's 1"),
+        Ok(Assignment {
+            dest: SimpleIdentifier("Variable".into()).into(),
+            value: boxed_expr(LiteralExpression::Number(1.0)),
+            operator: None
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("Variables are 1"),
+        Ok(Assignment {
+            dest: SimpleIdentifier("Variables".into()).into(),
+            value: boxed_expr(LiteralExpression::Number(1.0)),
+            operator: None
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("We're 1"),
+        Ok(Assignment {
+            dest: SimpleIdentifier("We".into()).into(),
+            value: boxed_expr(LiteralExpression::Number(1.0)),
             operator: None
         }
         .into())
@@ -780,6 +819,33 @@ fn parse_assignment() {
             dest: CommonIdentifier("my".into(), "heart".into()).into(),
             value: boxed_expr(CommonIdentifier("the".into(), "moon".into())),
             operator: Some(BinaryOperator::Divide),
+        }
+        .into())
+    );
+
+    assert_eq!(
+        parse("Put the whole of your heart into my hands"),
+        Ok(Assignment {
+            dest: CommonIdentifier("my".into(), "hands".into()).into(),
+            value: boxed_expr(BinaryExpression {
+                operator: BinaryOperator::Multiply,
+                lhs: boxed_expr(CommonIdentifier("the".into(), "whole".into())),
+                rhs: boxed_expr(CommonIdentifier("your".into(), "heart".into()))
+            }),
+            operator: None
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("My world is nothing without your love"),
+        Ok(Assignment {
+            dest: CommonIdentifier("My".into(), "world".into()).into(),
+            value: boxed_expr(BinaryExpression {
+                operator: BinaryOperator::Minus,
+                lhs: boxed_expr(LiteralExpression::Null),
+                rhs: boxed_expr(CommonIdentifier("your".into(), "love".into()))
+            }),
+            operator: None
         }
         .into())
     );
