@@ -3,10 +3,11 @@ use std::iter::Peekable;
 use crate::{
     ast::{
         Assignment, BinaryExpression, BinaryOperator, CommonIdentifier, Expression, Identifier,
-        LiteralExpression, PrimaryExpression, Program, ProperIdentifier, SimpleIdentifier,
-        Statement, UnaryExpression, UnaryOperator,
+        LiteralExpression, PoeticAssignment, PoeticNumberAssignment, PoeticNumberAssignmentRHS,
+        PoeticNumberLiteral, PoeticNumberLiteralElem, PrimaryExpression, Program, ProperIdentifier,
+        SimpleIdentifier, Statement, UnaryExpression, UnaryOperator,
     },
-    lexer::{CommentSkippingLexer, Lexer, Token, TokenType},
+    lexer::{self, CommentSkippingLexer, Lexer, Token, TokenType},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -16,6 +17,7 @@ pub enum ParseErrorCode<'a> {
     UppercaseAfterCommonPrefix(String, String),
     ExpectedIdentifier,
     ExpectedToken(TokenType<'a>),
+    ExpectedPoeticNumberLiteral,
     UnexpectedToken,
     UnexpectedEndOfTokens,
 }
@@ -82,9 +84,26 @@ fn take_first<T>(vec: Vec<T>) -> T {
     vec.into_iter().next().unwrap()
 }
 
+fn is_literal_word(token: TokenType) -> bool {
+    matches!(
+        token,
+        TokenType::Null
+            | TokenType::Number(_)
+            | TokenType::StringLiteral(_)
+            | TokenType::Empty
+            | TokenType::True
+            | TokenType::False
+    )
+}
+
 impl<'a> Parser<'a> {
     fn current(&mut self) -> Option<Token<'a>> {
         self.lexer.peek().copied()
+    }
+
+    fn current_or_error(&mut self) -> Result<Token<'a>, ParseError<'a>> {
+        self.current()
+            .ok_or_else(|| self.new_parse_error(ParseErrorCode::UnexpectedEndOfTokens))
     }
 
     fn new_parse_error(&mut self, code: ParseErrorCode<'a>) -> ParseError<'a> {
@@ -271,7 +290,7 @@ impl<'a> Parser<'a> {
             TokenType::Put => self.parse_put_assignment()?.into(),
             TokenType::Let => self.parse_let_assignment()?.into(),
             TokenType::Word | TokenType::CapitalizedWord | TokenType::CommonVariablePrefix => {
-                self.parse_basic_assignment()?.into()
+                self.parse_poetic_assignment()?.into()
             }
 
             _ => {
@@ -332,7 +351,29 @@ impl<'a> Parser<'a> {
             operator,
         })
     }
-    fn parse_basic_assignment(&mut self) -> Result<Assignment, ParseError<'a>> {
+
+    fn parse_poetic_number_assignment_rhs(
+        &mut self,
+    ) -> Result<PoeticNumberAssignmentRHS, ParseError<'a>> {
+        is_literal_word(self.current_or_error()?.id)
+            .then(|| self.parse_expression().map(|e| boxed_expr(e).into()))
+            .unwrap_or_else(|| {
+                let elems = self.match_and_consume_while(
+                    |tok| tok.id == TokenType::Dot || lexer::is_word(tok.spelling),
+                    |tok| match tok.id {
+                        TokenType::Dot => PoeticNumberLiteralElem::Dot,
+                        _ => PoeticNumberLiteralElem::Word(tok.spelling.into()),
+                    },
+                );
+                (!elems.is_empty())
+                    .then(|| PoeticNumberLiteral { elems }.into())
+                    .ok_or_else(|| {
+                        self.new_parse_error(ParseErrorCode::ExpectedPoeticNumberLiteral)
+                    })
+            })
+    }
+
+    fn parse_poetic_assignment(&mut self) -> Result<PoeticAssignment, ParseError<'a>> {
         // not using expect_identifier since we know for sure the first token is a Word or CapitalizedWord,
         // so we either have an identifier or a parse error at the beginning
         let dest = self.parse_identifier()?.unwrap();
@@ -340,12 +381,8 @@ impl<'a> Parser<'a> {
             TokenType::Is,
             &[TokenType::ApostropheS, TokenType::ApostropheRE],
         )?;
-        let value = boxed_expr(self.parse_expression()?);
-        Ok(Assignment {
-            dest,
-            value,
-            operator: None,
-        })
+        let rhs = self.parse_poetic_number_assignment_rhs()?;
+        Ok(PoeticNumberAssignment { dest, rhs }.into())
     }
 }
 
@@ -674,51 +711,6 @@ fn parse_expression() {
 fn parse_assignment() {
     let parse = |text| Parser::for_source_code(text).parse_statement();
     assert_eq!(
-        parse("Variable is 1"),
-        Ok(Assignment {
-            dest: SimpleIdentifier("Variable".into()).into(),
-            value: boxed_expr(LiteralExpression::Number(1.0)),
-            operator: None
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Tommy is a rockstar"),
-        Ok(Assignment {
-            dest: SimpleIdentifier("Tommy".into()).into(),
-            value: boxed_expr(CommonIdentifier("a".into(), "rockstar".into())), // might be wrong--this should be a poetic literal instead?
-            operator: None
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("X is 2"),
-        Ok(Assignment {
-            dest: SimpleIdentifier("X".into()).into(),
-            value: boxed_expr(LiteralExpression::Number(2.0)),
-            operator: None
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Y is 3"),
-        Ok(Assignment {
-            dest: SimpleIdentifier("Y".into()).into(),
-            value: boxed_expr(LiteralExpression::Number(3.0)),
-            operator: None
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("noise is silence"),
-        Ok(Assignment {
-            dest: SimpleIdentifier("noise".into()).into(),
-            value: boxed_expr(LiteralExpression::String(String::new())),
-            operator: None
-        }
-        .into())
-    );
-    assert_eq!(
         parse("Put x plus y into result"),
         Ok(Assignment {
             dest: SimpleIdentifier("result".into()).into(),
@@ -727,34 +719,6 @@ fn parse_assignment() {
                 lhs: boxed_expr(SimpleIdentifier("x".into())),
                 rhs: boxed_expr(SimpleIdentifier("y".into()))
             }),
-            operator: None
-        }
-        .into())
-    );
-
-    assert_eq!(
-        parse("Variable's 1"),
-        Ok(Assignment {
-            dest: SimpleIdentifier("Variable".into()).into(),
-            value: boxed_expr(LiteralExpression::Number(1.0)),
-            operator: None
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Variables are 1"),
-        Ok(Assignment {
-            dest: SimpleIdentifier("Variables".into()).into(),
-            value: boxed_expr(LiteralExpression::Number(1.0)),
-            operator: None
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("We're 1"),
-        Ok(Assignment {
-            dest: SimpleIdentifier("We".into()).into(),
-            value: boxed_expr(LiteralExpression::Number(1.0)),
             operator: None
         }
         .into())
@@ -842,19 +806,6 @@ fn parse_assignment() {
         }
         .into())
     );
-    assert_eq!(
-        parse("My world is nothing without your love"),
-        Ok(Assignment {
-            dest: CommonIdentifier("My".into(), "world".into()).into(),
-            value: boxed_expr(BinaryExpression {
-                operator: BinaryOperator::Minus,
-                lhs: boxed_expr(LiteralExpression::Null),
-                rhs: boxed_expr(CommonIdentifier("your".into(), "love".into()))
-            }),
-            operator: None
-        }
-        .into())
-    );
 }
 
 #[test]
@@ -901,6 +852,127 @@ fn parse_assignment_errors() {
             })
         })
     );
+}
+
+#[test]
+fn parse_poetic_assignment() {
+    let parse = |text| Parser::for_source_code(text).parse_statement();
+
+    assert_eq!(
+        parse("Variable is 1"),
+        Ok(PoeticNumberAssignment {
+            dest: SimpleIdentifier("Variable".into()).into(),
+            rhs: boxed_expr(LiteralExpression::Number(1.0)).into(),
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("Tommy is a rockstar"),
+        Ok(PoeticNumberAssignment {
+            dest: SimpleIdentifier("Tommy".into()).into(),
+            rhs: PoeticNumberLiteral {
+                elems: vec![
+                    PoeticNumberLiteralElem::Word("a".into()),
+                    PoeticNumberLiteralElem::Word("rockstar".into()),
+                ]
+            }
+            .into(),
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("Sweet Lucy was a dancer"),
+        Ok(PoeticNumberAssignment {
+            dest: ProperIdentifier(vec!["Sweet".into(), "Lucy".into()]).into(),
+            rhs: PoeticNumberLiteral {
+                elems: vec![
+                    PoeticNumberLiteralElem::Word("a".into()),
+                    PoeticNumberLiteralElem::Word("dancer".into()),
+                ]
+            }
+            .into(),
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("Tommy was without"),
+        Ok(PoeticNumberAssignment {
+            dest: SimpleIdentifier("Tommy".into()).into(),
+            rhs: PoeticNumberLiteral {
+                elems: vec![PoeticNumberLiteralElem::Word("without".into())]
+            }
+            .into(),
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("X is 2"),
+        Ok(PoeticNumberAssignment {
+            dest: SimpleIdentifier("X".into()).into(),
+            rhs: boxed_expr(LiteralExpression::Number(2.0)).into(),
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("Y is 3"),
+        Ok(PoeticNumberAssignment {
+            dest: SimpleIdentifier("Y".into()).into(),
+            rhs: boxed_expr(LiteralExpression::Number(3.0)).into(),
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("noise is silence"),
+        Ok(PoeticNumberAssignment {
+            dest: SimpleIdentifier("noise".into()).into(),
+            rhs: boxed_expr(LiteralExpression::String(String::new())).into(),
+        }
+        .into())
+    );
+
+    assert_eq!(
+        parse("Variable's 1"),
+        Ok(PoeticNumberAssignment {
+            dest: SimpleIdentifier("Variable".into()).into(),
+            rhs: boxed_expr(LiteralExpression::Number(1.0)).into(),
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("Variables are 1"),
+        Ok(PoeticNumberAssignment {
+            dest: SimpleIdentifier("Variables".into()).into(),
+            rhs: boxed_expr(LiteralExpression::Number(1.0)).into(),
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("We're 1"),
+        Ok(PoeticNumberAssignment {
+            dest: SimpleIdentifier("We".into()).into(),
+            rhs: boxed_expr(LiteralExpression::Number(1.0)).into(),
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("My world is nothing without your love"),
+        Ok(PoeticNumberAssignment {
+            dest: CommonIdentifier("My".into(), "world".into()).into(),
+            rhs: boxed_expr(BinaryExpression {
+                operator: BinaryOperator::Minus,
+                lhs: boxed_expr(LiteralExpression::Null),
+                rhs: boxed_expr(CommonIdentifier("your".into(), "love".into()))
+            })
+            .into(),
+        }
+        .into())
+    );
+}
+
+#[test]
+fn parse_poetic_assignment_errors() {
+    let parse = |text| Parser::for_source_code(text).parse_statement();
+
     assert_eq!(
         parse("My world. is nothing without your love"),
         Err(ParseError {

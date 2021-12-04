@@ -135,6 +135,11 @@ fn is_ignorable_punctuation(c: char) -> bool {
     c.is_ascii_punctuation() && c != '_' && c != '\''
 }
 
+pub fn is_word(text: &str) -> bool {
+    text.chars()
+        .all(|c| !(c.is_whitespace() || is_ignorable_punctuation(c)))
+}
+
 fn find_word_start<'a>(
     char_indices: &mut CharIndices,
 ) -> Option<<CharIndices<'a> as Iterator>::Item> {
@@ -838,4 +843,13 @@ fn skip_comments() {
             Token::new(TokenType::Word, "hi")
         ]
     );
+}
+
+#[test]
+fn test_is_word() {
+    assert!(is_word("foo"));
+    assert!(is_word("baR"));
+    assert!(!is_word("baz quux"));
+    assert!(!is_word("+"));
+    assert!(is_word("rock'n'roll"));
 }

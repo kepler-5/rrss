@@ -123,6 +123,7 @@ pub struct Assignment {
 #[derive(Clone, Debug, PartialEq)]
 pub enum PoeticNumberLiteralElem {
     Word(String),
+    WordSuffix(String),
     Dot,
 }
 
@@ -137,15 +138,15 @@ impl PoeticNumberLiteral {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum PoeticNumberAssignmentRHS {
-    Literal(LiteralExpression),
+    Expression(Box<Expression>),
     PoeticNumberLiteral(PoeticNumberLiteral),
 }
 
-impl From<LiteralExpression> for PoeticNumberAssignmentRHS {
-    fn from(e: LiteralExpression) -> Self {
-        PoeticNumberAssignmentRHS::Literal(e)
+impl From<Box<Expression>> for PoeticNumberAssignmentRHS {
+    fn from(e: Box<Expression>) -> Self {
+        PoeticNumberAssignmentRHS::Expression(e)
     }
 }
 
@@ -155,16 +156,27 @@ impl From<PoeticNumberLiteral> for PoeticNumberAssignmentRHS {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct PoeticNumberAssignment {
     pub dest: Identifier,
     pub rhs: PoeticNumberAssignmentRHS,
 }
 
 #[derive(Debug, PartialEq)]
+pub enum PoeticAssignment {
+    Number(PoeticNumberAssignment),
+}
+
+impl From<PoeticNumberAssignment> for PoeticAssignment {
+    fn from(p: PoeticNumberAssignment) -> Self {
+        PoeticAssignment::Number(p)
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Statement {
     Assignment(Assignment),
-    PoeticNumberAssignment(PoeticNumberAssignment),
+    PoeticAssignment(PoeticAssignment),
 }
 
 impl From<Assignment> for Statement {
@@ -173,8 +185,8 @@ impl From<Assignment> for Statement {
     }
 }
 
-impl From<PoeticNumberAssignment> for Statement {
-    fn from(a: PoeticNumberAssignment) -> Self {
-        Statement::PoeticNumberAssignment(a)
+impl<P: Into<PoeticAssignment>> From<P> for Statement {
+    fn from(p: P) -> Self {
+        Statement::PoeticAssignment(p.into())
     }
 }
