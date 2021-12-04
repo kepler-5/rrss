@@ -23,6 +23,7 @@ pub enum Token<'a> {
     Multiply,
     Divide,
 
+    Is,
     Put,
     Into,
     Let,
@@ -75,6 +76,7 @@ lazy_static! {
         alias(Token::Into, &["in", "into"]);
 
         m.extend([
+            ("is", Token::Is),
             ("with", Token::With),
             ("put", Token::Put),
             ("let", Token::Let),
@@ -435,7 +437,10 @@ fn lex() {
     assert_eq!(lex("over between"), vec![Token::Divide, Token::Divide]);
 
     assert_eq!(lex("in into"), vec![Token::Into, Token::Into]);
-    assert_eq!(lex("put let be"), vec![Token::Put, Token::Let, Token::Be]);
+    assert_eq!(
+        lex("is put let be"),
+        vec![Token::Is, Token::Put, Token::Let, Token::Be]
+    );
 
     assert_eq!(lex("()"), vec![Token::Comment("")]);
     assert_eq!(lex("(hi)"), vec![Token::Comment("hi")]);

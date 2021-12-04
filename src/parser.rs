@@ -87,6 +87,11 @@ fn boxed_expr(x: impl Into<Expression>) -> Box<Expression> {
     Box::new(x.into())
 }
 
+fn take_first<T>(vec: Vec<T>) -> T {
+    assert!(!vec.is_empty());
+    vec.into_iter().next().unwrap()
+}
+
 impl<'a> Parser<'a> {
     fn current(&mut self) -> Option<Token<'a>> {
         self.lexer.peek().copied()
@@ -249,22 +254,25 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_simple_identifier(&mut self) -> Option<SimpleIdentifier> {
-        self.match_and_extract_text(|tok| matches!(tok, Token::Word(_)))
+        self.match_and_extract_text(|tok| matches!(tok, Token::Word(_) | Token::CapitalizedWord(_)))
             .map(|text| SimpleIdentifier(text))
     }
 
-    fn parse_proper_identifier(&mut self) -> Option<ProperIdentifier> {
+    fn parse_capitalized_identifier(&mut self) -> Option<Identifier> {
         let names = self.match_and_consume_while(
             |tok| matches!(tok, Token::CapitalizedWord(_)),
             |tok| extract_text(tok).unwrap(),
         );
-        (!names.is_empty()).then(|| ProperIdentifier(names))
+        match names.len() {
+            0 => None,
+            1 => Some(SimpleIdentifier(take_first(names)).into()),
+            _ => Some(ProperIdentifier(names).into()),
+        }
     }
 
     fn parse_identifier(&mut self) -> Result<Option<Identifier>, ParseError<'a>> {
         Ok(self.parse_common_identifier()?.map(Into::into).or_else(|| {
-            self.parse_proper_identifier()
-                .map(Into::into)
+            self.parse_capitalized_identifier()
                 .or_else(|| self.parse_simple_identifier().map(Into::into))
         }))
     }
@@ -276,6 +284,7 @@ impl<'a> Parser<'a> {
         Ok(match current_token {
             Token::Put => self.parse_put_assignment()?.into(),
             Token::Let => self.parse_let_assignment()?.into(),
+            Token::Word(_) | Token::CapitalizedWord(_) => self.parse_basic_assignment()?.into(),
 
             _ => {
                 let error = self.new_parse_error(ParseErrorCode::UnexpectedToken);
@@ -295,7 +304,7 @@ impl<'a> Parser<'a> {
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedIdentifier))
     }
 
-    fn parse_put_assignment<'b>(&'b mut self) -> Result<Assignment, ParseError<'a>> {
+    fn parse_put_assignment(&mut self) -> Result<Assignment, ParseError<'a>> {
         self.consume(Token::Put);
         let value = boxed_expr(self.parse_expression()?);
         self.expect_token(Token::Into)?;
@@ -324,6 +333,18 @@ impl<'a> Parser<'a> {
             dest,
             value,
             operator,
+        })
+    }
+    fn parse_basic_assignment(&mut self) -> Result<Assignment, ParseError<'a>> {
+        // not using expect_identifier since we know for sure the first token is a Word or CapitalizedWord,
+        // so we either have an identifier or a parse error at the beginning
+        let dest = self.parse_identifier()?.unwrap();
+        self.expect_token(Token::Is)?;
+        let value = boxed_expr(self.parse_expression()?);
+        Ok(Assignment {
+            dest,
+            value,
+            operator: None,
         })
     }
 }
@@ -552,7 +573,7 @@ fn parse_identifier() {
 
     assert_eq!(
         parse("DOCTOR feelgood"),
-        Ok(Some(ProperIdentifier(vec!["DOCTOR".into()]).into())) // TODO ParseError here?
+        Ok(Some(SimpleIdentifier("DOCTOR".into()).into())) // TODO ParseError here?
     );
 
     assert_eq!(
@@ -644,11 +665,60 @@ fn parse_expression() {
 #[test]
 fn parse_assignment() {
     let parse = |text| Parser::for_source_code(text).parse_statement();
+    assert_eq!(
+        parse("Variable is 1"),
+        Ok(Assignment {
+            dest: SimpleIdentifier("Variable".into()).into(),
+            value: boxed_expr(LiteralExpression::Number(1.0)),
+            operator: None
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("Tommy is a rockstar"),
+        Ok(Assignment {
+            dest: SimpleIdentifier("Tommy".into()).into(),
+            value: boxed_expr(CommonIdentifier("a".into(), "rockstar".into())),
+            operator: None
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("X is 2"),
+        Ok(Assignment {
+            dest: SimpleIdentifier("X".into()).into(),
+            value: boxed_expr(LiteralExpression::Number(2.0)),
+            operator: None
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("Y is 3"),
+        Ok(Assignment {
+            dest: SimpleIdentifier("Y".into()).into(),
+            value: boxed_expr(LiteralExpression::Number(3.0)),
+            operator: None
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("Put x plus y into result"),
+        Ok(Assignment {
+            dest: SimpleIdentifier("result".into()).into(),
+            value: boxed_expr(BinaryExpression {
+                operator: BinaryOperator::Plus,
+                lhs: boxed_expr(SimpleIdentifier("x".into())),
+                rhs: boxed_expr(SimpleIdentifier("y".into()))
+            }),
+            operator: None
+        }
+        .into())
+    );
 
     assert_eq!(
         parse("Put 123 into X"),
         Ok(Assignment {
-            dest: ProperIdentifier(vec!["X".into()]).into(),
+            dest: SimpleIdentifier("X".into()).into(),
             value: boxed_expr(LiteralExpression::Number(123.0)),
             operator: None
         }
@@ -689,7 +759,7 @@ fn parse_assignment() {
     assert_eq!(
         parse("Let X be with 10"),
         Ok(Assignment {
-            dest: ProperIdentifier(vec!["X".into()]).into(),
+            dest: SimpleIdentifier("X".into()).into(),
             value: boxed_expr(LiteralExpression::Number(10.0)),
             operator: Some(BinaryOperator::Plus),
         }
