@@ -713,6 +713,13 @@ fn lex_apostrophe_stuff() {
         ]
     );
     assert_eq!(
+        lex("he's's"),
+        vec![
+            Token::new(TokenType::Word, "he's"),
+            Token::new(TokenType::ApostropheS, "'s")
+        ]
+    );
+    assert_eq!(
         lex("nothing's"),
         vec![
             Token::new(TokenType::Null, "nothing"),

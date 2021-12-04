@@ -359,9 +359,17 @@ impl<'a> Parser<'a> {
             .then(|| self.parse_expression().map(|e| boxed_expr(e).into()))
             .unwrap_or_else(|| {
                 let elems = self.match_and_consume_while(
-                    |tok| tok.id == TokenType::Dot || lexer::is_word(tok.spelling),
+                    |tok| {
+                        matches!(
+                            tok.id,
+                            TokenType::Dot | TokenType::ApostropheS | TokenType::ApostropheRE
+                        ) || lexer::is_word(tok.spelling)
+                    },
                     |tok| match tok.id {
                         TokenType::Dot => PoeticNumberLiteralElem::Dot,
+                        TokenType::ApostropheS | TokenType::ApostropheRE => {
+                            PoeticNumberLiteralElem::WordSuffix(tok.spelling.into())
+                        }
                         _ => PoeticNumberLiteralElem::Word(tok.spelling.into()),
                     },
                 );
@@ -881,6 +889,22 @@ fn parse_poetic_assignment() {
         .into())
     );
     assert_eq!(
+        parse("Tommy is a rockstar's rockstar"),
+        Ok(PoeticNumberAssignment {
+            dest: SimpleIdentifier("Tommy".into()).into(),
+            rhs: PoeticNumberLiteral {
+                elems: vec![
+                    PoeticNumberLiteralElem::Word("a".into()),
+                    PoeticNumberLiteralElem::Word("rockstar".into()),
+                    PoeticNumberLiteralElem::WordSuffix("'s".into()),
+                    PoeticNumberLiteralElem::Word("rockstar".into()),
+                ]
+            }
+            .into(),
+        }
+        .into())
+    );
+    assert_eq!(
         parse("Sweet Lucy was a dancer"),
         Ok(PoeticNumberAssignment {
             dest: ProperIdentifier(vec!["Sweet".into(), "Lucy".into()]).into(),
@@ -983,4 +1007,35 @@ fn parse_poetic_assignment_errors() {
             })
         })
     );
+}
+
+#[test]
+fn poetic_number_literal_compute_value() {
+    let val = |text| {
+        inner!(
+            inner!(
+                Parser::for_source_code(text).parse_poetic_assignment().unwrap(),
+                if PoeticAssignment::Number
+            ).rhs,
+            if PoeticNumberAssignmentRHS::PoeticNumberLiteral
+        )
+        .compute_value()
+    };
+
+    assert_eq!(val("Tommy was a big bad brother"), 1337.0);
+    assert_eq!(val("Tommy was a big bad brother."), 1337.0);
+    assert_eq!(val("Tommy is a rockstar!"), 18.0);
+    assert_eq!(val("Tommy is a rockstar's rockstar!"), 108.0);
+    assert_eq!(val("Tommy was a lovestruck ladykiller"), 100.0);
+    assert_eq!(val("Sweet Lucy was a dancer"), 16.0);
+    assert_eq!(val("A killer is on the loose"), 235.0);
+    assert_eq!(
+        val("My dreams were ice. A life unfulfilled; wakin' everybody up, taking booze and pills"),
+        3.1415926535
+    );
+    assert_eq!(
+        val("My dreams were ice... A. life .. ...unfulfilled;....;;;''''' wakin' .everybody. .up, ..taking booze ....and pills......"),
+        3.1415926535
+    );
+    assert_eq!(val("Tommy was without"), 7.0);
 }
