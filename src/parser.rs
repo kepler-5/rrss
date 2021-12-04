@@ -215,6 +215,7 @@ impl<'a> Parser<'a> {
             Token::Null => Some(LiteralExpression::Null),
             Token::Number(n) => Some(LiteralExpression::Number(n)),
             Token::StringLiteral(s) => Some(LiteralExpression::String(s.to_owned())),
+            Token::Empty => Some(LiteralExpression::String(String::new())),
             Token::True => Some(LiteralExpression::Boolean(true)),
             Token::False => Some(LiteralExpression::Boolean(false)),
             _ => None,
@@ -370,6 +371,10 @@ fn parse_literal_expression() {
     assert_eq!(parse("null"), Some(LiteralExpression::Null));
     assert_eq!(parse("true"), Some(LiteralExpression::Boolean(true)));
     assert_eq!(parse("false"), Some(LiteralExpression::Boolean(false)));
+    assert_eq!(
+        parse("empty"),
+        Some(LiteralExpression::String(String::new()))
+    );
     assert_eq!(
         parse("\"\""),
         Some(LiteralExpression::String("".to_owned()))
@@ -708,6 +713,15 @@ fn parse_assignment() {
         Ok(Assignment {
             dest: SimpleIdentifier("Y".into()).into(),
             value: boxed_expr(LiteralExpression::Number(3.0)),
+            operator: None
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("noise is silence"),
+        Ok(Assignment {
+            dest: SimpleIdentifier("noise".into()).into(),
+            value: boxed_expr(LiteralExpression::String(String::new())),
             operator: None
         }
         .into())
