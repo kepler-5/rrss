@@ -34,6 +34,7 @@ pub enum TokenType<'a> {
     ApostropheS,
     ApostropheRE,
 
+    Dot,
     Newline,
     Comment(&'a str),
     Error(ErrorMessage),
@@ -224,7 +225,7 @@ impl<'a> Lexer<'a> {
                 word.strip_suffix("'re")
                     .map(|stripped| (stripped, Some((TokenType::ApostropheRE, 3))))
             })
-            .unwrap_or_else(|| (word.trim_matches('\''), None));
+            .unwrap_or_else(|| (word.trim_end_matches('\''), None));
         self.staged = staged_type.map(|(id, len)| Token::new(id, Self::last_n(word, len)));
         let token = self.find_word_type(stripped);
         LexResult { token, end }
@@ -323,12 +324,11 @@ impl<'a> Lexer<'a> {
                         if let Some(number) = self.scan_number(start) {
                             number
                         } else {
-                            continue; // ignore
+                            char_token(TokenType::Dot)
                         }
                     }
 
                     '\'' => continue,
-
                     '+' => char_token(TokenType::Plus),
                     '-' => char_token(TokenType::Minus),
                     '*' => char_token(TokenType::Multiply),
@@ -499,6 +499,7 @@ fn lex() {
         vec![
             Token::new(TokenType::Word, "hello"),
             Token::new(TokenType::Word, "world"),
+            Token::new(TokenType::Dot, "."),
         ]
     );
     assert_eq!(
