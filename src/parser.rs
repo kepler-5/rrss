@@ -126,16 +126,16 @@ impl<'a> Parser<'a> {
         self.match_and_consume_if(|tok| tok.id == token)
     }
 
-    fn match_and_consume_while<F, R, Tx>(&mut self, f: F, tx: Tx) -> Vec<R>
+    fn match_and_consume_while<F, R, Tx>(&mut self, f: F, tx: Tx) -> Result<Vec<R>, ParseError<'a>>
     where
         F: Fn(&Token) -> bool,
-        Tx: Fn(&Token) -> R,
+        Tx: Fn(&Token, &mut Parser<'a>) -> Result<R, ParseError<'a>>,
     {
         let mut result = Vec::new();
         while let Some(token) = self.match_and_consume_if(&f) {
-            result.push(tx(&token));
+            result.push(tx(&token, self)?);
         }
-        result
+        Ok(result)
     }
 
     // step past a token we *know* satisfies the predicate
@@ -264,10 +264,12 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_capitalized_identifier(&mut self) -> Option<Identifier> {
-        let names = self.match_and_consume_while(
-            |tok| tok.id == TokenType::CapitalizedWord,
-            |tok| tok.spelling.to_owned(),
-        );
+        let names = self
+            .match_and_consume_while(
+                |tok| tok.id == TokenType::CapitalizedWord,
+                |tok, _| Ok(tok.spelling.to_owned()),
+            )
+            .unwrap();
         match names.len() {
             0 => None,
             1 => Some(SimpleIdentifier(take_first(names)).into()),
@@ -283,9 +285,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_statement(&mut self) -> Result<Statement, ParseError<'a>> {
-        let current_token = self
-            .current()
-            .ok_or_else(|| self.new_parse_error(ParseErrorCode::UnexpectedEndOfTokens))?;
+        let current_token = self.current_or_error()?;
         Ok(match current_token.id {
             TokenType::Put => self.parse_put_assignment()?.into(),
             TokenType::Let => self.parse_let_assignment()?.into(),
@@ -363,16 +363,41 @@ impl<'a> Parser<'a> {
                         matches!(
                             tok.id,
                             TokenType::Dot | TokenType::ApostropheS | TokenType::ApostropheRE
-                        ) || lexer::is_word(tok.spelling)
+                        ) || *tok == Token::new(TokenType::Minus, "-")
+                            || lexer::is_word(tok.spelling)
                     },
-                    |tok| match tok.id {
-                        TokenType::Dot => PoeticNumberLiteralElem::Dot,
-                        TokenType::ApostropheS | TokenType::ApostropheRE => {
-                            PoeticNumberLiteralElem::WordSuffix(tok.spelling.into())
+                    |tok, myself| match tok {
+                        Token {
+                            id: TokenType::Dot, ..
+                        } => Ok(PoeticNumberLiteralElem::Dot),
+                        Token {
+                            id: TokenType::ApostropheS | TokenType::ApostropheRE,
+                            ..
+                        } => Ok(PoeticNumberLiteralElem::WordSuffix(tok.spelling.into())),
+                        Token {
+                            id: TokenType::Minus,
+                            spelling: "-",
+                        } => {
+                            let next_token = myself.lexer.next().ok_or_else(|| {
+                                myself.new_parse_error(ParseErrorCode::UnexpectedEndOfTokens)
+                            })?;
+                            lexer::is_word(next_token.spelling)
+                                .then(|| next_token)
+                                .ok_or_else(|| {
+                                    ParseError::new(
+                                        ParseErrorCode::UnexpectedToken,
+                                        Some(next_token),
+                                    )
+                                })
+                                .map(|word| {
+                                    PoeticNumberLiteralElem::WordSuffix(
+                                        "-".to_owned() + word.spelling,
+                                    )
+                                })
                         }
-                        _ => PoeticNumberLiteralElem::Word(tok.spelling.into()),
+                        _ => Ok(PoeticNumberLiteralElem::Word(tok.spelling.into())),
                     },
-                );
+                )?;
                 (!elems.is_empty())
                     .then(|| PoeticNumberLiteral { elems }.into())
                     .ok_or_else(|| {
@@ -930,6 +955,50 @@ fn parse_poetic_assignment() {
         .into())
     );
     assert_eq!(
+        parse("Tommy was hunky-dory"),
+        Ok(PoeticNumberAssignment {
+            dest: SimpleIdentifier("Tommy".into()).into(),
+            rhs: PoeticNumberLiteral {
+                elems: vec![
+                    PoeticNumberLiteralElem::Word("hunky".into()),
+                    PoeticNumberLiteralElem::WordSuffix("-dory".into())
+                ]
+            }
+            .into(),
+        }
+        .into())
+    );
+    // the spec isn't crystal clear, but I'm allowing whitespace around hypens because it simplifies the implementation
+    assert_eq!(
+        parse("Tommy was hunky - dory"),
+        Ok(PoeticNumberAssignment {
+            dest: SimpleIdentifier("Tommy".into()).into(),
+            rhs: PoeticNumberLiteral {
+                elems: vec![
+                    PoeticNumberLiteralElem::Word("hunky".into()),
+                    PoeticNumberLiteralElem::WordSuffix("-dory".into()) // the suffix still has no whitespace
+                ]
+            }
+            .into(),
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("Tommy was hunky-dory-dory"),
+        Ok(PoeticNumberAssignment {
+            dest: SimpleIdentifier("Tommy".into()).into(),
+            rhs: PoeticNumberLiteral {
+                elems: vec![
+                    PoeticNumberLiteralElem::Word("hunky".into()),
+                    PoeticNumberLiteralElem::WordSuffix("-dory".into()),
+                    PoeticNumberLiteralElem::WordSuffix("-dory".into())
+                ]
+            }
+            .into(),
+        }
+        .into())
+    );
+    assert_eq!(
         parse("X is 2"),
         Ok(PoeticNumberAssignment {
             dest: SimpleIdentifier("X".into()).into(),
@@ -1007,6 +1076,24 @@ fn parse_poetic_assignment_errors() {
             })
         })
     );
+
+    assert_eq!(
+        parse("My world is without-"),
+        Err(ParseError {
+            code: ParseErrorCode::UnexpectedEndOfTokens,
+            token: None
+        })
+    );
+    assert_eq!(
+        parse("My world is without--"),
+        Err(ParseError {
+            code: ParseErrorCode::UnexpectedToken,
+            token: Some(Token {
+                id: TokenType::Minus,
+                spelling: "-"
+            })
+        })
+    );
 }
 
 #[test]
@@ -1038,4 +1125,7 @@ fn poetic_number_literal_compute_value() {
         3.1415926535
     );
     assert_eq!(val("Tommy was without"), 7.0);
+    assert_eq!(val("Tommy was hunky-dory"), 0.0);
+    assert_eq!(val("Tommy was hunky-dory-dory"), 5.0);
+    assert_eq!(val("Tommy was hunky-dory-dory-dor"), 9.0);
 }

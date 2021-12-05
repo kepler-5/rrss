@@ -189,10 +189,10 @@ impl<P: Into<PoeticAssignment>> From<P> for Statement {
 
 /////////////// PoeticNumberLiteral::compute_value
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum PoeticNumberLiteralIteratorItem<'a> {
     Word(&'a String),
-    SuffixedWord(&'a String, &'a String),
+    SuffixedWord(&'a String, Vec<&'a String>),
     Dot,
 }
 
@@ -212,6 +212,19 @@ where
             iter: iter.peekable(),
         }
     }
+
+    fn greedily_match_suffixes(&mut self) -> Vec<&'a String> {
+        let extract_suffix = |elem: &'a PoeticNumberLiteralElem| match &elem {
+            PoeticNumberLiteralElem::WordSuffix(s) => Some(s),
+            _ => None,
+        };
+        let mut suffixes = vec![extract_suffix(self.iter.next().unwrap()).unwrap()];
+        while let Some(suffix) = self.iter.peek().and_then(|e| extract_suffix(e)) {
+            self.iter.next();
+            suffixes.push(suffix);
+        }
+        suffixes
+    }
 }
 
 impl<'a, T> Iterator for PoeticNumberLiteralIterator<'a, T>
@@ -226,13 +239,10 @@ where
             PoeticNumberLiteralElem::Word(s) => self
                 .iter
                 .peek()
-                .and_then(|e| match e {
-                    PoeticNumberLiteralElem::WordSuffix(s) => Some(s),
-                    _ => None,
-                })
-                .map(|suffix| {
-                    self.iter.next();
-                    PoeticNumberLiteralIteratorItem::SuffixedWord(s, suffix)
+                .filter(|e| matches!(e, PoeticNumberLiteralElem::WordSuffix(_)))
+                .is_some()
+                .then(|| {
+                    PoeticNumberLiteralIteratorItem::SuffixedWord(s, self.greedily_match_suffixes())
                 })
                 .unwrap_or_else(|| PoeticNumberLiteralIteratorItem::Word(s)),
             PoeticNumberLiteralElem::WordSuffix(_) => unreachable!(),
@@ -263,7 +273,7 @@ fn poetic_number_literal_iterator() {
         ]),
         vec![PoeticNumberLiteralIteratorItem::SuffixedWord(
             &"foo".into(),
-            &"'s".into()
+            vec![&"'s".into()],
         )]
     );
 }
@@ -314,7 +324,9 @@ impl PoeticNumberLiteral {
                 let length = match item {
                     PoeticNumberLiteralIteratorItem::Dot => unreachable!(),
                     PoeticNumberLiteralIteratorItem::Word(s) => s.len(),
-                    PoeticNumberLiteralIteratorItem::SuffixedWord(s0, s1) => s0.len() + s1.len(),
+                    PoeticNumberLiteralIteratorItem::SuffixedWord(s0, s1) => {
+                        s0.len() + s1.iter().fold(0, |a, x| a + x.len())
+                    }
                 };
                 (length % 10) as f64 * Self::ten_to_the(exponent - idx as i32)
             })
