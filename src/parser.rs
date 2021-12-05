@@ -999,6 +999,38 @@ fn parse_poetic_assignment() {
         .into())
     );
     assert_eq!(
+        parse("Tommy was a mommy's-boy"),
+        Ok(PoeticNumberAssignment {
+            dest: SimpleIdentifier("Tommy".into()).into(),
+            rhs: PoeticNumberLiteral {
+                elems: vec![
+                    PoeticNumberLiteralElem::Word("a".into()),
+                    PoeticNumberLiteralElem::Word("mommy".into()),
+                    PoeticNumberLiteralElem::WordSuffix("'s".into()),
+                    PoeticNumberLiteralElem::WordSuffix("-boy".into()),
+                ]
+            }
+            .into(),
+        }
+        .into())
+    );
+    assert_eq!(
+        parse("Tommy was Obi-Wan's pal"),
+        Ok(PoeticNumberAssignment {
+            dest: SimpleIdentifier("Tommy".into()).into(),
+            rhs: PoeticNumberLiteral {
+                elems: vec![
+                    PoeticNumberLiteralElem::Word("Obi".into()),
+                    PoeticNumberLiteralElem::WordSuffix("-Wan".into()),
+                    PoeticNumberLiteralElem::WordSuffix("'s".into()),
+                    PoeticNumberLiteralElem::Word("pal".into()),
+                ]
+            }
+            .into(),
+        }
+        .into())
+    );
+    assert_eq!(
         parse("X is 2"),
         Ok(PoeticNumberAssignment {
             dest: SimpleIdentifier("X".into()).into(),
@@ -1128,4 +1160,6 @@ fn poetic_number_literal_compute_value() {
     assert_eq!(val("Tommy was hunky-dory"), 0.0);
     assert_eq!(val("Tommy was hunky-dory-dory"), 5.0);
     assert_eq!(val("Tommy was hunky-dory-dory-dor"), 9.0);
+    assert_eq!(val("Tommy was a mommy's-boy"), 11.0);
+    assert_eq!(val("Tommy was Obi-Wan's pal"), 93.0);
 }
