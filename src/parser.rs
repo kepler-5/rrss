@@ -423,743 +423,748 @@ pub fn parse(text: &str) -> Result<Program, ParseError> {
     Parser::for_source_code(text).parse()
 }
 
-#[test]
-fn parse_literal_expression() {
-    let parse = |text| Parser::for_source_code(text).parse_literal_expression();
-    assert_eq!(parse("null"), Some(LiteralExpression::Null));
-    assert_eq!(parse("true"), Some(LiteralExpression::Boolean(true)));
-    assert_eq!(parse("false"), Some(LiteralExpression::Boolean(false)));
-    assert_eq!(
-        parse("empty"),
-        Some(LiteralExpression::String(String::new()))
-    );
-    assert_eq!(
-        parse("\"\""),
-        Some(LiteralExpression::String("".to_owned()))
-    );
-    assert_eq!(parse("5"), Some(LiteralExpression::Number(5.0)));
+#[cfg(test)]
+mod test {
+    use super::*;
 
-    assert_eq!(parse(""), None);
-    assert_eq!(parse("foo"), None);
-}
-
-#[test]
-fn parse_unary_expression() {
-    let parse = |text| Parser::for_source_code(text).parse_unary_expression();
-    assert_eq!(
-        parse("-1"),
-        Ok(UnaryExpression {
-            operator: UnaryOperator::Minus,
-            operand: boxed_expr(LiteralExpression::Number(1.0))
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("--1"),
-        Ok(UnaryExpression {
-            operator: UnaryOperator::Minus,
-            operand: boxed_expr(UnaryExpression {
-                operator: UnaryOperator::Minus,
-                operand: boxed_expr(LiteralExpression::Number(1.0))
-            })
-        }
-        .into())
-    );
-}
-
-#[test]
-fn parse_binary_expression() {
-    let parse = |text| Parser::for_source_code(text).parse_expression();
-    assert_eq!(
-        parse("1 + 1"),
-        Ok(Expression::Binary(BinaryExpression {
-            operator: BinaryOperator::Plus,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
-        }))
-    );
-    assert_eq!(
-        parse("1 - 1"),
-        Ok(Expression::Binary(BinaryExpression {
-            operator: BinaryOperator::Minus,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
-        }))
-    );
-    assert_eq!(
-        parse("1 - -1"),
-        Ok(Expression::Binary(BinaryExpression {
-            operator: BinaryOperator::Minus,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(UnaryExpression {
-                operator: UnaryOperator::Minus,
-                operand: boxed_expr(LiteralExpression::Number(1.0))
-            })
-        }))
-    );
-    assert_eq!(
-        parse("1 * 1"),
-        Ok(Expression::Binary(BinaryExpression {
-            operator: BinaryOperator::Multiply,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
-        }))
-    );
-    assert_eq!(
-        parse("1 / 1"),
-        Ok(Expression::Binary(BinaryExpression {
-            operator: BinaryOperator::Divide,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
-        }))
-    );
-
-    // associativity
-    assert_eq!(
-        parse("1 + 1 + 1"),
-        Ok(Expression::Binary(BinaryExpression {
-            operator: BinaryOperator::Plus,
-            lhs: boxed_expr(Expression::Binary(BinaryExpression {
-                operator: BinaryOperator::Plus,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
-            })),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
-        }))
-    );
-    assert_eq!(
-        parse("1 - 1 - 1"),
-        Ok(Expression::Binary(BinaryExpression {
-            operator: BinaryOperator::Minus,
-            lhs: boxed_expr(Expression::Binary(BinaryExpression {
-                operator: BinaryOperator::Minus,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
-            })),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
-        }))
-    );
-    assert_eq!(
-        parse("1 * 1 + 1"),
-        Ok(Expression::Binary(BinaryExpression {
-            operator: BinaryOperator::Plus,
-            lhs: boxed_expr(Expression::Binary(BinaryExpression {
-                operator: BinaryOperator::Multiply,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
-            })),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
-        }))
-    );
-    assert_eq!(
-        parse("1 / 1 + 1"),
-        Ok(Expression::Binary(BinaryExpression {
-            operator: BinaryOperator::Plus,
-            lhs: boxed_expr(Expression::Binary(BinaryExpression {
-                operator: BinaryOperator::Divide,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
-            })),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
-        }))
-    );
-    assert_eq!(
-        parse("1 + 1 * 1"),
-        Ok(Expression::Binary(BinaryExpression {
-            operator: BinaryOperator::Plus,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(Expression::Binary(BinaryExpression {
-                operator: BinaryOperator::Multiply,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
-            })),
-        }))
-    );
-    assert_eq!(
-        parse("1 + 1 / 1"),
-        Ok(Expression::Binary(BinaryExpression {
-            operator: BinaryOperator::Plus,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(Expression::Binary(BinaryExpression {
-                operator: BinaryOperator::Divide,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
-            })),
-        }))
-    );
-}
-
-#[test]
-fn parse_identifier() {
-    let parse = |text| Parser::for_source_code(text).parse_identifier();
-    assert_eq!(parse(""), Ok(None));
-    assert_eq!(parse("1"), Ok(None));
-
-    assert_eq!(
-        parse("my heart"),
-        Ok(Some(CommonIdentifier("my".into(), "heart".into()).into()))
-    );
-    assert_eq!(
-        parse("your heart"),
-        Ok(Some(CommonIdentifier("your".into(), "heart".into()).into()))
-    );
-    assert_eq!(
-        parse("My heart"),
-        Ok(Some(CommonIdentifier("My".into(), "heart".into()).into()))
-    );
-    assert_eq!(
-        parse("Your heart"),
-        Ok(Some(CommonIdentifier("Your".into(), "heart".into()).into()))
-    );
-
-    assert_eq!(
-        parse("Billie Jean"),
-        Ok(Some(
-            ProperIdentifier(vec!["Billie".into(), "Jean".into()]).into()
-        ))
-    );
-    assert_eq!(
-        // parse("Distance In KM"), // this example is from the official spec, but I think it's broken: 'in' is a language keyword
-        parse("Distance Out KM"),
-        Ok(Some(
-            // ProperIdentifier(vec!["Distance".into(), "In".into(), "KM".into()]).into()
-            ProperIdentifier(vec!["Distance".into(), "Out".into(), "KM".into()]).into()
-        ))
-    );
-    assert_eq!(
-        parse("Tom Sawyer"),
-        Ok(Some(
-            ProperIdentifier(vec!["Tom".into(), "Sawyer".into()]).into()
-        ))
-    );
-    assert_eq!(
-        parse("TOM SAWYER"),
-        Ok(Some(
-            ProperIdentifier(vec!["TOM".into(), "SAWYER".into()]).into()
-        ))
-    );
-    assert_eq!(
-        parse("TOm SAWyer"),
-        Ok(Some(
-            ProperIdentifier(vec!["TOm".into(), "SAWyer".into()]).into()
-        ))
-    );
-}
-#[test]
-
-fn parse_identifier_errors() {
-    let parse = |text| Parser::for_source_code(text).parse_identifier();
-    assert_eq!(
-        parse("DOCTOR feelgood"),
-        Ok(Some(SimpleIdentifier("DOCTOR".into()).into())) // TODO ParseError here?
-    );
-
-    assert_eq!(
-        parse("my"),
-        Err(ParseError::new(
-            ParseErrorCode::MissingIDAfterCommonPrefix("my".into()),
-            None
-        ))
-    );
-    assert_eq!(
-        parse("your"),
-        Err(ParseError::new(
-            ParseErrorCode::MissingIDAfterCommonPrefix("your".into()),
-            None
-        ))
-    );
-
-    assert_eq!(
-        parse("my Heart"),
-        Err(ParseError::new(
-            ParseErrorCode::UppercaseAfterCommonPrefix("my".into(), "Heart".into()).into(),
-            None
-        ))
-    );
-    assert_eq!(
-        parse("your Heart"),
-        Err(ParseError::new(
-            ParseErrorCode::UppercaseAfterCommonPrefix("your".into(), "Heart".into()).into(),
-            None
-        ))
-    );
-    assert_eq!(
-        parse("My Heart"),
-        Err(ParseError::new(
-            ParseErrorCode::UppercaseAfterCommonPrefix("My".into(), "Heart".into()).into(),
-            None
-        ))
-    );
-    assert_eq!(
-        parse("Your Heart"),
-        Err(ParseError::new(
-            ParseErrorCode::UppercaseAfterCommonPrefix("Your".into(), "Heart".into()).into(),
-            None
-        ))
-    );
-    assert_eq!(
-        parse("your heArt"),
-        Err(ParseError::new(
-            ParseErrorCode::UppercaseAfterCommonPrefix("your".into(), "heArt".into()).into(),
-            None
-        ))
-    );
-}
-
-#[test]
-fn parse_pronoun() {
-    for p in [
-        "it", "he", "she", "him", "her", "they", "them", "ze", "hir", "zie", "zir", "xe", "xem",
-        "ve", "ver",
-    ] {
+    #[test]
+    fn parse_literal_expression() {
+        let parse = |text| Parser::for_source_code(text).parse_literal_expression();
+        assert_eq!(parse("null"), Some(LiteralExpression::Null));
+        assert_eq!(parse("true"), Some(LiteralExpression::Boolean(true)));
+        assert_eq!(parse("false"), Some(LiteralExpression::Boolean(false)));
         assert_eq!(
-            Parser::for_source_code(p).parse_pronoun(),
-            Some(PrimaryExpression::Pronoun)
+            parse("empty"),
+            Some(LiteralExpression::String(String::new()))
+        );
+        assert_eq!(
+            parse("\"\""),
+            Some(LiteralExpression::String("".to_owned()))
+        );
+        assert_eq!(parse("5"), Some(LiteralExpression::Number(5.0)));
+
+        assert_eq!(parse(""), None);
+        assert_eq!(parse("foo"), None);
+    }
+
+    #[test]
+    fn parse_unary_expression() {
+        let parse = |text| Parser::for_source_code(text).parse_unary_expression();
+        assert_eq!(
+            parse("-1"),
+            Ok(UnaryExpression {
+                operator: UnaryOperator::Minus,
+                operand: boxed_expr(LiteralExpression::Number(1.0))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("--1"),
+            Ok(UnaryExpression {
+                operator: UnaryOperator::Minus,
+                operand: boxed_expr(UnaryExpression {
+                    operator: UnaryOperator::Minus,
+                    operand: boxed_expr(LiteralExpression::Number(1.0))
+                })
+            }
+            .into())
         );
     }
-}
 
-#[test]
-fn parse_expression() {
-    let parse = |text| Parser::for_source_code(text).parse_expression();
-
-    assert_eq!(
-        parse("my heart * your heart"),
-        Ok(BinaryExpression {
-            operator: BinaryOperator::Multiply,
-            lhs: boxed_expr(PrimaryExpression::from(CommonIdentifier(
-                "my".into(),
-                "heart".into()
-            ))),
-            rhs: boxed_expr(PrimaryExpression::from(CommonIdentifier(
-                "your".into(),
-                "heart".into()
-            )))
-        }
-        .into())
-    );
-}
-
-#[test]
-fn parse_assignment() {
-    let parse = |text| Parser::for_source_code(text).parse_statement();
-    assert_eq!(
-        parse("Put x plus y into result"),
-        Ok(Assignment {
-            dest: SimpleIdentifier("result".into()).into(),
-            value: boxed_expr(BinaryExpression {
+    #[test]
+    fn parse_binary_expression() {
+        let parse = |text| Parser::for_source_code(text).parse_expression();
+        assert_eq!(
+            parse("1 + 1"),
+            Ok(Expression::Binary(BinaryExpression {
                 operator: BinaryOperator::Plus,
-                lhs: boxed_expr(SimpleIdentifier("x".into())),
-                rhs: boxed_expr(SimpleIdentifier("y".into()))
-            }),
-            operator: None
-        }
-        .into())
-    );
-
-    assert_eq!(
-        parse("Put 123 into X"),
-        Ok(Assignment {
-            dest: SimpleIdentifier("X".into()).into(),
-            value: boxed_expr(LiteralExpression::Number(123.0)),
-            operator: None
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Put \"Hello San Francisco\" into the message"),
-        Ok(Assignment {
-            dest: CommonIdentifier("the".into(), "message".into()).into(),
-            value: boxed_expr(LiteralExpression::String("Hello San Francisco".into())),
-            operator: None
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Let my balance be 1000000"),
-        Ok(Assignment {
-            dest: CommonIdentifier("my".into(), "balance".into()).into(),
-            value: boxed_expr(LiteralExpression::Number(1000000.0)),
-            operator: None
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Let the survivors be the brave without the fallen"),
-        Ok(Assignment {
-            dest: CommonIdentifier("the".into(), "survivors".into()).into(),
-            value: boxed_expr(BinaryExpression {
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }))
+        );
+        assert_eq!(
+            parse("1 - 1"),
+            Ok(Expression::Binary(BinaryExpression {
                 operator: BinaryOperator::Minus,
-                lhs: boxed_expr(CommonIdentifier("the".into(), "brave".into())),
-                rhs: boxed_expr(CommonIdentifier("the".into(), "fallen".into()))
-            }),
-            operator: None
-        }
-        .into())
-    );
-
-    assert_eq!(
-        parse("Let X be with 10"),
-        Ok(Assignment {
-            dest: SimpleIdentifier("X".into()).into(),
-            value: boxed_expr(LiteralExpression::Number(10.0)),
-            operator: Some(BinaryOperator::Plus),
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Let the children be without fear"),
-        Ok(Assignment {
-            dest: CommonIdentifier("the".into(), "children".into()).into(),
-            value: boxed_expr(SimpleIdentifier("fear".into())),
-            operator: Some(BinaryOperator::Minus),
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Let my heart be over the moon"),
-        Ok(Assignment {
-            dest: CommonIdentifier("my".into(), "heart".into()).into(),
-            value: boxed_expr(CommonIdentifier("the".into(), "moon".into())),
-            operator: Some(BinaryOperator::Divide),
-        }
-        .into())
-    );
-
-    assert_eq!(
-        parse("Put the whole of your heart into my hands"),
-        Ok(Assignment {
-            dest: CommonIdentifier("my".into(), "hands".into()).into(),
-            value: boxed_expr(BinaryExpression {
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }))
+        );
+        assert_eq!(
+            parse("1 - -1"),
+            Ok(Expression::Binary(BinaryExpression {
+                operator: BinaryOperator::Minus,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(UnaryExpression {
+                    operator: UnaryOperator::Minus,
+                    operand: boxed_expr(LiteralExpression::Number(1.0))
+                })
+            }))
+        );
+        assert_eq!(
+            parse("1 * 1"),
+            Ok(Expression::Binary(BinaryExpression {
                 operator: BinaryOperator::Multiply,
-                lhs: boxed_expr(CommonIdentifier("the".into(), "whole".into())),
-                rhs: boxed_expr(CommonIdentifier("your".into(), "heart".into()))
-            }),
-            operator: None
-        }
-        .into())
-    );
-}
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }))
+        );
+        assert_eq!(
+            parse("1 / 1"),
+            Ok(Expression::Binary(BinaryExpression {
+                operator: BinaryOperator::Divide,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }))
+        );
 
-#[test]
-fn parse_assignment_errors() {
-    let parse = |text| Parser::for_source_code(text).parse_statement();
-
-    assert_eq!(
-        parse("Let 5 be 6"),
-        Err(ParseError {
-            code: ParseErrorCode::ExpectedIdentifier,
-            token: Some(Token {
-                id: TokenType::Number(5.0),
-                spelling: "5"
-            })
-        })
-    );
-    assert_eq!(
-        parse("Put 6 into 5"),
-        Err(ParseError {
-            code: ParseErrorCode::ExpectedIdentifier,
-            token: Some(Token {
-                id: TokenType::Number(5.0),
-                spelling: "5"
-            })
-        })
-    );
-    assert_eq!(
-        parse("Let five bee 6"),
-        Err(ParseError {
-            code: ParseErrorCode::ExpectedToken(TokenType::Be),
-            token: Some(Token {
-                id: TokenType::Word,
-                spelling: "bee"
-            })
-        })
-    );
-    assert_eq!(
-        parse("Put five intoo six"),
-        Err(ParseError {
-            code: ParseErrorCode::ExpectedToken(TokenType::Into),
-            token: Some(Token {
-                id: TokenType::Word,
-                spelling: "intoo"
-            })
-        })
-    );
-}
-
-#[test]
-fn parse_poetic_assignment() {
-    let parse = |text| Parser::for_source_code(text).parse_statement();
-
-    assert_eq!(
-        parse("Variable is 1"),
-        Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Variable".into()).into(),
-            rhs: boxed_expr(LiteralExpression::Number(1.0)).into(),
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Tommy is a rockstar"),
-        Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Tommy".into()).into(),
-            rhs: PoeticNumberLiteral {
-                elems: vec![
-                    PoeticNumberLiteralElem::Word("a".into()),
-                    PoeticNumberLiteralElem::Word("rockstar".into()),
-                ]
-            }
-            .into(),
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Tommy is a rockstar's rockstar"),
-        Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Tommy".into()).into(),
-            rhs: PoeticNumberLiteral {
-                elems: vec![
-                    PoeticNumberLiteralElem::Word("a".into()),
-                    PoeticNumberLiteralElem::Word("rockstar".into()),
-                    PoeticNumberLiteralElem::WordSuffix("'s".into()),
-                    PoeticNumberLiteralElem::Word("rockstar".into()),
-                ]
-            }
-            .into(),
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Sweet Lucy was a dancer"),
-        Ok(PoeticNumberAssignment {
-            dest: ProperIdentifier(vec!["Sweet".into(), "Lucy".into()]).into(),
-            rhs: PoeticNumberLiteral {
-                elems: vec![
-                    PoeticNumberLiteralElem::Word("a".into()),
-                    PoeticNumberLiteralElem::Word("dancer".into()),
-                ]
-            }
-            .into(),
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Tommy was without"),
-        Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Tommy".into()).into(),
-            rhs: PoeticNumberLiteral {
-                elems: vec![PoeticNumberLiteralElem::Word("without".into())]
-            }
-            .into(),
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Tommy was hunky-dory"),
-        Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Tommy".into()).into(),
-            rhs: PoeticNumberLiteral {
-                elems: vec![
-                    PoeticNumberLiteralElem::Word("hunky".into()),
-                    PoeticNumberLiteralElem::WordSuffix("-dory".into())
-                ]
-            }
-            .into(),
-        }
-        .into())
-    );
-    // the spec isn't crystal clear, but I'm allowing whitespace around hypens because it simplifies the implementation
-    assert_eq!(
-        parse("Tommy was hunky - dory"),
-        Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Tommy".into()).into(),
-            rhs: PoeticNumberLiteral {
-                elems: vec![
-                    PoeticNumberLiteralElem::Word("hunky".into()),
-                    PoeticNumberLiteralElem::WordSuffix("-dory".into()) // the suffix still has no whitespace
-                ]
-            }
-            .into(),
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Tommy was hunky-dory-dory"),
-        Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Tommy".into()).into(),
-            rhs: PoeticNumberLiteral {
-                elems: vec![
-                    PoeticNumberLiteralElem::Word("hunky".into()),
-                    PoeticNumberLiteralElem::WordSuffix("-dory".into()),
-                    PoeticNumberLiteralElem::WordSuffix("-dory".into())
-                ]
-            }
-            .into(),
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Tommy was a mommy's-boy"),
-        Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Tommy".into()).into(),
-            rhs: PoeticNumberLiteral {
-                elems: vec![
-                    PoeticNumberLiteralElem::Word("a".into()),
-                    PoeticNumberLiteralElem::Word("mommy".into()),
-                    PoeticNumberLiteralElem::WordSuffix("'s".into()),
-                    PoeticNumberLiteralElem::WordSuffix("-boy".into()),
-                ]
-            }
-            .into(),
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Tommy was Obi-Wan's pal"),
-        Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Tommy".into()).into(),
-            rhs: PoeticNumberLiteral {
-                elems: vec![
-                    PoeticNumberLiteralElem::Word("Obi".into()),
-                    PoeticNumberLiteralElem::WordSuffix("-Wan".into()),
-                    PoeticNumberLiteralElem::WordSuffix("'s".into()),
-                    PoeticNumberLiteralElem::Word("pal".into()),
-                ]
-            }
-            .into(),
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("X is 2"),
-        Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("X".into()).into(),
-            rhs: boxed_expr(LiteralExpression::Number(2.0)).into(),
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Y is 3"),
-        Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Y".into()).into(),
-            rhs: boxed_expr(LiteralExpression::Number(3.0)).into(),
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("noise is silence"),
-        Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("noise".into()).into(),
-            rhs: boxed_expr(LiteralExpression::String(String::new())).into(),
-        }
-        .into())
-    );
-
-    assert_eq!(
-        parse("Variable's 1"),
-        Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Variable".into()).into(),
-            rhs: boxed_expr(LiteralExpression::Number(1.0)).into(),
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("Variables are 1"),
-        Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Variables".into()).into(),
-            rhs: boxed_expr(LiteralExpression::Number(1.0)).into(),
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("We're 1"),
-        Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("We".into()).into(),
-            rhs: boxed_expr(LiteralExpression::Number(1.0)).into(),
-        }
-        .into())
-    );
-    assert_eq!(
-        parse("My world is nothing without your love"),
-        Ok(PoeticNumberAssignment {
-            dest: CommonIdentifier("My".into(), "world".into()).into(),
-            rhs: boxed_expr(BinaryExpression {
+        // associativity
+        assert_eq!(
+            parse("1 + 1 + 1"),
+            Ok(Expression::Binary(BinaryExpression {
+                operator: BinaryOperator::Plus,
+                lhs: boxed_expr(Expression::Binary(BinaryExpression {
+                    operator: BinaryOperator::Plus,
+                    lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                    rhs: boxed_expr(LiteralExpression::Number(1.0))
+                })),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }))
+        );
+        assert_eq!(
+            parse("1 - 1 - 1"),
+            Ok(Expression::Binary(BinaryExpression {
                 operator: BinaryOperator::Minus,
-                lhs: boxed_expr(LiteralExpression::Null),
-                rhs: boxed_expr(CommonIdentifier("your".into(), "love".into()))
-            })
-            .into(),
+                lhs: boxed_expr(Expression::Binary(BinaryExpression {
+                    operator: BinaryOperator::Minus,
+                    lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                    rhs: boxed_expr(LiteralExpression::Number(1.0))
+                })),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }))
+        );
+        assert_eq!(
+            parse("1 * 1 + 1"),
+            Ok(Expression::Binary(BinaryExpression {
+                operator: BinaryOperator::Plus,
+                lhs: boxed_expr(Expression::Binary(BinaryExpression {
+                    operator: BinaryOperator::Multiply,
+                    lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                    rhs: boxed_expr(LiteralExpression::Number(1.0))
+                })),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }))
+        );
+        assert_eq!(
+            parse("1 / 1 + 1"),
+            Ok(Expression::Binary(BinaryExpression {
+                operator: BinaryOperator::Plus,
+                lhs: boxed_expr(Expression::Binary(BinaryExpression {
+                    operator: BinaryOperator::Divide,
+                    lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                    rhs: boxed_expr(LiteralExpression::Number(1.0))
+                })),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }))
+        );
+        assert_eq!(
+            parse("1 + 1 * 1"),
+            Ok(Expression::Binary(BinaryExpression {
+                operator: BinaryOperator::Plus,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(Expression::Binary(BinaryExpression {
+                    operator: BinaryOperator::Multiply,
+                    lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                    rhs: boxed_expr(LiteralExpression::Number(1.0))
+                })),
+            }))
+        );
+        assert_eq!(
+            parse("1 + 1 / 1"),
+            Ok(Expression::Binary(BinaryExpression {
+                operator: BinaryOperator::Plus,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(Expression::Binary(BinaryExpression {
+                    operator: BinaryOperator::Divide,
+                    lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                    rhs: boxed_expr(LiteralExpression::Number(1.0))
+                })),
+            }))
+        );
+    }
+
+    #[test]
+    fn parse_identifier() {
+        let parse = |text| Parser::for_source_code(text).parse_identifier();
+        assert_eq!(parse(""), Ok(None));
+        assert_eq!(parse("1"), Ok(None));
+
+        assert_eq!(
+            parse("my heart"),
+            Ok(Some(CommonIdentifier("my".into(), "heart".into()).into()))
+        );
+        assert_eq!(
+            parse("your heart"),
+            Ok(Some(CommonIdentifier("your".into(), "heart".into()).into()))
+        );
+        assert_eq!(
+            parse("My heart"),
+            Ok(Some(CommonIdentifier("My".into(), "heart".into()).into()))
+        );
+        assert_eq!(
+            parse("Your heart"),
+            Ok(Some(CommonIdentifier("Your".into(), "heart".into()).into()))
+        );
+
+        assert_eq!(
+            parse("Billie Jean"),
+            Ok(Some(
+                ProperIdentifier(vec!["Billie".into(), "Jean".into()]).into()
+            ))
+        );
+        assert_eq!(
+            // parse("Distance In KM"), // this example is from the official spec, but I think it's broken: 'in' is a language keyword
+            parse("Distance Out KM"),
+            Ok(Some(
+                // ProperIdentifier(vec!["Distance".into(), "In".into(), "KM".into()]).into()
+                ProperIdentifier(vec!["Distance".into(), "Out".into(), "KM".into()]).into()
+            ))
+        );
+        assert_eq!(
+            parse("Tom Sawyer"),
+            Ok(Some(
+                ProperIdentifier(vec!["Tom".into(), "Sawyer".into()]).into()
+            ))
+        );
+        assert_eq!(
+            parse("TOM SAWYER"),
+            Ok(Some(
+                ProperIdentifier(vec!["TOM".into(), "SAWYER".into()]).into()
+            ))
+        );
+        assert_eq!(
+            parse("TOm SAWyer"),
+            Ok(Some(
+                ProperIdentifier(vec!["TOm".into(), "SAWyer".into()]).into()
+            ))
+        );
+    }
+    #[test]
+
+    fn parse_identifier_errors() {
+        let parse = |text| Parser::for_source_code(text).parse_identifier();
+        assert_eq!(
+            parse("DOCTOR feelgood"),
+            Ok(Some(SimpleIdentifier("DOCTOR".into()).into())) // TODO ParseError here?
+        );
+
+        assert_eq!(
+            parse("my"),
+            Err(ParseError::new(
+                ParseErrorCode::MissingIDAfterCommonPrefix("my".into()),
+                None
+            ))
+        );
+        assert_eq!(
+            parse("your"),
+            Err(ParseError::new(
+                ParseErrorCode::MissingIDAfterCommonPrefix("your".into()),
+                None
+            ))
+        );
+
+        assert_eq!(
+            parse("my Heart"),
+            Err(ParseError::new(
+                ParseErrorCode::UppercaseAfterCommonPrefix("my".into(), "Heart".into()).into(),
+                None
+            ))
+        );
+        assert_eq!(
+            parse("your Heart"),
+            Err(ParseError::new(
+                ParseErrorCode::UppercaseAfterCommonPrefix("your".into(), "Heart".into()).into(),
+                None
+            ))
+        );
+        assert_eq!(
+            parse("My Heart"),
+            Err(ParseError::new(
+                ParseErrorCode::UppercaseAfterCommonPrefix("My".into(), "Heart".into()).into(),
+                None
+            ))
+        );
+        assert_eq!(
+            parse("Your Heart"),
+            Err(ParseError::new(
+                ParseErrorCode::UppercaseAfterCommonPrefix("Your".into(), "Heart".into()).into(),
+                None
+            ))
+        );
+        assert_eq!(
+            parse("your heArt"),
+            Err(ParseError::new(
+                ParseErrorCode::UppercaseAfterCommonPrefix("your".into(), "heArt".into()).into(),
+                None
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_pronoun() {
+        for p in [
+            "it", "he", "she", "him", "her", "they", "them", "ze", "hir", "zie", "zir", "xe",
+            "xem", "ve", "ver",
+        ] {
+            assert_eq!(
+                Parser::for_source_code(p).parse_pronoun(),
+                Some(PrimaryExpression::Pronoun)
+            );
         }
-        .into())
-    );
-}
+    }
 
-#[test]
-fn parse_poetic_assignment_errors() {
-    let parse = |text| Parser::for_source_code(text).parse_statement();
+    #[test]
+    fn parse_expression() {
+        let parse = |text| Parser::for_source_code(text).parse_expression();
 
-    assert_eq!(
-        parse("My world. is nothing without your love"),
-        Err(ParseError {
-            code: ParseErrorCode::ExpectedToken(TokenType::Is),
-            token: Some(Token {
-                id: TokenType::Dot,
-                spelling: "."
+        assert_eq!(
+            parse("my heart * your heart"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::Multiply,
+                lhs: boxed_expr(PrimaryExpression::from(CommonIdentifier(
+                    "my".into(),
+                    "heart".into()
+                ))),
+                rhs: boxed_expr(PrimaryExpression::from(CommonIdentifier(
+                    "your".into(),
+                    "heart".into()
+                )))
+            }
+            .into())
+        );
+    }
+
+    #[test]
+    fn parse_assignment() {
+        let parse = |text| Parser::for_source_code(text).parse_statement();
+        assert_eq!(
+            parse("Put x plus y into result"),
+            Ok(Assignment {
+                dest: SimpleIdentifier("result".into()).into(),
+                value: boxed_expr(BinaryExpression {
+                    operator: BinaryOperator::Plus,
+                    lhs: boxed_expr(SimpleIdentifier("x".into())),
+                    rhs: boxed_expr(SimpleIdentifier("y".into()))
+                }),
+                operator: None
+            }
+            .into())
+        );
+
+        assert_eq!(
+            parse("Put 123 into X"),
+            Ok(Assignment {
+                dest: SimpleIdentifier("X".into()).into(),
+                value: boxed_expr(LiteralExpression::Number(123.0)),
+                operator: None
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Put \"Hello San Francisco\" into the message"),
+            Ok(Assignment {
+                dest: CommonIdentifier("the".into(), "message".into()).into(),
+                value: boxed_expr(LiteralExpression::String("Hello San Francisco".into())),
+                operator: None
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Let my balance be 1000000"),
+            Ok(Assignment {
+                dest: CommonIdentifier("my".into(), "balance".into()).into(),
+                value: boxed_expr(LiteralExpression::Number(1000000.0)),
+                operator: None
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Let the survivors be the brave without the fallen"),
+            Ok(Assignment {
+                dest: CommonIdentifier("the".into(), "survivors".into()).into(),
+                value: boxed_expr(BinaryExpression {
+                    operator: BinaryOperator::Minus,
+                    lhs: boxed_expr(CommonIdentifier("the".into(), "brave".into())),
+                    rhs: boxed_expr(CommonIdentifier("the".into(), "fallen".into()))
+                }),
+                operator: None
+            }
+            .into())
+        );
+
+        assert_eq!(
+            parse("Let X be with 10"),
+            Ok(Assignment {
+                dest: SimpleIdentifier("X".into()).into(),
+                value: boxed_expr(LiteralExpression::Number(10.0)),
+                operator: Some(BinaryOperator::Plus),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Let the children be without fear"),
+            Ok(Assignment {
+                dest: CommonIdentifier("the".into(), "children".into()).into(),
+                value: boxed_expr(SimpleIdentifier("fear".into())),
+                operator: Some(BinaryOperator::Minus),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Let my heart be over the moon"),
+            Ok(Assignment {
+                dest: CommonIdentifier("my".into(), "heart".into()).into(),
+                value: boxed_expr(CommonIdentifier("the".into(), "moon".into())),
+                operator: Some(BinaryOperator::Divide),
+            }
+            .into())
+        );
+
+        assert_eq!(
+            parse("Put the whole of your heart into my hands"),
+            Ok(Assignment {
+                dest: CommonIdentifier("my".into(), "hands".into()).into(),
+                value: boxed_expr(BinaryExpression {
+                    operator: BinaryOperator::Multiply,
+                    lhs: boxed_expr(CommonIdentifier("the".into(), "whole".into())),
+                    rhs: boxed_expr(CommonIdentifier("your".into(), "heart".into()))
+                }),
+                operator: None
+            }
+            .into())
+        );
+    }
+
+    #[test]
+    fn parse_assignment_errors() {
+        let parse = |text| Parser::for_source_code(text).parse_statement();
+
+        assert_eq!(
+            parse("Let 5 be 6"),
+            Err(ParseError {
+                code: ParseErrorCode::ExpectedIdentifier,
+                token: Some(Token {
+                    id: TokenType::Number(5.0),
+                    spelling: "5"
+                })
             })
-        })
-    );
-
-    assert_eq!(
-        parse("My world is without-"),
-        Err(ParseError {
-            code: ParseErrorCode::UnexpectedEndOfTokens,
-            token: None
-        })
-    );
-    assert_eq!(
-        parse("My world is without--"),
-        Err(ParseError {
-            code: ParseErrorCode::UnexpectedToken,
-            token: Some(Token {
-                id: TokenType::Minus,
-                spelling: "-"
+        );
+        assert_eq!(
+            parse("Put 6 into 5"),
+            Err(ParseError {
+                code: ParseErrorCode::ExpectedIdentifier,
+                token: Some(Token {
+                    id: TokenType::Number(5.0),
+                    spelling: "5"
+                })
             })
-        })
-    );
-}
+        );
+        assert_eq!(
+            parse("Let five bee 6"),
+            Err(ParseError {
+                code: ParseErrorCode::ExpectedToken(TokenType::Be),
+                token: Some(Token {
+                    id: TokenType::Word,
+                    spelling: "bee"
+                })
+            })
+        );
+        assert_eq!(
+            parse("Put five intoo six"),
+            Err(ParseError {
+                code: ParseErrorCode::ExpectedToken(TokenType::Into),
+                token: Some(Token {
+                    id: TokenType::Word,
+                    spelling: "intoo"
+                })
+            })
+        );
+    }
 
-#[test]
-fn poetic_number_literal_compute_value() {
-    let val = |text| {
-        inner!(
+    #[test]
+    fn parse_poetic_assignment() {
+        let parse = |text| Parser::for_source_code(text).parse_statement();
+
+        assert_eq!(
+            parse("Variable is 1"),
+            Ok(PoeticNumberAssignment {
+                dest: SimpleIdentifier("Variable".into()).into(),
+                rhs: boxed_expr(LiteralExpression::Number(1.0)).into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Tommy is a rockstar"),
+            Ok(PoeticNumberAssignment {
+                dest: SimpleIdentifier("Tommy".into()).into(),
+                rhs: PoeticNumberLiteral {
+                    elems: vec![
+                        PoeticNumberLiteralElem::Word("a".into()),
+                        PoeticNumberLiteralElem::Word("rockstar".into()),
+                    ]
+                }
+                .into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Tommy is a rockstar's rockstar"),
+            Ok(PoeticNumberAssignment {
+                dest: SimpleIdentifier("Tommy".into()).into(),
+                rhs: PoeticNumberLiteral {
+                    elems: vec![
+                        PoeticNumberLiteralElem::Word("a".into()),
+                        PoeticNumberLiteralElem::Word("rockstar".into()),
+                        PoeticNumberLiteralElem::WordSuffix("'s".into()),
+                        PoeticNumberLiteralElem::Word("rockstar".into()),
+                    ]
+                }
+                .into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Sweet Lucy was a dancer"),
+            Ok(PoeticNumberAssignment {
+                dest: ProperIdentifier(vec!["Sweet".into(), "Lucy".into()]).into(),
+                rhs: PoeticNumberLiteral {
+                    elems: vec![
+                        PoeticNumberLiteralElem::Word("a".into()),
+                        PoeticNumberLiteralElem::Word("dancer".into()),
+                    ]
+                }
+                .into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Tommy was without"),
+            Ok(PoeticNumberAssignment {
+                dest: SimpleIdentifier("Tommy".into()).into(),
+                rhs: PoeticNumberLiteral {
+                    elems: vec![PoeticNumberLiteralElem::Word("without".into())]
+                }
+                .into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Tommy was hunky-dory"),
+            Ok(PoeticNumberAssignment {
+                dest: SimpleIdentifier("Tommy".into()).into(),
+                rhs: PoeticNumberLiteral {
+                    elems: vec![
+                        PoeticNumberLiteralElem::Word("hunky".into()),
+                        PoeticNumberLiteralElem::WordSuffix("-dory".into())
+                    ]
+                }
+                .into(),
+            }
+            .into())
+        );
+        // the spec isn't crystal clear, but I'm allowing whitespace around hypens because it simplifies the implementation
+        assert_eq!(
+            parse("Tommy was hunky - dory"),
+            Ok(PoeticNumberAssignment {
+                dest: SimpleIdentifier("Tommy".into()).into(),
+                rhs: PoeticNumberLiteral {
+                    elems: vec![
+                        PoeticNumberLiteralElem::Word("hunky".into()),
+                        PoeticNumberLiteralElem::WordSuffix("-dory".into()) // the suffix still has no whitespace
+                    ]
+                }
+                .into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Tommy was hunky-dory-dory"),
+            Ok(PoeticNumberAssignment {
+                dest: SimpleIdentifier("Tommy".into()).into(),
+                rhs: PoeticNumberLiteral {
+                    elems: vec![
+                        PoeticNumberLiteralElem::Word("hunky".into()),
+                        PoeticNumberLiteralElem::WordSuffix("-dory".into()),
+                        PoeticNumberLiteralElem::WordSuffix("-dory".into())
+                    ]
+                }
+                .into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Tommy was a mommy's-boy"),
+            Ok(PoeticNumberAssignment {
+                dest: SimpleIdentifier("Tommy".into()).into(),
+                rhs: PoeticNumberLiteral {
+                    elems: vec![
+                        PoeticNumberLiteralElem::Word("a".into()),
+                        PoeticNumberLiteralElem::Word("mommy".into()),
+                        PoeticNumberLiteralElem::WordSuffix("'s".into()),
+                        PoeticNumberLiteralElem::WordSuffix("-boy".into()),
+                    ]
+                }
+                .into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Tommy was Obi-Wan's pal"),
+            Ok(PoeticNumberAssignment {
+                dest: SimpleIdentifier("Tommy".into()).into(),
+                rhs: PoeticNumberLiteral {
+                    elems: vec![
+                        PoeticNumberLiteralElem::Word("Obi".into()),
+                        PoeticNumberLiteralElem::WordSuffix("-Wan".into()),
+                        PoeticNumberLiteralElem::WordSuffix("'s".into()),
+                        PoeticNumberLiteralElem::Word("pal".into()),
+                    ]
+                }
+                .into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("X is 2"),
+            Ok(PoeticNumberAssignment {
+                dest: SimpleIdentifier("X".into()).into(),
+                rhs: boxed_expr(LiteralExpression::Number(2.0)).into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Y is 3"),
+            Ok(PoeticNumberAssignment {
+                dest: SimpleIdentifier("Y".into()).into(),
+                rhs: boxed_expr(LiteralExpression::Number(3.0)).into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("noise is silence"),
+            Ok(PoeticNumberAssignment {
+                dest: SimpleIdentifier("noise".into()).into(),
+                rhs: boxed_expr(LiteralExpression::String(String::new())).into(),
+            }
+            .into())
+        );
+
+        assert_eq!(
+            parse("Variable's 1"),
+            Ok(PoeticNumberAssignment {
+                dest: SimpleIdentifier("Variable".into()).into(),
+                rhs: boxed_expr(LiteralExpression::Number(1.0)).into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Variables are 1"),
+            Ok(PoeticNumberAssignment {
+                dest: SimpleIdentifier("Variables".into()).into(),
+                rhs: boxed_expr(LiteralExpression::Number(1.0)).into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("We're 1"),
+            Ok(PoeticNumberAssignment {
+                dest: SimpleIdentifier("We".into()).into(),
+                rhs: boxed_expr(LiteralExpression::Number(1.0)).into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("My world is nothing without your love"),
+            Ok(PoeticNumberAssignment {
+                dest: CommonIdentifier("My".into(), "world".into()).into(),
+                rhs: boxed_expr(BinaryExpression {
+                    operator: BinaryOperator::Minus,
+                    lhs: boxed_expr(LiteralExpression::Null),
+                    rhs: boxed_expr(CommonIdentifier("your".into(), "love".into()))
+                })
+                .into(),
+            }
+            .into())
+        );
+    }
+
+    #[test]
+    fn parse_poetic_assignment_errors() {
+        let parse = |text| Parser::for_source_code(text).parse_statement();
+
+        assert_eq!(
+            parse("My world. is nothing without your love"),
+            Err(ParseError {
+                code: ParseErrorCode::ExpectedToken(TokenType::Is),
+                token: Some(Token {
+                    id: TokenType::Dot,
+                    spelling: "."
+                })
+            })
+        );
+
+        assert_eq!(
+            parse("My world is without-"),
+            Err(ParseError {
+                code: ParseErrorCode::UnexpectedEndOfTokens,
+                token: None
+            })
+        );
+        assert_eq!(
+            parse("My world is without--"),
+            Err(ParseError {
+                code: ParseErrorCode::UnexpectedToken,
+                token: Some(Token {
+                    id: TokenType::Minus,
+                    spelling: "-"
+                })
+            })
+        );
+    }
+
+    #[test]
+    fn poetic_number_literal_compute_value() {
+        let val = |text| {
             inner!(
-                Parser::for_source_code(text).parse_poetic_assignment().unwrap(),
-                if PoeticAssignment::Number
-            ).rhs,
-            if PoeticNumberAssignmentRHS::PoeticNumberLiteral
-        )
-        .compute_value()
-    };
+                inner!(
+                    Parser::for_source_code(text).parse_poetic_assignment().unwrap(),
+                    if PoeticAssignment::Number
+                ).rhs,
+                if PoeticNumberAssignmentRHS::PoeticNumberLiteral
+            )
+            .compute_value()
+        };
 
-    assert_eq!(val("Tommy was a big bad brother"), 1337.0);
-    assert_eq!(val("Tommy was a big bad brother."), 1337.0);
-    assert_eq!(val("Tommy is a rockstar!"), 18.0);
-    assert_eq!(val("Tommy is a rockstar's rockstar!"), 108.0);
-    assert_eq!(val("Tommy was a lovestruck ladykiller"), 100.0);
-    assert_eq!(val("Sweet Lucy was a dancer"), 16.0);
-    assert_eq!(val("A killer is on the loose"), 235.0);
-    assert_eq!(
+        assert_eq!(val("Tommy was a big bad brother"), 1337.0);
+        assert_eq!(val("Tommy was a big bad brother."), 1337.0);
+        assert_eq!(val("Tommy is a rockstar!"), 18.0);
+        assert_eq!(val("Tommy is a rockstar's rockstar!"), 108.0);
+        assert_eq!(val("Tommy was a lovestruck ladykiller"), 100.0);
+        assert_eq!(val("Sweet Lucy was a dancer"), 16.0);
+        assert_eq!(val("A killer is on the loose"), 235.0);
+        assert_eq!(
         val("My dreams were ice. A life unfulfilled; wakin' everybody up, taking booze and pills"),
         3.1415926535
     );
-    assert_eq!(
+        assert_eq!(
         val("My dreams were ice... A. life .. ...unfulfilled;....;;;''''' wakin' .everybody. .up, ..taking booze ....and pills......"),
         3.1415926535
     );
-    assert_eq!(val("Tommy was without"), 7.0);
-    assert_eq!(val("Tommy was hunky-dory"), 0.0);
-    assert_eq!(val("Tommy was hunky-dory-dory"), 5.0);
-    assert_eq!(val("Tommy was hunky-dory-dory-dor"), 9.0);
-    assert_eq!(val("Tommy was a mommy's-boy"), 11.0);
-    assert_eq!(val("Tommy was Obi-Wan's pal"), 93.0);
+        assert_eq!(val("Tommy was without"), 7.0);
+        assert_eq!(val("Tommy was hunky-dory"), 0.0);
+        assert_eq!(val("Tommy was hunky-dory-dory"), 5.0);
+        assert_eq!(val("Tommy was hunky-dory-dory-dor"), 9.0);
+        assert_eq!(val("Tommy was a mommy's-boy"), 11.0);
+        assert_eq!(val("Tommy was Obi-Wan's pal"), 93.0);
+    }
 }
