@@ -25,6 +25,7 @@ pub enum TokenType<'a> {
 
     Is,
     Isnt,
+    Says,
     Put,
     Into,
     Let,
@@ -103,6 +104,8 @@ lazy_static! {
                 "weren't",
             ],
         );
+
+        alias(TokenType::Says, &["says", "say", "said"]);
 
         m.extend([
             ("with", TokenType::With),
@@ -598,6 +601,14 @@ mod test {
                 Token::new(TokenType::Is, "are"),
                 Token::new(TokenType::Is, "was"),
                 Token::new(TokenType::Is, "were")
+            ]
+        );
+        assert_eq!(
+            lex("say says said"),
+            vec![
+                Token::new(TokenType::Says, "say"),
+                Token::new(TokenType::Says, "says"),
+                Token::new(TokenType::Says, "said"),
             ]
         );
 

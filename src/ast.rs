@@ -158,14 +158,27 @@ pub struct PoeticNumberAssignment {
     pub rhs: PoeticNumberAssignmentRHS,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct PoeticStringAssignment {
+    pub dest: Identifier,
+    pub rhs: String,
+}
+
 #[derive(Debug, PartialEq)]
 pub enum PoeticAssignment {
     Number(PoeticNumberAssignment),
+    String(PoeticStringAssignment),
 }
 
 impl From<PoeticNumberAssignment> for PoeticAssignment {
     fn from(p: PoeticNumberAssignment) -> Self {
         PoeticAssignment::Number(p)
+    }
+}
+
+impl From<PoeticStringAssignment> for PoeticAssignment {
+    fn from(p: PoeticStringAssignment) -> Self {
+        PoeticAssignment::String(p)
     }
 }
 
