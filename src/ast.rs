@@ -231,6 +231,7 @@ where
             PoeticNumberLiteralElem::WordSuffix(s) => Some(s),
             _ => None,
         };
+        // TODO clean up with itertools take_while_ref?
         let mut suffixes = vec![extract_suffix(self.iter.next().unwrap()).unwrap()];
         while let Some(suffix) = self.iter.peek().and_then(|e| extract_suffix(e)) {
             self.iter.next();

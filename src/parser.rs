@@ -1,11 +1,11 @@
-use std::iter::Peekable;
+use itertools::Itertools;
 
 use crate::{
     ast::{
         Assignment, BinaryExpression, BinaryOperator, CommonIdentifier, Expression, Identifier,
         LiteralExpression, PoeticAssignment, PoeticNumberAssignment, PoeticNumberAssignmentRHS,
-        PoeticNumberLiteral, PoeticNumberLiteralElem, PrimaryExpression, Program, ProperIdentifier,
-        SimpleIdentifier, Statement, UnaryExpression, UnaryOperator,
+        PoeticNumberLiteral, PoeticNumberLiteralElem, PoeticStringAssignment, PrimaryExpression,
+        Program, ProperIdentifier, SimpleIdentifier, Statement, UnaryExpression, UnaryOperator,
     },
     lexer::{self, CommentSkippingLexer, Lexer, Token, TokenType},
 };
@@ -17,7 +17,9 @@ pub enum ParseErrorCode<'a> {
     UppercaseAfterCommonPrefix(String, String),
     ExpectedIdentifier,
     ExpectedToken(TokenType<'a>),
+    ExpectedOneOfTokens(Vec<TokenType<'a>>),
     ExpectedPoeticNumberLiteral,
+    ExpectedSpaceAfterSays(Token<'a>),
     UnexpectedToken,
     UnexpectedEndOfTokens,
 }
@@ -35,14 +37,12 @@ impl<'a> ParseError<'a> {
 }
 
 pub struct Parser<'a> {
-    lexer: Peekable<CommentSkippingLexer<'a>>,
+    lexer: CommentSkippingLexer<'a>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(lexer: CommentSkippingLexer<'a>) -> Self {
-        Self {
-            lexer: lexer.peekable(),
-        }
+        Self { lexer }
     }
 
     pub fn for_source_code(text: &'a str) -> Self {
@@ -98,7 +98,7 @@ fn is_literal_word(token: TokenType) -> bool {
 
 impl<'a> Parser<'a> {
     fn current(&mut self) -> Option<Token<'a>> {
-        self.lexer.peek().copied()
+        self.lexer.clone().next()
     }
 
     fn current_or_error(&mut self) -> Result<Token<'a>, ParseError<'a>> {
@@ -111,7 +111,7 @@ impl<'a> Parser<'a> {
     }
 
     fn match_and_consume_if<F: FnOnce(&Token) -> bool>(&mut self, f: F) -> Option<Token<'a>> {
-        if self.lexer.peek().filter(|tok| f(*tok)).is_some() {
+        if self.lexer.clone().next().filter(|tok| f(tok)).is_some() {
             self.lexer.next()
         } else {
             None
@@ -136,6 +136,13 @@ impl<'a> Parser<'a> {
             result.push(tx(&token, self)?);
         }
         Ok(result)
+    }
+
+    fn match_until_next(&mut self, token: TokenType) -> Option<Token<'a>> {
+        self.lexer
+            .take_while_ref(|tok| tok.id != token)
+            .for_each(drop);
+        self.current()
     }
 
     // step past a token we *know* satisfies the predicate
@@ -306,13 +313,10 @@ impl<'a> Parser<'a> {
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedToken(tok)))
     }
 
-    fn expect_token_or_aliases(
-        &mut self,
-        token: TokenType<'a>,
-        aliases: &[TokenType<'a>],
-    ) -> Result<Token<'a>, ParseError<'a>> {
-        self.match_and_consume_if(|tok| tok.id == token || aliases.contains(&tok.id))
-            .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedToken(token)))
+    fn expect_any(&mut self, tokens: &[TokenType<'a>]) -> Result<Token<'a>, ParseError<'a>> {
+        self.match_and_consume_any(tokens).ok_or_else(|| {
+            self.new_parse_error(ParseErrorCode::ExpectedOneOfTokens(tokens.to_owned()))
+        })
     }
 
     fn expect_identifier(&mut self) -> Result<Identifier, ParseError<'a>> {
@@ -406,16 +410,46 @@ impl<'a> Parser<'a> {
             })
     }
 
+    fn parse_poetic_string_assignment_rhs(
+        &mut self,
+        says_token: &Token<'a>,
+    ) -> Result<String, ParseError<'a>> {
+        let text = self
+            .match_until_next(TokenType::Newline)
+            .map(|end| {
+                self.lexer
+                    .underlying()
+                    .get_literal_text_between(says_token, &end)
+            })
+            .unwrap_or_else(|| self.lexer.underlying().get_literal_text_after(says_token))
+            .unwrap();
+        text.strip_prefix(says_token.spelling)
+            .unwrap()
+            .strip_prefix(" ")
+            .ok_or_else(|| {
+                self.new_parse_error(ParseErrorCode::ExpectedSpaceAfterSays(*says_token))
+            })
+            .map(Into::into)
+    }
+
     fn parse_poetic_assignment(&mut self) -> Result<PoeticAssignment, ParseError<'a>> {
         // not using expect_identifier since we know for sure the first token is a Word or CapitalizedWord,
         // so we either have an identifier or a parse error at the beginning
         let dest = self.parse_identifier()?.unwrap();
-        self.expect_token_or_aliases(
+
+        match self.expect_any(&[
             TokenType::Is,
-            &[TokenType::ApostropheS, TokenType::ApostropheRE],
-        )?;
-        let rhs = self.parse_poetic_number_assignment_rhs()?;
-        Ok(PoeticNumberAssignment { dest, rhs }.into())
+            TokenType::ApostropheS,
+            TokenType::ApostropheRE,
+            TokenType::Says,
+        ])? {
+            token if token.id == TokenType::Says => self
+                .parse_poetic_string_assignment_rhs(&token)
+                .map(|rhs| PoeticStringAssignment { dest, rhs }.into()),
+            _ => self
+                .parse_poetic_number_assignment_rhs()
+                .map(|rhs| PoeticNumberAssignment { dest, rhs }.into()),
+        }
     }
 }
 
@@ -1099,13 +1133,108 @@ mod test {
     }
 
     #[test]
+    fn parse_poetic_string_assignment() {
+        let parse = |text| Parser::for_source_code(text).parse_statement();
+
+        assert_eq!(
+            parse("Peter says Hello San Francisco!\n"),
+            Ok(PoeticStringAssignment {
+                dest: SimpleIdentifier("Peter".into()).into(),
+                rhs: "Hello San Francisco!".into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Peter says Hello San Francisco!"),
+            Ok(PoeticStringAssignment {
+                dest: SimpleIdentifier("Peter".into()).into(),
+                rhs: "Hello San Francisco!".into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Peter says    Hello    San    Francisco!    \n"),
+            Ok(PoeticStringAssignment {
+                dest: SimpleIdentifier("Peter".into()).into(),
+                rhs: "   Hello    San    Francisco!    ".into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Peter says    Hello    San    Francisco!    "),
+            Ok(PoeticStringAssignment {
+                dest: SimpleIdentifier("Peter".into()).into(),
+                rhs: "   Hello    San    Francisco!    ".into(),
+            }
+            .into())
+        );
+
+        assert_eq!(
+            parse("Peter say Hello San Francisco!\n"),
+            Ok(PoeticStringAssignment {
+                dest: SimpleIdentifier("Peter".into()).into(),
+                rhs: "Hello San Francisco!".into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Peter say Hello San Francisco!"),
+            Ok(PoeticStringAssignment {
+                dest: SimpleIdentifier("Peter".into()).into(),
+                rhs: "Hello San Francisco!".into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Peter say    Hello    San    Francisco!    \n"),
+            Ok(PoeticStringAssignment {
+                dest: SimpleIdentifier("Peter".into()).into(),
+                rhs: "   Hello    San    Francisco!    ".into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Peter say    Hello    San    Francisco!    "),
+            Ok(PoeticStringAssignment {
+                dest: SimpleIdentifier("Peter".into()).into(),
+                rhs: "   Hello    San    Francisco!    ".into(),
+            }
+            .into())
+        );
+
+        // I think this is technically allowed?
+        assert_eq!(
+            parse("Peter says "),
+            Ok(PoeticStringAssignment {
+                dest: SimpleIdentifier("Peter".into()).into(),
+                rhs: "".into(),
+            }
+            .into())
+        );
+
+        assert_eq!(
+            parse("My parents said we'd never make it\n"),
+            Ok(PoeticStringAssignment {
+                dest: CommonIdentifier("My".into(), "parents".into()).into(),
+                rhs: "we'd never make it".into(),
+            }
+            .into())
+        );
+    }
+
+    #[test]
     fn parse_poetic_assignment_errors() {
         let parse = |text| Parser::for_source_code(text).parse_statement();
 
         assert_eq!(
             parse("My world. is nothing without your love"),
             Err(ParseError {
-                code: ParseErrorCode::ExpectedToken(TokenType::Is),
+                code: ParseErrorCode::ExpectedOneOfTokens(vec![
+                    TokenType::Is,
+                    TokenType::ApostropheS,
+                    TokenType::ApostropheRE,
+                    TokenType::Says
+                ]),
                 token: Some(Token {
                     id: TokenType::Dot,
                     spelling: "."
@@ -1128,6 +1257,21 @@ mod test {
                     id: TokenType::Minus,
                     spelling: "-"
                 })
+            })
+        );
+
+        assert_eq!(
+            parse("My world said"),
+            Err(ParseError {
+                code: ParseErrorCode::ExpectedSpaceAfterSays(Token::new(TokenType::Says, "said")),
+                token: None
+            })
+        );
+        assert_eq!(
+            parse("My world said\n"),
+            Err(ParseError {
+                code: ParseErrorCode::ExpectedSpaceAfterSays(Token::new(TokenType::Says, "said")),
+                token: Some(Token::new(TokenType::Newline, "\n"))
             })
         );
     }

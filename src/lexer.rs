@@ -401,6 +401,7 @@ impl<'a> Iterator for Lexer<'a> {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct CommentSkippingLexer<'a> {
     lexer: Lexer<'a>,
 }
@@ -408,6 +409,9 @@ pub struct CommentSkippingLexer<'a> {
 impl<'a> CommentSkippingLexer<'a> {
     pub fn new(lexer: Lexer<'a>) -> Self {
         Self { lexer }
+    }
+    pub fn underlying(&self) -> &Lexer<'a> {
+        &self.lexer
     }
 }
 

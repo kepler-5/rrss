@@ -3,10 +3,25 @@
 version = 3
 
 [[package]]
+name = "either"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
+
+[[package]]
 name = "inner"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9368e93322f271c5ca078ed2ddcfad3511f1a40f564e522ade34e6e5c8e6680"
+
+[[package]]
+name = "itertools"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69ddb889f9d0d08a67338271fa9b62996bc788c7796a5c18cf057420aaed5eaf"
+dependencies = [
+ "either",
+]
 
 [[package]]
 name = "lazy_static"
@@ -19,5 +34,6 @@ name = "rrss"
 version = "0.1.0"
 dependencies = [
  "inner",
+ "itertools",
  "lazy_static",
 ]
