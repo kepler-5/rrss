@@ -174,6 +174,26 @@ impl<'a> Lexer<'a> {
         CommentSkippingLexer::new(self)
     }
 
+    pub fn get_start_index_of(&self, cursor: &Token<'a>) -> Option<usize> {
+        let cursor_start = cursor.spelling.as_ptr();
+        let bytes = self.buf.as_bytes();
+        bytes
+            .as_ptr_range()
+            .contains(&cursor_start)
+            .then(|| unsafe { cursor_start.offset_from(bytes.as_ptr()) } as usize)
+    }
+
+    pub fn get_literal_text_between(&self, start: &Token<'a>, end: &Token<'a>) -> Option<&'a str> {
+        self.get_start_index_of(start).and_then(|s| {
+            self.get_start_index_of(end)
+                .and_then(|e| self.buf.get(s..e))
+        })
+    }
+
+    pub fn get_literal_text_after(&self, cursor: &Token<'a>) -> Option<&'a str> {
+        self.get_start_index_of(cursor).map(|s| &self.buf[s..])
+    }
+
     fn substr<I: SliceIndex<str>>(&self, slice: I) -> &'a <I as SliceIndex<str>>::Output {
         #[cfg(not(debug_assertions))]
         unsafe {
@@ -874,5 +894,73 @@ mod test {
         assert!(!is_word("baz quux"));
         assert!(!is_word("+"));
         assert!(is_word("rock'n'roll"));
+    }
+
+    #[test]
+    fn get_literal_text() {
+        let mut lexer = Lexer::new("flan is my friend's  favorite   *  food");
+
+        let tokens = lexer.by_ref().collect::<Vec<_>>();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::new(TokenType::Word, "flan"),
+                Token::new(TokenType::Is, "is"),
+                Token::new(TokenType::CommonVariablePrefix, "my"),
+                Token::new(TokenType::Word, "friend"),
+                Token::new(TokenType::ApostropheS, "'s"),
+                Token::new(TokenType::Word, "favorite"),
+                Token::new(TokenType::Multiply, "*"),
+                Token::new(TokenType::Word, "food"),
+            ]
+        );
+
+        // get_start_index_of shouldn't recognize tokens we create ourselves--
+        // only tokens we actually got back from the lexer
+        assert_eq!(
+            lexer.get_start_index_of(&Token::new(TokenType::Word, "flan")),
+            None
+        );
+        assert_eq!(lexer.get_start_index_of(tokens.first().unwrap()), Some(0));
+
+        assert_eq!(
+            lexer.get_literal_text_between(tokens.first().unwrap(), tokens.last().unwrap()),
+            Some("flan is my friend's  favorite   *  ")
+        );
+        assert_eq!(
+            lexer.get_literal_text_between(tokens.last().unwrap(), tokens.first().unwrap()),
+            None
+        );
+        assert_eq!(
+            lexer.get_literal_text_between(
+                tokens.first().unwrap(),
+                &Token::new(TokenType::Word, "food")
+            ),
+            None
+        );
+        assert_eq!(
+            lexer.get_literal_text_between(
+                &Token::new(TokenType::Word, "flan"),
+                tokens.last().unwrap()
+            ),
+            None
+        );
+        assert_eq!(
+            lexer.get_literal_text_between(&tokens[3], tokens.last().unwrap()),
+            Some("friend's  favorite   *  ")
+        );
+
+        assert_eq!(
+            lexer.get_literal_text_after(tokens.first().unwrap()),
+            Some("flan is my friend's  favorite   *  food")
+        );
+        assert_eq!(
+            lexer.get_literal_text_after(&Token::new(TokenType::Word, "flan")),
+            None
+        );
+        assert_eq!(
+            lexer.get_literal_text_after(&tokens[3]),
+            Some("friend's  favorite   *  food")
+        );
     }
 }
