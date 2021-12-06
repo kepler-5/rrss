@@ -2,6 +2,7 @@ pub mod ast;
 pub mod lexer;
 pub mod parser;
 
+#[cfg(test)]
 #[macro_use]
 extern crate inner;
 #[macro_use]
