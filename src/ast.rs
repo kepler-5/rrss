@@ -2,7 +2,7 @@ use std::iter::Peekable;
 
 #[derive(Debug, PartialEq)]
 pub struct Program {
-    pub code: Vec<Statement>,
+    pub code: Vec<Block>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -198,6 +198,14 @@ impl<P: Into<PoeticAssignment>> From<P> for Statement {
     fn from(p: P) -> Self {
         Statement::PoeticAssignment(p.into())
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct StatementWithLine(pub Statement, pub usize);
+
+#[derive(Debug, PartialEq)]
+pub struct Block {
+    pub statements: Vec<StatementWithLine>,
 }
 
 /////////////// PoeticNumberLiteral::compute_value

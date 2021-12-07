@@ -2,10 +2,11 @@ use itertools::Itertools;
 
 use crate::{
     ast::{
-        Assignment, BinaryExpression, BinaryOperator, CommonIdentifier, Expression, Identifier,
-        LiteralExpression, PoeticAssignment, PoeticNumberAssignment, PoeticNumberAssignmentRHS,
-        PoeticNumberLiteral, PoeticNumberLiteralElem, PoeticStringAssignment, PrimaryExpression,
-        Program, ProperIdentifier, SimpleIdentifier, Statement, UnaryExpression, UnaryOperator,
+        Assignment, BinaryExpression, BinaryOperator, Block, CommonIdentifier, Expression,
+        Identifier, LiteralExpression, PoeticAssignment, PoeticNumberAssignment,
+        PoeticNumberAssignmentRHS, PoeticNumberLiteral, PoeticNumberLiteralElem,
+        PoeticStringAssignment, PrimaryExpression, Program, ProperIdentifier, SimpleIdentifier,
+        Statement, StatementWithLine, UnaryExpression, UnaryOperator,
     },
     lexer::{self, CommentSkippingLexer, Lexer, Token, TokenType},
 };
@@ -51,7 +52,7 @@ impl<'a> Parser<'a> {
 
     pub fn parse(mut self) -> Result<Program, ParseError<'a>> {
         Ok(Program {
-            code: vec![self.parse_statement()?],
+            code: vec![self.parse_block()?],
         })
     }
 }
@@ -104,6 +105,10 @@ impl<'a> Parser<'a> {
     fn current_or_error(&mut self) -> Result<Token<'a>, ParseError<'a>> {
         self.current()
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::UnexpectedEndOfTokens))
+    }
+
+    fn current_line(&self) -> usize {
+        self.lexer.underlying().current_line()
     }
 
     fn new_parse_error(&mut self, code: ParseErrorCode<'a>) -> ParseError<'a> {
@@ -291,26 +296,57 @@ impl<'a> Parser<'a> {
         }))
     }
 
-    fn parse_statement(&mut self) -> Result<Statement, ParseError<'a>> {
-        let current_token = self.current_or_error()?;
-        Ok(match current_token.id {
-            TokenType::Put => self.parse_put_assignment()?.into(),
-            TokenType::Let => self.parse_let_assignment()?.into(),
-            TokenType::Word | TokenType::CapitalizedWord | TokenType::CommonVariablePrefix => {
-                self.parse_poetic_assignment()?.into()
-            }
+    fn parse_statement(&mut self) -> Result<Option<Statement>, ParseError<'a>> {
+        self.current()
+            .and_then(|current_token| -> Option<Result<Statement, _>> {
+                match current_token.id {
+                    TokenType::Put => Some(self.parse_put_assignment().map(Into::into)),
+                    TokenType::Let => Some(self.parse_let_assignment().map(Into::into)),
+                    TokenType::Word
+                    | TokenType::CapitalizedWord
+                    | TokenType::CommonVariablePrefix => {
+                        Some(self.parse_poetic_assignment().map(Into::into))
+                    }
 
-            _ => {
-                let error = self.new_parse_error(ParseErrorCode::UnexpectedToken);
-                self.lexer.next();
-                Err(error)?
-            }
-        })
+                    TokenType::Newline => None,
+
+                    _ => {
+                        let error = self.new_parse_error(ParseErrorCode::UnexpectedToken);
+                        self.lexer.next();
+                        Some(Err(error))
+                    }
+                }
+            })
+            .transpose()
+    }
+
+    fn parse_block(&mut self) -> Result<Block, ParseError<'a>> {
+        let mut statements = Vec::new();
+        while let Some(s) = self.parse_statement()? {
+            statements.push(StatementWithLine(s, self.current_line()));
+            self.expect_token_or_end(TokenType::Newline)?;
+        }
+        self.expect_token_or_end(TokenType::Newline)?;
+        Ok(Block { statements })
     }
 
     fn expect_token(&mut self, tok: TokenType<'a>) -> Result<Token<'a>, ParseError<'a>> {
         self.match_and_consume(tok)
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedToken(tok)))
+    }
+
+    fn expect_token_or_end(
+        &mut self,
+        tok: TokenType<'a>,
+    ) -> Result<Option<Token<'a>>, ParseError<'a>> {
+        let current = self.current();
+        match current {
+            Some(_) => current
+                .filter(|token| token.id == tok)
+                .map(|_| self.lexer.next())
+                .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedToken(tok))),
+            None => Ok(None),
+        }
     }
 
     fn expect_any(&mut self, tokens: &[TokenType<'a>]) -> Result<Token<'a>, ParseError<'a>> {
@@ -780,7 +816,11 @@ mod test {
 
     #[test]
     fn parse_assignment() {
-        let parse = |text| Parser::for_source_code(text).parse_statement();
+        let parse = |text| {
+            Parser::for_source_code(text)
+                .parse_statement()
+                .map(|s| s.unwrap())
+        };
         assert_eq!(
             parse("Put x plus y into result"),
             Ok(Assignment {
@@ -881,8 +921,11 @@ mod test {
 
     #[test]
     fn parse_assignment_errors() {
-        let parse = |text| Parser::for_source_code(text).parse_statement();
-
+        let parse = |text| {
+            Parser::for_source_code(text)
+                .parse_statement()
+                .map(|s| s.unwrap())
+        };
         assert_eq!(
             parse("Let 5 be 6"),
             Err(ParseError {
@@ -927,8 +970,11 @@ mod test {
 
     #[test]
     fn parse_poetic_assignment() {
-        let parse = |text| Parser::for_source_code(text).parse_statement();
-
+        let parse = |text| {
+            Parser::for_source_code(text)
+                .parse_statement()
+                .map(|s| s.unwrap())
+        };
         assert_eq!(
             parse("Variable is 1"),
             Ok(PoeticNumberAssignment {
@@ -1134,7 +1180,11 @@ mod test {
 
     #[test]
     fn parse_poetic_string_assignment() {
-        let parse = |text| Parser::for_source_code(text).parse_statement();
+        let parse = |text| {
+            Parser::for_source_code(text)
+                .parse_statement()
+                .map(|s| s.unwrap())
+        };
 
         assert_eq!(
             parse("Peter says Hello San Francisco!\n"),
@@ -1224,7 +1274,11 @@ mod test {
 
     #[test]
     fn parse_poetic_assignment_errors() {
-        let parse = |text| Parser::for_source_code(text).parse_statement();
+        let parse = |text| {
+            Parser::for_source_code(text)
+                .parse_statement()
+                .map(|s| s.unwrap())
+        };
 
         assert_eq!(
             parse("My world. is nothing without your love"),
@@ -1310,5 +1364,114 @@ mod test {
         assert_eq!(val("Tommy was hunky-dory-dory-dor"), 9.0);
         assert_eq!(val("Tommy was a mommy's-boy"), 11.0);
         assert_eq!(val("Tommy was Obi-Wan's pal"), 93.0);
+    }
+
+    #[test]
+    fn parse_block() {
+        let parse = |text| Parser::for_source_code(text).parse_block();
+
+        assert_eq!(
+            parse(
+                "\
+            Variable is 1
+            Tommy is a rockstar"
+            ),
+            Ok(Block {
+                statements: vec![
+                    StatementWithLine(
+                        PoeticNumberAssignment {
+                            dest: SimpleIdentifier("Variable".into()).into(),
+                            rhs: boxed_expr(LiteralExpression::Number(1.0)).into()
+                        }
+                        .into(),
+                        1
+                    ),
+                    StatementWithLine(
+                        PoeticNumberAssignment {
+                            dest: SimpleIdentifier("Tommy".into()).into(),
+                            rhs: PoeticNumberLiteral {
+                                elems: vec![
+                                    PoeticNumberLiteralElem::Word("a".into()),
+                                    PoeticNumberLiteralElem::Word("rockstar".into()),
+                                ]
+                            }
+                            .into(),
+                        }
+                        .into(),
+                        2
+                    )
+                ]
+            })
+        );
+        assert_eq!(
+            parse(
+                "\
+            Variable is 1
+            Tommy is a rockstar
+            "
+            ),
+            Ok(Block {
+                statements: vec![
+                    StatementWithLine(
+                        PoeticNumberAssignment {
+                            dest: SimpleIdentifier("Variable".into()).into(),
+                            rhs: boxed_expr(LiteralExpression::Number(1.0)).into()
+                        }
+                        .into(),
+                        1
+                    ),
+                    StatementWithLine(
+                        PoeticNumberAssignment {
+                            dest: SimpleIdentifier("Tommy".into()).into(),
+                            rhs: PoeticNumberLiteral {
+                                elems: vec![
+                                    PoeticNumberLiteralElem::Word("a".into()),
+                                    PoeticNumberLiteralElem::Word("rockstar".into()),
+                                ]
+                            }
+                            .into(),
+                        }
+                        .into(),
+                        2
+                    )
+                ]
+            })
+        );
+
+        assert_eq!(
+            parse(
+                "\
+            Variable is 1
+            Tommy is a rockstar
+            
+            "
+            ),
+            Ok(Block {
+                statements: vec![
+                    StatementWithLine(
+                        PoeticNumberAssignment {
+                            dest: SimpleIdentifier("Variable".into()).into(),
+                            rhs: boxed_expr(LiteralExpression::Number(1.0)).into()
+                        }
+                        .into(),
+                        1
+                    ),
+                    StatementWithLine(
+                        PoeticNumberAssignment {
+                            dest: SimpleIdentifier("Tommy".into()).into(),
+                            rhs: PoeticNumberLiteral {
+                                elems: vec![
+                                    PoeticNumberLiteralElem::Word("a".into()),
+                                    PoeticNumberLiteralElem::Word("rockstar".into()),
+                                ]
+                            }
+                            .into(),
+                        }
+                        .into(),
+                        2
+                    )
+                ]
+            })
+        );
     }
 }
