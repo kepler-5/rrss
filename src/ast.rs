@@ -82,6 +82,15 @@ pub enum BinaryOperator {
     Minus,
     Multiply,
     Divide,
+    And,
+    Or,
+    Nor,
+    Eq,
+    NotEq,
+    Greater,
+    GreaterEq,
+    Less,
+    LessEq,
 }
 
 #[derive(Debug, PartialEq)]

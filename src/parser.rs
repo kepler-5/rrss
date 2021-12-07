@@ -100,6 +100,13 @@ fn get_binary_operator(token: TokenType) -> Option<BinaryOperator> {
         TokenType::Minus => Some(BinaryOperator::Minus),
         TokenType::Multiply => Some(BinaryOperator::Multiply),
         TokenType::Divide => Some(BinaryOperator::Divide),
+        TokenType::And => Some(BinaryOperator::And),
+        TokenType::Or => Some(BinaryOperator::Or),
+        TokenType::Nor => Some(BinaryOperator::Nor),
+        TokenType::Greater => Some(BinaryOperator::Greater),
+        TokenType::GreaterEq => Some(BinaryOperator::GreaterEq),
+        TokenType::Less => Some(BinaryOperator::Less),
+        TokenType::LessEq => Some(BinaryOperator::LessEq),
 
         _ => None,
     }
@@ -184,7 +191,25 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expression(&mut self) -> Result<Expression, ParseError<'a>> {
-        self.parse_term()
+        self.parse_logical_expression()
+    }
+
+    fn parse_logical_expression(&mut self) -> Result<Expression, ParseError<'a>> {
+        self.parse_binary_expression(&[TokenType::And, TokenType::Or, TokenType::Nor], |p| {
+            p.parse_comparison_expression()
+        })
+    }
+
+    fn parse_comparison_expression(&mut self) -> Result<Expression, ParseError<'a>> {
+        self.parse_binary_expression(
+            &[
+                TokenType::Greater,
+                TokenType::GreaterEq,
+                TokenType::Less,
+                TokenType::LessEq,
+            ],
+            |p| p.parse_term(),
+        )
     }
 
     fn parse_term(&mut self) -> Result<Expression, ParseError<'a>> {
@@ -720,6 +745,133 @@ mod test {
                     rhs: boxed_expr(LiteralExpression::Number(1.0))
                 })),
             }))
+        );
+    }
+
+    #[test]
+    fn parse_comparison_expression() {
+        let parse = |text| Parser::for_source_code(text).parse_expression();
+
+        assert_eq!(
+            parse("1 < 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::Less,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("1 <= 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::LessEq,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("1 > 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::Greater,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("1 >= 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::GreaterEq,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("1 > 1 < 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::Less,
+                lhs: boxed_expr(BinaryExpression {
+                    operator: BinaryOperator::Greater,
+                    lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                    rhs: boxed_expr(LiteralExpression::Number(1.0))
+                }),
+                rhs: boxed_expr(LiteralExpression::Number(1.0)),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("1 > 1 + 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::Greater,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(BinaryExpression {
+                    operator: BinaryOperator::Plus,
+                    lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                    rhs: boxed_expr(LiteralExpression::Number(1.0))
+                }),
+            }
+            .into())
+        );
+    }
+
+    #[test]
+    fn parse_logical_expression() {
+        let parse = |text| Parser::for_source_code(text).parse_expression();
+
+        assert_eq!(
+            parse("1 and 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::And,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("1 or 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::Or,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("1 nor 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::Nor,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("1 and 1 or 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::Or,
+                lhs: boxed_expr(BinaryExpression {
+                    operator: BinaryOperator::And,
+                    lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                    rhs: boxed_expr(LiteralExpression::Number(1.0))
+                }),
+                rhs: boxed_expr(LiteralExpression::Number(1.0)),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("1 and 1 < 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::And,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(BinaryExpression {
+                    operator: BinaryOperator::Less,
+                    lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                    rhs: boxed_expr(LiteralExpression::Number(1.0))
+                }),
+            }
+            .into())
         );
     }
 
