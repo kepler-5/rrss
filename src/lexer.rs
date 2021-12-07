@@ -36,6 +36,14 @@ pub enum TokenType<'a> {
     ApostropheS,
     ApostropheRE,
 
+    And,
+    Or,
+    Nor,
+
+    Greater,
+    GreaterEq,
+    Less,
+    LessEq,
     Dot,
     Newline,
     Comment(&'a str),
@@ -113,6 +121,9 @@ lazy_static! {
             ("put", TokenType::Put),
             ("let", TokenType::Let),
             ("be", TokenType::Be),
+            ("and", TokenType::And),
+            ("or", TokenType::Or),
+            ("nor", TokenType::Nor),
             ("not", TokenType::Not),
         ]);
 
@@ -368,11 +379,22 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    fn next_char(&self) -> Option<char> {
+        self.char_indices.clone().next().map(|(_, c)| c)
+    }
+
     fn char_token(&self, token_type: TokenType<'a>, start: usize) -> LexResult<'a> {
         LexResult {
             token: Token::new(token_type, self.substr(start..(start + 1))),
             end: start + 1,
             newlines: (token_type == TokenType::Newline) as usize,
+        }
+    }
+    fn two_char_token(&self, token_type: TokenType<'a>, start: usize) -> LexResult<'a> {
+        LexResult {
+            token: Token::new(token_type, self.substr(start..(start + 2))),
+            end: start + 2,
+            newlines: 0,
         }
     }
 
@@ -408,6 +430,18 @@ impl<'a> Lexer<'a> {
                         start,
                         ErrorMessage("'_' is not a valid character because it can't be sung"),
                     ),
+
+                    '<' => self
+                        .next_char()
+                        .filter(|c| *c == '=')
+                        .map(|_| self.two_char_token(TokenType::LessEq, start))
+                        .unwrap_or_else(|| self.char_token(TokenType::Less, start)),
+
+                    '>' => self
+                        .next_char()
+                        .filter(|c| *c == '=')
+                        .map(|_| self.two_char_token(TokenType::GreaterEq, start))
+                        .unwrap_or_else(|| self.char_token(TokenType::Greater, start)),
 
                     c => {
                         if is_ignorable_punctuation(c) {
@@ -609,6 +643,24 @@ mod test {
                 Token::new(TokenType::Minus, "-"),
                 Token::new(TokenType::Multiply, "*"),
                 Token::new(TokenType::Divide, "/")
+            ]
+        );
+
+        assert_eq!(
+            lex("<= >= < >"),
+            vec![
+                Token::new(TokenType::LessEq, "<="),
+                Token::new(TokenType::GreaterEq, ">="),
+                Token::new(TokenType::Less, "<"),
+                Token::new(TokenType::Greater, ">")
+            ]
+        );
+        assert_eq!(
+            lex("and or nor"),
+            vec![
+                Token::new(TokenType::And, "and"),
+                Token::new(TokenType::Or, "or"),
+                Token::new(TokenType::Nor, "nor"),
             ]
         );
 
