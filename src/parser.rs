@@ -107,6 +107,7 @@ fn get_binary_operator(token: TokenType) -> Option<BinaryOperator> {
         TokenType::GreaterEq => Some(BinaryOperator::GreaterEq),
         TokenType::Less => Some(BinaryOperator::Less),
         TokenType::LessEq => Some(BinaryOperator::LessEq),
+        TokenType::Isnt => Some(BinaryOperator::NotEq),
 
         _ => None,
     }
@@ -200,16 +201,47 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_fancy_comparison_expression(
+        &mut self,
+        lhs: Expression,
+    ) -> Result<Expression, ParseError<'a>> {
+        let operator = self
+            .match_and_consume(TokenType::Not)
+            .map(|_| BinaryOperator::NotEq)
+            .unwrap_or(BinaryOperator::Eq);
+        let rhs = boxed_expr(self.parse_term()?);
+        let lhs = boxed_expr(lhs);
+        Ok(BinaryExpression { operator, lhs, rhs }.into())
+    }
+
     fn parse_comparison_expression(&mut self) -> Result<Expression, ParseError<'a>> {
-        self.parse_binary_expression(
-            &[
-                TokenType::Greater,
-                TokenType::GreaterEq,
-                TokenType::Less,
-                TokenType::LessEq,
-            ],
-            |p| p.parse_term(),
-        )
+        let expr = self.parse_term()?;
+        if self
+            .match_and_consume(
+                [
+                    TokenType::Is,
+                    TokenType::ApostropheS,
+                    TokenType::ApostropheRE,
+                ]
+                .as_ref(),
+            )
+            .is_some()
+        {
+            self.parse_fancy_comparison_expression(expr)
+        } else {
+            self.parse_binary_expression_loop(
+                [
+                    TokenType::Less,
+                    TokenType::LessEq,
+                    TokenType::Greater,
+                    TokenType::GreaterEq,
+                    TokenType::Isnt,
+                ]
+                .as_ref(),
+                |p| p.parse_term(),
+                expr,
+            )
+        }
     }
 
     fn parse_term(&mut self) -> Result<Expression, ParseError<'a>> {
@@ -230,7 +262,19 @@ impl<'a> Parser<'a> {
     where
         F: Fn(&mut Parser<'a>) -> Result<Expression, ParseError<'a>>,
     {
-        let mut expr = next(self)?;
+        let expr = next(self)?;
+        self.parse_binary_expression_loop(operators, next, expr)
+    }
+
+    fn parse_binary_expression_loop<F>(
+        &mut self,
+        operators: &[TokenType],
+        next: F,
+        mut expr: Expression,
+    ) -> Result<Expression, ParseError<'a>>
+    where
+        F: Fn(&mut Parser<'a>) -> Result<Expression, ParseError<'a>>,
+    {
         while let Some(operator) = self
             .match_and_consume(operators)
             .map(|token| get_binary_operator(token.id).unwrap())
@@ -811,6 +855,65 @@ mod test {
                     lhs: boxed_expr(LiteralExpression::Number(1.0)),
                     rhs: boxed_expr(LiteralExpression::Number(1.0))
                 }),
+            }
+            .into())
+        );
+    }
+
+    #[test]
+    fn parse_fancy_comparison_expression() {
+        let parse = |text| Parser::for_source_code(text).parse_expression();
+
+        assert_eq!(
+            parse("1 is 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::Eq,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("1 is not 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::NotEq,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Tommy's 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::Eq,
+                lhs: boxed_expr(SimpleIdentifier("Tommy".into())),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("1 ain't 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::NotEq,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("1 + 1 is not 1 * 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::NotEq,
+                lhs: boxed_expr(BinaryExpression {
+                    operator: BinaryOperator::Plus,
+                    lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                    rhs: boxed_expr(LiteralExpression::Number(1.0))
+                }),
+                rhs: boxed_expr(BinaryExpression {
+                    operator: BinaryOperator::Multiply,
+                    lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                    rhs: boxed_expr(LiteralExpression::Number(1.0))
+                })
             }
             .into())
         );

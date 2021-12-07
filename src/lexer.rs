@@ -911,6 +911,27 @@ mod test {
     }
 
     #[test]
+    #[ignore = "This fails currently and I'll fix it sometime soon!"]
+    fn lex_apostrophe_after_literal() {
+        let lex = |buf| Lexer::new(buf).collect::<Vec<_>>();
+
+        assert_eq!(
+            lex("1's"),
+            vec![
+                Token::new(TokenType::Number(1.0), "1"),
+                Token::new(TokenType::ApostropheS, "'s")
+            ]
+        );
+        assert_eq!(
+            lex("\"foo\"'s"),
+            vec![
+                Token::new(TokenType::Number(1.0), "1"),
+                Token::new(TokenType::ApostropheS, "'s")
+            ]
+        );
+    }
+
+    #[test]
     fn lex_errors() {
         let lex = |buf| Lexer::new(buf).collect::<Vec<_>>();
 
