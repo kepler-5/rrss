@@ -152,6 +152,7 @@ fn find_word_start<'a>(
 struct LexResult<'a> {
     token: Token<'a>,
     end: usize,
+    newlines: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -159,6 +160,7 @@ pub struct Lexer<'a> {
     buf: &'a str,
     char_indices: CharIndices<'a>,
     staged: Option<Token<'a>>,
+    line: usize,
 }
 
 impl<'a> Lexer<'a> {
@@ -167,6 +169,7 @@ impl<'a> Lexer<'a> {
             buf,
             char_indices: buf.char_indices(),
             staged: None,
+            line: 1,
         }
     }
 
@@ -194,6 +197,10 @@ impl<'a> Lexer<'a> {
         self.get_start_index_of(cursor).map(|s| &self.buf[s..])
     }
 
+    pub fn current_line(&self) -> usize {
+        self.line
+    }
+
     fn substr<I: SliceIndex<str>>(&self, slice: I) -> &'a <I as SliceIndex<str>>::Output {
         #[cfg(not(debug_assertions))]
         unsafe {
@@ -218,6 +225,7 @@ impl<'a> Lexer<'a> {
         text.parse::<f64>().ok().map(|n| LexResult {
             token: Token::new(TokenType::Number(n), text),
             end,
+            newlines: 0,
         })
     }
 
@@ -256,7 +264,11 @@ impl<'a> Lexer<'a> {
             .unwrap_or_else(|| (word.trim_end_matches('\''), None));
         self.staged = staged_type.map(|(id, len)| Token::new(id, Self::last_n(word, len)));
         let token = self.find_word_type(stripped);
-        LexResult { token, end }
+        LexResult {
+            token,
+            end,
+            newlines: 0,
+        }
     }
 
     fn scan_word(&mut self, start: usize) -> LexResult<'a> {
@@ -273,12 +285,17 @@ impl<'a> Lexer<'a> {
                     text,
                 ),
                 end,
+                newlines: 0,
             })
     }
 
     fn scan_keyword(&self, start: usize) -> Option<LexResult<'a>> {
         let end = self.find_next_word_end();
-        match_keyword(self.substr(start..end)).map(|token| LexResult { token, end })
+        match_keyword(self.substr(start..end)).map(|token| LexResult {
+            token,
+            end,
+            newlines: 0,
+        })
     }
 
     fn scan_delimited<F: FnOnce(&'a str) -> TokenType<'a>>(
@@ -288,18 +305,29 @@ impl<'a> Lexer<'a> {
         factory: F,
         error: ErrorMessage,
     ) -> LexResult<'a> {
-        let mut iter = self.char_indices.clone();
-        if let Some((close, _)) = iter.find(|&(_, c)| c == close_char) {
+        let mut newlines = 0usize;
+        if let Some((close, _)) = self
+            .char_indices
+            .clone()
+            .inspect(|&(_, c)| {
+                if c == '\n' {
+                    newlines += 1
+                }
+            })
+            .find(|&(_, c)| c == close_char)
+        {
             let end = close + 1;
             let text = self.substr(open..end);
             LexResult {
                 token: Token::new(factory(self.substr((open + 1)..close)), text),
                 end,
+                newlines,
             }
         } else {
             LexResult {
                 token: Token::new(TokenType::Error(error), self.substr(open..)),
                 end: self.buf.len(),
+                newlines,
             }
         }
     }
@@ -327,6 +355,7 @@ impl<'a> Lexer<'a> {
         LexResult {
             token: Token::new(TokenType::Error(error), self.substr(start..end)),
             end,
+            newlines: 0,
         }
     }
 
@@ -337,30 +366,38 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    fn char_token(&self, token_type: TokenType<'a>, start: usize) -> LexResult<'a> {
+        LexResult {
+            token: Token::new(token_type, self.substr(start..(start + 1))),
+            end: start + 1,
+            newlines: (token_type == TokenType::Newline) as usize,
+        }
+    }
+
     fn match_loop(&mut self) -> Option<<Self as Iterator>::Item> {
         loop {
             if let Some((start, start_char)) = find_word_start(&mut self.char_indices) {
-                let char_token = |token_type| LexResult {
-                    token: Token::new(token_type, self.substr(start..(start + 1))),
-                    end: start + 1,
-                };
-                let LexResult { token, end } = match start_char {
-                    '\n' => char_token(TokenType::Newline),
+                let LexResult {
+                    token,
+                    end,
+                    newlines,
+                } = match start_char {
+                    '\n' => self.char_token(TokenType::Newline, start),
 
                     '.' => {
                         // might be a number starting with a decimal, like .123
                         if let Some(number) = self.scan_number(start) {
                             number
                         } else {
-                            char_token(TokenType::Dot)
+                            self.char_token(TokenType::Dot, start)
                         }
                     }
 
                     '\'' => continue,
-                    '+' => char_token(TokenType::Plus),
-                    '-' => char_token(TokenType::Minus),
-                    '*' => char_token(TokenType::Multiply),
-                    '/' => char_token(TokenType::Divide),
+                    '+' => self.char_token(TokenType::Plus, start),
+                    '-' => self.char_token(TokenType::Minus, start),
+                    '*' => self.char_token(TokenType::Multiply, start),
+                    '/' => self.char_token(TokenType::Divide, start),
 
                     '"' => self.scan_string_literal(start),
                     '(' => self.scan_comment(start),
@@ -386,6 +423,7 @@ impl<'a> Lexer<'a> {
                     }
                 };
                 self.advance_to(end, start);
+                self.line += newlines;
                 return Some(token);
             } else {
                 return None;
@@ -966,5 +1004,21 @@ mod test {
             lexer.get_literal_text_after(&tokens[3]),
             Some("friend's  favorite   *  food")
         );
+    }
+
+    #[test]
+    fn current_line() {
+        let line_at = |buf, idx| {
+            let mut lexer = Lexer::new(buf);
+            lexer.by_ref().take(idx).for_each(drop);
+            lexer.current_line()
+        };
+
+        assert_eq!(line_at("hello", 0), 1);
+        assert_eq!(line_at("hello", 1), 1);
+        assert_eq!(line_at("hello\n", 1), 1);
+        assert_eq!(line_at("hello\n", 2), 2);
+        assert_eq!(line_at("(hello, \nworld)hi", 1), 2);
+        assert_eq!(line_at("\n\n\n\n\n(hello, \nworld)hi", 999), 7);
     }
 }
