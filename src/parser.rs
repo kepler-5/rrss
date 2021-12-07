@@ -1,5 +1,3 @@
-use std::array::IntoIter;
-
 use itertools::Itertools;
 
 use crate::{
@@ -90,6 +88,7 @@ impl<'a> Parser<'a> {
 fn get_unary_operator(token: TokenType) -> Option<UnaryOperator> {
     match token {
         TokenType::Minus => Some(UnaryOperator::Minus),
+        TokenType::Not => Some(UnaryOperator::Not),
 
         _ => None,
     }
@@ -224,7 +223,7 @@ impl<'a> Parser<'a> {
 
     fn parse_unary_expression(&mut self) -> Result<Expression, ParseError<'a>> {
         if let Some(operator) = self
-            .match_and_consume(TokenType::Minus)
+            .match_and_consume([TokenType::Minus, TokenType::Not].as_ref())
             .map(|token| get_unary_operator(token.id).unwrap())
         {
             Ok(UnaryExpression {
@@ -548,6 +547,8 @@ mod test {
     #[test]
     fn parse_unary_expression() {
         let parse = |text| Parser::for_source_code(text).parse_unary_expression();
+
+        // I don't think the spec provides for unary minus. I'm allowing it since it makes parsing numbers easier
         assert_eq!(
             parse("-1"),
             Ok(UnaryExpression {
@@ -560,6 +561,37 @@ mod test {
             parse("--1"),
             Ok(UnaryExpression {
                 operator: UnaryOperator::Minus,
+                operand: boxed_expr(UnaryExpression {
+                    operator: UnaryOperator::Minus,
+                    operand: boxed_expr(LiteralExpression::Number(1.0))
+                })
+            }
+            .into())
+        );
+
+        assert_eq!(
+            parse("not cool"),
+            Ok(UnaryExpression {
+                operator: UnaryOperator::Not,
+                operand: boxed_expr(SimpleIdentifier("cool".into()))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("not not cool"),
+            Ok(UnaryExpression {
+                operator: UnaryOperator::Not,
+                operand: boxed_expr(UnaryExpression {
+                    operator: UnaryOperator::Not,
+                    operand: boxed_expr(SimpleIdentifier("cool".into()))
+                })
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("not -1"),
+            Ok(UnaryExpression {
+                operator: UnaryOperator::Not,
                 operand: boxed_expr(UnaryExpression {
                     operator: UnaryOperator::Minus,
                     operand: boxed_expr(LiteralExpression::Number(1.0))

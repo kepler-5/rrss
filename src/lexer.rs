@@ -31,6 +31,7 @@ pub enum TokenType<'a> {
     Let,
     Be,
     With,
+    Not,
 
     ApostropheS,
     ApostropheRE,
@@ -112,6 +113,7 @@ lazy_static! {
             ("put", TokenType::Put),
             ("let", TokenType::Let),
             ("be", TokenType::Be),
+            ("not", TokenType::Not),
         ]);
 
         m.extend(
@@ -647,13 +649,14 @@ mod test {
             ]
         );
         assert_eq!(
-            lex("is isn't put let be"),
+            lex("is isn't put let be not"),
             vec![
                 Token::new(TokenType::Is, "is"),
                 Token::new(TokenType::Isnt, "isn't"),
                 Token::new(TokenType::Put, "put"),
                 Token::new(TokenType::Let, "let"),
                 Token::new(TokenType::Be, "be"),
+                Token::new(TokenType::Not, "not"),
             ]
         );
         assert_eq!(

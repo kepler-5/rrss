@@ -67,6 +67,7 @@ impl<I: Into<Identifier>> From<I> for PrimaryExpression {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum UnaryOperator {
     Minus,
+    Not,
 }
 
 #[derive(Debug, PartialEq)]
