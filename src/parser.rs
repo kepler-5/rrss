@@ -1,3 +1,5 @@
+use std::array::IntoIter;
+
 use itertools::Itertools;
 
 use crate::{
@@ -10,6 +12,34 @@ use crate::{
     },
     lexer::{self, CommentSkippingLexer, Lexer, Token, TokenType},
 };
+
+trait MatchesToken {
+    fn matches_token(&self, token: &Token) -> bool;
+}
+
+impl<'a> MatchesToken for Token<'a> {
+    fn matches_token(&self, token: &Token) -> bool {
+        self == token
+    }
+}
+
+impl<'a> MatchesToken for TokenType<'a> {
+    fn matches_token(&self, token: &Token) -> bool {
+        *self == token.id
+    }
+}
+
+impl<F: Fn(&Token) -> bool> MatchesToken for F {
+    fn matches_token(&self, token: &Token) -> bool {
+        (*self)(token)
+    }
+}
+
+impl<'a> MatchesToken for &[TokenType<'a>] {
+    fn matches_token(&self, token: &Token) -> bool {
+        self.contains(&token.id)
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParseErrorCode<'a> {
@@ -115,29 +145,27 @@ impl<'a> Parser<'a> {
         ParseError::new(code, self.current())
     }
 
-    fn match_and_consume_if<F: FnOnce(&Token) -> bool>(&mut self, f: F) -> Option<Token<'a>> {
-        if self.lexer.clone().next().filter(|tok| f(tok)).is_some() {
+    fn match_and_consume<M: MatchesToken>(&mut self, m: M) -> Option<Token<'a>> {
+        if self
+            .lexer
+            .clone()
+            .next()
+            .filter(|tok| m.matches_token(tok))
+            .is_some()
+        {
             self.lexer.next()
         } else {
             None
         }
     }
 
-    fn match_and_consume_any(&mut self, tokens: &[TokenType]) -> Option<Token<'a>> {
-        self.match_and_consume_if(|token| tokens.contains(&token.id))
-    }
-
-    fn match_and_consume(&mut self, token: TokenType) -> Option<Token<'a>> {
-        self.match_and_consume_if(|tok| tok.id == token)
-    }
-
-    fn match_and_consume_while<F, R, Tx>(&mut self, f: F, tx: Tx) -> Result<Vec<R>, ParseError<'a>>
+    fn match_and_consume_while<M, R, Tx>(&mut self, m: M, tx: Tx) -> Result<Vec<R>, ParseError<'a>>
     where
-        F: Fn(&Token) -> bool,
+        for<'b> &'b M: MatchesToken,
         Tx: Fn(&Token, &mut Parser<'a>) -> Result<R, ParseError<'a>>,
     {
         let mut result = Vec::new();
-        while let Some(token) = self.match_and_consume_if(&f) {
+        while let Some(token) = self.match_and_consume(&m) {
             result.push(tx(&token, self)?);
         }
         Ok(result)
@@ -151,12 +179,9 @@ impl<'a> Parser<'a> {
     }
 
     // step past a token we *know* satisfies the predicate
-    fn consume_if<F: FnOnce(&Token) -> bool>(&mut self, f: F) {
+    fn consume<M: MatchesToken>(&mut self, m: M) {
         let tok = self.lexer.next();
-        assert!(tok.filter(f).is_some());
-    }
-    fn consume(&mut self, token: TokenType) {
-        self.consume_if(|tok| tok.id == token)
+        assert!(tok.filter(|tok| m.matches_token(tok)).is_some());
     }
 
     fn parse_expression(&mut self) -> Result<Expression, ParseError<'a>> {
@@ -183,7 +208,7 @@ impl<'a> Parser<'a> {
     {
         let mut expr = next(self)?;
         while let Some(operator) = self
-            .match_and_consume_any(operators)
+            .match_and_consume(operators)
             .map(|token| get_binary_operator(token.id).unwrap())
         {
             let rhs = boxed_expr(next(self)?);
@@ -249,7 +274,7 @@ impl<'a> Parser<'a> {
             .map(|tok| tok.spelling)
         {
             let next_word = self
-                .match_and_consume_any(&[TokenType::Word, TokenType::CapitalizedWord]) // capitalized words are invalid, but we want to match them for good error messages
+                .match_and_consume([TokenType::Word, TokenType::CapitalizedWord].as_ref()) // capitalized words are invalid, but we want to match them for good error messages
                 .map(|tok| tok.spelling)
                 .ok_or_else(|| {
                     self.new_parse_error(ParseErrorCode::MissingIDAfterCommonPrefix(prefix.into()))
@@ -271,14 +296,14 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_simple_identifier(&mut self) -> Option<SimpleIdentifier> {
-        self.match_and_consume_any(&[TokenType::Word, TokenType::CapitalizedWord])
+        self.match_and_consume([TokenType::Word, TokenType::CapitalizedWord].as_ref())
             .map(|tok| SimpleIdentifier(tok.spelling.into()))
     }
 
     fn parse_capitalized_identifier(&mut self) -> Option<Identifier> {
         let names = self
             .match_and_consume_while(
-                |tok| tok.id == TokenType::CapitalizedWord,
+                |tok: &Token| tok.id == TokenType::CapitalizedWord,
                 |tok, _| Ok(tok.spelling.to_owned()),
             )
             .unwrap();
@@ -350,7 +375,7 @@ impl<'a> Parser<'a> {
     }
 
     fn expect_any(&mut self, tokens: &[TokenType<'a>]) -> Result<Token<'a>, ParseError<'a>> {
-        self.match_and_consume_any(tokens).ok_or_else(|| {
+        self.match_and_consume(tokens).ok_or_else(|| {
             self.new_parse_error(ParseErrorCode::ExpectedOneOfTokens(tokens.to_owned()))
         })
     }
@@ -376,13 +401,16 @@ impl<'a> Parser<'a> {
         let dest = self.expect_identifier()?;
         self.expect_token(TokenType::Be)?;
         let operator = self
-            .match_and_consume_any(&[
-                TokenType::Plus,
-                TokenType::With,
-                TokenType::Minus,
-                TokenType::Multiply,
-                TokenType::Divide,
-            ])
+            .match_and_consume(
+                [
+                    TokenType::Plus,
+                    TokenType::With,
+                    TokenType::Minus,
+                    TokenType::Multiply,
+                    TokenType::Divide,
+                ]
+                .as_ref(),
+            )
             .map(|tok| get_binary_operator(tok.id).unwrap());
         let value = boxed_expr(self.parse_expression()?);
         Ok(Assignment {
@@ -399,7 +427,7 @@ impl<'a> Parser<'a> {
             .then(|| self.parse_expression().map(|e| boxed_expr(e).into()))
             .unwrap_or_else(|| {
                 let elems = self.match_and_consume_while(
-                    |tok| {
+                    |tok: &Token| {
                         matches!(
                             tok.id,
                             TokenType::Dot | TokenType::ApostropheS | TokenType::ApostropheRE
@@ -1369,6 +1397,7 @@ mod test {
     #[test]
     fn parse_block() {
         let parse = |text| Parser::for_source_code(text).parse_block();
+        assert_eq!(parse("\n"), Ok(Block { statements: vec![] }));
 
         assert_eq!(
             parse(
