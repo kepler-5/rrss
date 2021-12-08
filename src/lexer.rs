@@ -39,6 +39,12 @@ pub enum TokenType<'a> {
     And,
     Or,
     Nor,
+    As,
+    Big,
+    Bigger,
+    Small,
+    Smaller,
+    Than,
 
     Greater,
     GreaterEq,
@@ -116,6 +122,14 @@ lazy_static! {
 
         alias(TokenType::Says, &["says", "say", "said"]);
 
+        alias(
+            TokenType::Bigger,
+            &["higher", "greater", "bigger", "stronger"],
+        );
+        alias(TokenType::Smaller, &["lower", "less", "smaller", "weaker"]);
+        alias(TokenType::Big, &["high", "great", "big", "strong"]);
+        alias(TokenType::Small, &["low", "little", "small", "weak"]);
+
         m.extend([
             ("with", TokenType::With),
             ("put", TokenType::Put),
@@ -125,6 +139,8 @@ lazy_static! {
             ("or", TokenType::Or),
             ("nor", TokenType::Nor),
             ("not", TokenType::Not),
+            ("as", TokenType::As),
+            ("than", TokenType::Than),
         ]);
 
         m.extend(
@@ -727,6 +743,50 @@ mod test {
                 Token::new(TokenType::Says, "says"),
                 Token::new(TokenType::Says, "said"),
             ]
+        );
+
+        assert_eq!(
+            lex("higher greater bigger stronger"),
+            vec![
+                Token::new(TokenType::Bigger, "higher"),
+                Token::new(TokenType::Bigger, "greater"),
+                Token::new(TokenType::Bigger, "bigger"),
+                Token::new(TokenType::Bigger, "stronger"),
+            ],
+        );
+        assert_eq!(
+            lex("lower less smaller weaker"),
+            vec![
+                Token::new(TokenType::Smaller, "lower"),
+                Token::new(TokenType::Smaller, "less"),
+                Token::new(TokenType::Smaller, "smaller"),
+                Token::new(TokenType::Smaller, "weaker"),
+            ],
+        );
+        assert_eq!(
+            lex("high great big strong"),
+            vec![
+                Token::new(TokenType::Big, "high"),
+                Token::new(TokenType::Big, "great"),
+                Token::new(TokenType::Big, "big"),
+                Token::new(TokenType::Big, "strong"),
+            ],
+        );
+        assert_eq!(
+            lex("low little small weak"),
+            vec![
+                Token::new(TokenType::Small, "low"),
+                Token::new(TokenType::Small, "little"),
+                Token::new(TokenType::Small, "small"),
+                Token::new(TokenType::Small, "weak"),
+            ],
+        );
+        assert_eq!(
+            lex("as than"),
+            vec![
+                Token::new(TokenType::As, "as"),
+                Token::new(TokenType::Than, "than"),
+            ],
         );
 
         assert_eq!(lex("()"), vec![Token::new(TokenType::Comment(""), "()")]);
