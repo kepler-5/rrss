@@ -103,10 +103,10 @@ fn get_binary_operator(token: TokenType) -> Option<BinaryOperator> {
         TokenType::And => Some(BinaryOperator::And),
         TokenType::Or => Some(BinaryOperator::Or),
         TokenType::Nor => Some(BinaryOperator::Nor),
-        TokenType::Greater => Some(BinaryOperator::Greater),
-        TokenType::GreaterEq => Some(BinaryOperator::GreaterEq),
-        TokenType::Less => Some(BinaryOperator::Less),
-        TokenType::LessEq => Some(BinaryOperator::LessEq),
+        TokenType::Greater | TokenType::Bigger => Some(BinaryOperator::Greater),
+        TokenType::GreaterEq | TokenType::Big => Some(BinaryOperator::GreaterEq),
+        TokenType::Less | TokenType::Smaller => Some(BinaryOperator::Less),
+        TokenType::LessEq | TokenType::Small => Some(BinaryOperator::LessEq),
         TokenType::Isnt => Some(BinaryOperator::NotEq),
 
         _ => None,
@@ -206,28 +206,46 @@ impl<'a> Parser<'a> {
         lhs: Expression,
     ) -> Result<Expression, ParseError<'a>> {
         let operator = self
-            .match_and_consume(TokenType::Not)
-            .map(|_| BinaryOperator::NotEq)
-            .unwrap_or(BinaryOperator::Eq);
+            .match_and_consume(TokenType::As)
+            .map(|_| {
+                let operator =
+                    get_binary_operator(self.expect_any(&[TokenType::Big, TokenType::Small])?.id)
+                        .unwrap();
+                self.expect_token(TokenType::As)?;
+                Ok(operator)
+            })
+            .or_else(|| {
+                self.match_and_consume([TokenType::Bigger, TokenType::Smaller].as_ref())
+                    .map(|tok| {
+                        let operator = get_binary_operator(tok.id).unwrap();
+                        self.expect_token(TokenType::Than)?;
+                        Ok(operator)
+                    })
+            })
+            .unwrap_or_else(|| {
+                Ok(self
+                    .match_and_consume(TokenType::Not)
+                    .map(|_| BinaryOperator::NotEq)
+                    .unwrap_or(BinaryOperator::Eq))
+            })?;
         let rhs = boxed_expr(self.parse_term()?);
         let lhs = boxed_expr(lhs);
-        Ok(BinaryExpression { operator, lhs, rhs }.into())
+        Ok(BinaryExpression { operator, rhs, lhs }.into())
     }
 
     fn parse_comparison_expression(&mut self) -> Result<Expression, ParseError<'a>> {
         let expr = self.parse_term()?;
-        if self
-            .match_and_consume(
-                [
-                    TokenType::Is,
-                    TokenType::ApostropheS,
-                    TokenType::ApostropheRE,
-                ]
-                .as_ref(),
-            )
-            .is_some()
-        {
-            self.parse_fancy_comparison_expression(expr)
+        let is_operators = [
+            TokenType::Is,
+            TokenType::ApostropheS,
+            TokenType::ApostropheRE,
+        ];
+        if self.match_and_consume(is_operators.as_ref()).is_some() {
+            let mut expr = self.parse_fancy_comparison_expression(expr)?;
+            while self.match_and_consume(is_operators.as_ref()).is_some() {
+                expr = self.parse_fancy_comparison_expression(expr)?;
+            }
+            Ok(expr)
         } else {
             self.parse_binary_expression_loop(
                 [
@@ -308,10 +326,8 @@ impl<'a> Parser<'a> {
     fn parse_primary_expression(&mut self) -> Result<PrimaryExpression, ParseError<'a>> {
         self.parse_identifier()?
             .map(Into::into)
-            .or_else(|| {
-                self.parse_pronoun()
-                    .or_else(|| self.parse_literal_expression().map(Into::into))
-            })
+            .or_else(|| self.parse_pronoun())
+            .or_else(|| self.parse_literal_expression().map(Into::into))
             .ok_or_else(|| {
                 self.new_parse_error(ParseErrorCode::Generic(
                     "Expected primary expression".into(),
@@ -914,6 +930,69 @@ mod test {
                     lhs: boxed_expr(LiteralExpression::Number(1.0)),
                     rhs: boxed_expr(LiteralExpression::Number(1.0))
                 })
+            }
+            .into())
+        );
+
+        assert_eq!(
+            parse("1 is bigger than 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::Greater,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("1 is as big as 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::GreaterEq,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("1 is smaller than 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::Less,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("1 is as small as 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::LessEq,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("1 is 1 is 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::Eq,
+                lhs: boxed_expr(BinaryExpression {
+                    operator: BinaryOperator::Eq,
+                    lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                    rhs: boxed_expr(LiteralExpression::Number(1.0))
+                }),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("1 is as small as 1 is bigger than 1"),
+            Ok(BinaryExpression {
+                operator: BinaryOperator::Greater,
+                lhs: boxed_expr(BinaryExpression {
+                    operator: BinaryOperator::LessEq,
+                    lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                    rhs: boxed_expr(LiteralExpression::Number(1.0))
+                }),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
             }
             .into())
         );
