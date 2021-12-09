@@ -193,9 +193,17 @@ impl From<PoeticStringAssignment> for PoeticAssignment {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct If {
+    pub condition: Box<Expression>,
+    pub then_block: Block,
+    pub else_block: Option<Block>,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Statement {
     Assignment(Assignment),
     PoeticAssignment(PoeticAssignment),
+    If(If),
 }
 
 impl From<Assignment> for Statement {
@@ -207,6 +215,12 @@ impl From<Assignment> for Statement {
 impl<P: Into<PoeticAssignment>> From<P> for Statement {
     fn from(p: P) -> Self {
         Statement::PoeticAssignment(p.into())
+    }
+}
+
+impl From<If> for Statement {
+    fn from(i: If) -> Self {
+        Statement::If(i)
     }
 }
 

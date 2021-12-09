@@ -50,6 +50,12 @@ pub enum TokenType<'a> {
     GreaterEq,
     Less,
     LessEq,
+
+    If,
+    Else,
+    While,
+    Until,
+
     Dot,
     Newline,
     Comment(&'a str),
@@ -141,6 +147,10 @@ lazy_static! {
             ("not", TokenType::Not),
             ("as", TokenType::As),
             ("than", TokenType::Than),
+            ("if", TokenType::If),
+            ("else", TokenType::Else),
+            ("while", TokenType::While),
+            ("until", TokenType::Until),
         ]);
 
         m.extend(
@@ -786,6 +796,16 @@ mod test {
             vec![
                 Token::new(TokenType::As, "as"),
                 Token::new(TokenType::Than, "than"),
+            ],
+        );
+
+        assert_eq!(
+            lex("if else while until"),
+            vec![
+                Token::new(TokenType::If, "if"),
+                Token::new(TokenType::Else, "else"),
+                Token::new(TokenType::While, "while"),
+                Token::new(TokenType::Until, "until"),
             ],
         );
 

@@ -3,7 +3,7 @@ use itertools::Itertools;
 use crate::{
     ast::{
         Assignment, BinaryExpression, BinaryOperator, Block, CommonIdentifier, Expression,
-        Identifier, LiteralExpression, PoeticAssignment, PoeticNumberAssignment,
+        Identifier, If, LiteralExpression, PoeticAssignment, PoeticNumberAssignment,
         PoeticNumberAssignmentRHS, PoeticNumberLiteral, PoeticNumberLiteralElem,
         PoeticStringAssignment, PrimaryExpression, Program, ProperIdentifier, SimpleIdentifier,
         Statement, StatementWithLine, UnaryExpression, UnaryOperator,
@@ -417,6 +417,9 @@ impl<'a> Parser<'a> {
                         Some(self.parse_poetic_assignment().map(Into::into))
                     }
 
+                    TokenType::If => Some(self.parse_if_statement().map(Into::into)),
+
+                    TokenType::Else => None,
                     TokenType::Newline => None,
 
                     _ => {
@@ -429,12 +432,17 @@ impl<'a> Parser<'a> {
             .transpose()
     }
 
-    fn parse_block(&mut self) -> Result<Block, ParseError<'a>> {
+    fn parse_block_loop(&mut self) -> Result<Vec<StatementWithLine>, ParseError<'a>> {
         let mut statements = Vec::new();
         while let Some(s) = self.parse_statement()? {
             statements.push(StatementWithLine(s, self.current_line()));
             self.expect_token_or_end(TokenType::Newline)?;
         }
+        Ok(statements)
+    }
+
+    fn parse_block(&mut self) -> Result<Block, ParseError<'a>> {
+        let statements = self.parse_block_loop()?;
         self.expect_token_or_end(TokenType::Newline)?;
         Ok(Block { statements })
     }
@@ -598,6 +606,28 @@ impl<'a> Parser<'a> {
                 .parse_poetic_number_assignment_rhs()
                 .map(|rhs| PoeticNumberAssignment { dest, rhs }.into()),
         }
+    }
+
+    fn parse_if_statement(&mut self) -> Result<If, ParseError<'a>> {
+        self.consume(TokenType::If);
+        let condition = self.parse_expression()?;
+        self.expect_token_or_end(TokenType::Newline)?;
+        let then_block = Block {
+            statements: self.parse_block_loop()?,
+        };
+        let else_block = self
+            .match_and_consume(TokenType::Else)
+            .map(|_| {
+                self.expect_token_or_end(TokenType::Newline)?;
+                self.parse_block()
+            })
+            .transpose()?;
+        let condition = boxed_expr(condition);
+        Ok(If {
+            condition,
+            then_block,
+            else_block,
+        })
     }
 }
 
@@ -1867,6 +1897,131 @@ mod test {
                     )
                 ]
             })
+        );
+    }
+
+    #[test]
+    fn parse_if_statement() {
+        let parse = |text| Parser::for_source_code(text).parse_statement();
+
+        assert_eq!(
+            parse(
+                "\
+        if x is 5,
+        x is 6
+        "
+            ),
+            Ok(Some(
+                If {
+                    condition: boxed_expr(BinaryExpression {
+                        operator: BinaryOperator::Eq,
+                        lhs: boxed_expr(SimpleIdentifier("x".into())),
+                        rhs: boxed_expr(LiteralExpression::Number(5.0))
+                    }),
+                    then_block: Block {
+                        statements: vec![StatementWithLine(
+                            PoeticNumberAssignment {
+                                dest: SimpleIdentifier("x".into()).into(),
+                                rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
+                            }
+                            .into(),
+                            2
+                        )]
+                    },
+                    else_block: None,
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse(
+                "\
+        if x is 5,
+        x is 6
+        else
+        x is 7
+        "
+            ),
+            Ok(Some(
+                If {
+                    condition: boxed_expr(BinaryExpression {
+                        operator: BinaryOperator::Eq,
+                        lhs: boxed_expr(SimpleIdentifier("x".into())),
+                        rhs: boxed_expr(LiteralExpression::Number(5.0))
+                    }),
+                    then_block: Block {
+                        statements: vec![StatementWithLine(
+                            PoeticNumberAssignment {
+                                dest: SimpleIdentifier("x".into()).into(),
+                                rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
+                            }
+                            .into(),
+                            2
+                        )]
+                    },
+                    else_block: Some(Block {
+                        statements: vec![StatementWithLine(
+                            PoeticNumberAssignment {
+                                dest: SimpleIdentifier("x".into()).into(),
+                                rhs: boxed_expr(LiteralExpression::Number(7.0)).into()
+                            }
+                            .into(),
+                            4
+                        )]
+                    }),
+                }
+                .into()
+            ))
+        );
+
+        assert_eq!(
+            parse(
+                "\
+        if x is 5
+        else
+        x is 7"
+            ),
+            Ok(Some(
+                If {
+                    condition: boxed_expr(BinaryExpression {
+                        operator: BinaryOperator::Eq,
+                        lhs: boxed_expr(SimpleIdentifier("x".into())),
+                        rhs: boxed_expr(LiteralExpression::Number(5.0))
+                    }),
+                    then_block: Block { statements: vec![] },
+                    else_block: Some(Block {
+                        statements: vec![StatementWithLine(
+                            PoeticNumberAssignment {
+                                dest: SimpleIdentifier("x".into()).into(),
+                                rhs: boxed_expr(LiteralExpression::Number(7.0)).into()
+                            }
+                            .into(),
+                            3
+                        )]
+                    }),
+                }
+                .into()
+            ))
+        );
+
+        assert_eq!(
+            parse(
+                "\
+        if x is 5
+        else"
+            ),
+            Ok(Some(
+                If {
+                    condition: boxed_expr(BinaryExpression {
+                        operator: BinaryOperator::Eq,
+                        lhs: boxed_expr(SimpleIdentifier("x".into())),
+                        rhs: boxed_expr(LiteralExpression::Number(5.0))
+                    }),
+                    then_block: Block { statements: vec![] },
+                    else_block: Some(Block { statements: vec![] }),
+                }
+                .into()
+            ))
         );
     }
 }
