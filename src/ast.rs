@@ -194,20 +194,20 @@ impl From<PoeticStringAssignment> for PoeticAssignment {
 
 #[derive(Debug, PartialEq)]
 pub struct If {
-    pub condition: Box<Expression>,
+    pub condition: Expression,
     pub then_block: Block,
     pub else_block: Option<Block>,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct While {
-    pub condition: Box<Expression>,
+    pub condition: Expression,
     pub block: Block,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Until {
-    pub condition: Box<Expression>,
+    pub condition: Expression,
     pub block: Block,
 }
 
@@ -233,7 +233,7 @@ pub struct Output {
     pub value: Box<Expression>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum MutationOperator {
     Cut,
     Join,
@@ -243,9 +243,22 @@ pub enum MutationOperator {
 #[derive(Debug, PartialEq)]
 pub struct Mutation {
     pub operator: MutationOperator,
-    pub operand: Box<Expression>,
+    pub operand: Expression,
     pub dest: Option<Identifier>,
-    pub param: Option<Box<Expression>>,
+    pub param: Option<Expression>,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum RoundingDirection {
+    Up,
+    Down,
+    Nearest,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Rounding {
+    pub direction: RoundingDirection,
+    pub operand: Expression,
 }
 
 #[derive(Debug, PartialEq)]
@@ -260,6 +273,7 @@ pub enum Statement {
     Input(Input),
     Output(Output),
     Mutation(Mutation),
+    Rounding(Rounding),
 }
 
 impl From<Assignment> for Statement {
@@ -319,6 +333,12 @@ impl From<Output> for Statement {
 impl From<Mutation> for Statement {
     fn from(m: Mutation) -> Self {
         Statement::Mutation(m)
+    }
+}
+
+impl From<Rounding> for Statement {
+    fn from(r: Rounding) -> Self {
+        Statement::Rounding(r)
     }
 }
 

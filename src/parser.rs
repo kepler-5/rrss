@@ -6,8 +6,8 @@ use crate::{
         Identifier, If, Inc, Input, LiteralExpression, Mutation, MutationOperator, Output,
         PoeticAssignment, PoeticNumberAssignment, PoeticNumberAssignmentRHS, PoeticNumberLiteral,
         PoeticNumberLiteralElem, PoeticStringAssignment, PrimaryExpression, Program,
-        ProperIdentifier, SimpleIdentifier, Statement, StatementWithLine, UnaryExpression,
-        UnaryOperator, Until, While,
+        ProperIdentifier, Rounding, RoundingDirection, SimpleIdentifier, Statement,
+        StatementWithLine, UnaryExpression, UnaryOperator, Until, While,
     },
     lexer::{self, CommentSkippingLexer, Lexer, Token, TokenType},
 };
@@ -120,6 +120,16 @@ fn get_mutation_operator(token: TokenType) -> Option<MutationOperator> {
         TokenType::Cut => Some(MutationOperator::Cut),
         TokenType::Join => Some(MutationOperator::Join),
         TokenType::Cast => Some(MutationOperator::Cast),
+
+        _ => None,
+    }
+}
+
+fn get_rounding_direction(token: TokenType) -> Option<RoundingDirection> {
+    match token {
+        TokenType::Up => Some(RoundingDirection::Up),
+        TokenType::Down => Some(RoundingDirection::Down),
+        TokenType::Round => Some(RoundingDirection::Nearest),
 
         _ => None,
     }
@@ -447,6 +457,7 @@ impl<'a> Parser<'a> {
                     TokenType::Cut | TokenType::Join | TokenType::Cast => {
                         Some(self.parse_mutation().map(Into::into))
                     }
+                    TokenType::Turn => Some(self.parse_rounding().map(Into::into)),
 
                     _ => {
                         let error = self.new_parse_error(ParseErrorCode::UnexpectedToken);
@@ -647,7 +658,6 @@ impl<'a> Parser<'a> {
                 self.parse_block()
             })
             .transpose()?;
-        let condition = boxed_expr(condition);
         Ok(If {
             condition,
             then_block,
@@ -661,7 +671,6 @@ impl<'a> Parser<'a> {
         let condition = self.parse_expression()?;
         self.expect_token_or_end(TokenType::Newline)?;
         let block = Block(self.parse_block_loop()?);
-        let condition = boxed_expr(condition);
         Ok(if is_while {
             While { condition, block }.into()
         } else {
@@ -752,15 +761,35 @@ impl<'a> Parser<'a> {
         let param = self
             .match_and_consume(TokenType::With)
             .map(|_| self.parse_expression())
-            .transpose()?
-            .map(boxed_expr);
-        let operand = boxed_expr(operand);
+            .transpose()?;
         Ok(Mutation {
             operator,
             operand,
             dest,
             param,
         })
+    }
+
+    fn parse_rounding_direction(&mut self) -> Option<RoundingDirection> {
+        self.match_and_consume([TokenType::Up, TokenType::Down, TokenType::Round].as_ref())
+            .and_then(|tok| get_rounding_direction(tok.id))
+    }
+
+    fn parse_rounding(&mut self) -> Result<Rounding, ParseError<'a>> {
+        self.consume(TokenType::Turn);
+
+        let direction = self.parse_rounding_direction();
+        let operand = self.parse_expression()?;
+        let direction = direction
+            .or_else(|| self.parse_rounding_direction())
+            .ok_or_else(|| {
+                self.new_parse_error(ParseErrorCode::ExpectedOneOfTokens(vec![
+                    TokenType::Up,
+                    TokenType::Down,
+                    TokenType::Round,
+                ]))
+            })?;
+        Ok(Rounding { direction, operand })
     }
 }
 
@@ -2060,11 +2089,12 @@ mod test {
             ),
             Ok(Some(
                 If {
-                    condition: boxed_expr(BinaryExpression {
+                    condition: BinaryExpression {
                         operator: BinaryOperator::Eq,
                         lhs: boxed_expr(SimpleIdentifier("x".into())),
                         rhs: boxed_expr(LiteralExpression::Number(5.0))
-                    }),
+                    }
+                    .into(),
                     then_block: Block(vec![StatementWithLine(
                         PoeticNumberAssignment {
                             dest: SimpleIdentifier("x".into()).into(),
@@ -2089,11 +2119,12 @@ mod test {
             ),
             Ok(Some(
                 If {
-                    condition: boxed_expr(BinaryExpression {
+                    condition: BinaryExpression {
                         operator: BinaryOperator::Eq,
                         lhs: boxed_expr(SimpleIdentifier("x".into())),
                         rhs: boxed_expr(LiteralExpression::Number(5.0))
-                    }),
+                    }
+                    .into(),
                     then_block: Block(vec![StatementWithLine(
                         PoeticNumberAssignment {
                             dest: SimpleIdentifier("x".into()).into(),
@@ -2124,11 +2155,12 @@ mod test {
             ),
             Ok(Some(
                 If {
-                    condition: boxed_expr(BinaryExpression {
+                    condition: BinaryExpression {
                         operator: BinaryOperator::Eq,
                         lhs: boxed_expr(SimpleIdentifier("x".into())),
                         rhs: boxed_expr(LiteralExpression::Number(5.0))
-                    }),
+                    }
+                    .into(),
                     then_block: Block::empty(),
                     else_block: Some(Block(vec![StatementWithLine(
                         PoeticNumberAssignment {
@@ -2151,11 +2183,12 @@ mod test {
             ),
             Ok(Some(
                 If {
-                    condition: boxed_expr(BinaryExpression {
+                    condition: BinaryExpression {
                         operator: BinaryOperator::Eq,
                         lhs: boxed_expr(SimpleIdentifier("x".into())),
                         rhs: boxed_expr(LiteralExpression::Number(5.0))
-                    }),
+                    }
+                    .into(),
                     then_block: Block::empty(),
                     else_block: Some(Block::empty()),
                 }
@@ -2182,11 +2215,12 @@ mod test {
             Ok(Block(vec![
                 StatementWithLine(
                     While {
-                        condition: boxed_expr(BinaryExpression {
+                        condition: BinaryExpression {
                             operator: BinaryOperator::Eq,
                             lhs: boxed_expr(SimpleIdentifier("x".into())),
                             rhs: boxed_expr(LiteralExpression::Number(5.0))
-                        }),
+                        }
+                        .into(),
                         block: Block(vec![StatementWithLine(
                             PoeticNumberAssignment {
                                 dest: SimpleIdentifier("x".into()).into(),
@@ -2201,11 +2235,12 @@ mod test {
                 ),
                 StatementWithLine(
                     Until {
-                        condition: boxed_expr(BinaryExpression {
+                        condition: BinaryExpression {
                             operator: BinaryOperator::Eq,
                             lhs: boxed_expr(SimpleIdentifier("x".into())),
                             rhs: boxed_expr(LiteralExpression::Number(5.0))
-                        }),
+                        }
+                        .into(),
                         block: Block(vec![StatementWithLine(
                             PoeticNumberAssignment {
                                 dest: SimpleIdentifier("x".into()).into(),
@@ -2233,11 +2268,12 @@ mod test {
             Ok(Block(vec![
                 StatementWithLine(
                     While {
-                        condition: boxed_expr(BinaryExpression {
+                        condition: BinaryExpression {
                             operator: BinaryOperator::Eq,
                             lhs: boxed_expr(SimpleIdentifier("x".into())),
                             rhs: boxed_expr(LiteralExpression::Number(5.0))
-                        }),
+                        }
+                        .into(),
                         block: Block(vec![StatementWithLine(
                             PoeticNumberAssignment {
                                 dest: SimpleIdentifier("x".into()).into(),
@@ -2252,11 +2288,12 @@ mod test {
                 ),
                 StatementWithLine(
                     Until {
-                        condition: boxed_expr(BinaryExpression {
+                        condition: BinaryExpression {
                             operator: BinaryOperator::Eq,
                             lhs: boxed_expr(SimpleIdentifier("x".into())),
                             rhs: boxed_expr(LiteralExpression::Number(5.0))
-                        }),
+                        }
+                        .into(),
                         block: Block(vec![StatementWithLine(
                             PoeticNumberAssignment {
                                 dest: SimpleIdentifier("x".into()).into(),
@@ -2284,19 +2321,21 @@ mod test {
             ),
             Ok(Block(vec![StatementWithLine(
                 While {
-                    condition: boxed_expr(BinaryExpression {
+                    condition: BinaryExpression {
                         operator: BinaryOperator::Eq,
                         lhs: boxed_expr(SimpleIdentifier("x".into())),
                         rhs: boxed_expr(LiteralExpression::Number(5.0))
-                    }),
+                    }
+                    .into(),
                     block: Block(vec![
                         StatementWithLine(
                             While {
-                                condition: boxed_expr(BinaryExpression {
+                                condition: BinaryExpression {
                                     operator: BinaryOperator::Eq,
                                     lhs: boxed_expr(SimpleIdentifier("y".into())),
                                     rhs: boxed_expr(LiteralExpression::Number(6.0))
-                                }),
+                                }
+                                .into(),
                                 block: Block(vec![StatementWithLine(
                                     PoeticNumberAssignment {
                                         dest: SimpleIdentifier("y".into()).into(),
@@ -2415,7 +2454,7 @@ mod test {
             Ok(Some(
                 Mutation {
                     operator: MutationOperator::Cut,
-                    operand: boxed_expr(Identifier::Pronoun),
+                    operand: Identifier::Pronoun.into(),
                     dest: None,
                     param: None,
                 }
@@ -2427,7 +2466,7 @@ mod test {
             Ok(Some(
                 Mutation {
                     operator: MutationOperator::Cut,
-                    operand: boxed_expr(Identifier::Pronoun),
+                    operand: Identifier::Pronoun.into(),
                     dest: Some(SimpleIdentifier("pieces".into()).into()),
                     param: None,
                 }
@@ -2439,9 +2478,9 @@ mod test {
             Ok(Some(
                 Mutation {
                     operator: MutationOperator::Cut,
-                    operand: boxed_expr(Identifier::Pronoun),
+                    operand: Identifier::Pronoun.into(),
                     dest: None,
-                    param: Some(boxed_expr(CommonIdentifier("my".into(), "knife".into()))),
+                    param: Some(CommonIdentifier("my".into(), "knife".into()).into()),
                 }
                 .into()
             ))
@@ -2451,9 +2490,9 @@ mod test {
             Ok(Some(
                 Mutation {
                     operator: MutationOperator::Cut,
-                    operand: boxed_expr(Identifier::Pronoun),
+                    operand: Identifier::Pronoun.into(),
                     dest: Some(SimpleIdentifier("pieces".into()).into()),
-                    param: Some(boxed_expr(CommonIdentifier("my".into(), "knife".into()))),
+                    param: Some(CommonIdentifier("my".into(), "knife".into()).into()),
                 }
                 .into()
             ))
@@ -2473,7 +2512,7 @@ mod test {
             Ok(Some(
                 Mutation {
                     operator: MutationOperator::Join,
-                    operand: boxed_expr(Identifier::Pronoun),
+                    operand: Identifier::Pronoun.into(),
                     dest: None,
                     param: None,
                 }
@@ -2485,9 +2524,95 @@ mod test {
             Ok(Some(
                 Mutation {
                     operator: MutationOperator::Cast,
-                    operand: boxed_expr(Identifier::Pronoun),
+                    operand: Identifier::Pronoun.into(),
                     dest: Some(CommonIdentifier("the".into(), "fire".into()).into()),
                     param: None,
+                }
+                .into()
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_rounding() {
+        let parse = |text| Parser::for_source_code(text).parse_statement();
+
+        assert_eq!(
+            parse("Turn it up."),
+            Ok(Some(
+                Rounding {
+                    direction: RoundingDirection::Up,
+                    operand: Identifier::Pronoun.into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("Turn up it."),
+            Ok(Some(
+                Rounding {
+                    direction: RoundingDirection::Up,
+                    operand: Identifier::Pronoun.into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("Turn it down."),
+            Ok(Some(
+                Rounding {
+                    direction: RoundingDirection::Down,
+                    operand: Identifier::Pronoun.into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("Turn down it."),
+            Ok(Some(
+                Rounding {
+                    direction: RoundingDirection::Down,
+                    operand: Identifier::Pronoun.into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("Turn it around."),
+            Ok(Some(
+                Rounding {
+                    direction: RoundingDirection::Nearest,
+                    operand: Identifier::Pronoun.into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("Turn around it."),
+            Ok(Some(
+                Rounding {
+                    direction: RoundingDirection::Nearest,
+                    operand: Identifier::Pronoun.into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("Turn it round."),
+            Ok(Some(
+                Rounding {
+                    direction: RoundingDirection::Nearest,
+                    operand: Identifier::Pronoun.into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("Turn round it."),
+            Ok(Some(
+                Rounding {
+                    direction: RoundingDirection::Nearest,
+                    operand: Identifier::Pronoun.into()
                 }
                 .into()
             ))

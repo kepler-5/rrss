@@ -69,6 +69,8 @@ pub enum TokenType<'a> {
     Cut,
     Join,
     Cast,
+    Turn,
+    Round,
 
     Dot,
     Newline,
@@ -155,6 +157,7 @@ lazy_static! {
         alias(TokenType::Cut, &["cut", "split", "shatter"]);
         alias(TokenType::Join, &["join", "unite"]);
         alias(TokenType::Cast, &["cast", "burn"]);
+        alias(TokenType::Round, &["round", "around"]);
 
         m.extend([
             ("with", TokenType::With),
@@ -178,6 +181,7 @@ lazy_static! {
             ("say", TokenType::Say),
             ("listen", TokenType::Listen),
             ("to", TokenType::To),
+            ("turn", TokenType::Turn),
         ]);
 
         m.extend(
@@ -878,6 +882,15 @@ mod test {
             vec![
                 Token::new(TokenType::Cast, "cast"),
                 Token::new(TokenType::Cast, "burn"),
+            ],
+        );
+
+        assert_eq!(
+            lex("turn round around"),
+            vec![
+                Token::new(TokenType::Turn, "turn"),
+                Token::new(TokenType::Round, "round"),
+                Token::new(TokenType::Round, "around"),
             ],
         );
 
