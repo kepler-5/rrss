@@ -56,6 +56,11 @@ pub enum TokenType<'a> {
     While,
     Until,
 
+    Build,
+    Knock,
+    Up,
+    Down,
+
     Dot,
     Newline,
     Comment(&'a str),
@@ -151,6 +156,10 @@ lazy_static! {
             ("else", TokenType::Else),
             ("while", TokenType::While),
             ("until", TokenType::Until),
+            ("build", TokenType::Build),
+            ("knock", TokenType::Knock),
+            ("up", TokenType::Up),
+            ("down", TokenType::Down),
         ]);
 
         m.extend(
@@ -806,6 +815,16 @@ mod test {
                 Token::new(TokenType::Else, "else"),
                 Token::new(TokenType::While, "while"),
                 Token::new(TokenType::Until, "until"),
+            ],
+        );
+
+        assert_eq!(
+            lex("build up knock down"),
+            vec![
+                Token::new(TokenType::Build, "build"),
+                Token::new(TokenType::Up, "up"),
+                Token::new(TokenType::Knock, "knock"),
+                Token::new(TokenType::Down, "down"),
             ],
         );
 

@@ -2,8 +2,8 @@ use itertools::Itertools;
 
 use crate::{
     ast::{
-        Assignment, BinaryExpression, BinaryOperator, Block, CommonIdentifier, Expression,
-        Identifier, If, LiteralExpression, PoeticAssignment, PoeticNumberAssignment,
+        Assignment, BinaryExpression, BinaryOperator, Block, CommonIdentifier, Dec, Expression,
+        Identifier, If, Inc, LiteralExpression, PoeticAssignment, PoeticNumberAssignment,
         PoeticNumberAssignmentRHS, PoeticNumberLiteral, PoeticNumberLiteralElem,
         PoeticStringAssignment, PrimaryExpression, Program, ProperIdentifier, SimpleIdentifier,
         Statement, StatementWithLine, UnaryExpression, UnaryOperator, Until, While,
@@ -326,7 +326,6 @@ impl<'a> Parser<'a> {
     fn parse_primary_expression(&mut self) -> Result<PrimaryExpression, ParseError<'a>> {
         self.parse_identifier()?
             .map(Into::into)
-            .or_else(|| self.parse_pronoun())
             .or_else(|| self.parse_literal_expression().map(Into::into))
             .ok_or_else(|| {
                 self.new_parse_error(ParseErrorCode::Generic(
@@ -335,9 +334,9 @@ impl<'a> Parser<'a> {
             })
     }
 
-    fn parse_pronoun(&mut self) -> Option<PrimaryExpression> {
+    fn parse_pronoun(&mut self) -> Option<Identifier> {
         self.match_and_consume(TokenType::Pronoun)
-            .map(|_| PrimaryExpression::Pronoun)
+            .map(|_| Identifier::Pronoun)
     }
 
     fn parse_literal_expression(&mut self) -> Option<LiteralExpression> {
@@ -399,10 +398,12 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_identifier(&mut self) -> Result<Option<Identifier>, ParseError<'a>> {
-        Ok(self.parse_common_identifier()?.map(Into::into).or_else(|| {
-            self.parse_capitalized_identifier()
-                .or_else(|| self.parse_simple_identifier().map(Into::into))
-        }))
+        Ok(self
+            .parse_common_identifier()?
+            .map(Into::into)
+            .or_else(|| self.parse_pronoun())
+            .or_else(|| self.parse_capitalized_identifier())
+            .or_else(|| self.parse_simple_identifier().map(Into::into)))
     }
 
     fn parse_statement(&mut self) -> Result<Option<Statement>, ParseError<'a>> {
@@ -423,6 +424,9 @@ impl<'a> Parser<'a> {
 
                     TokenType::Else => None,
                     TokenType::Newline => None,
+
+                    TokenType::Build => Some(self.parse_build().map(Into::into)),
+                    TokenType::Knock => Some(self.parse_knock().map(Into::into)),
 
                     _ => {
                         let error = self.new_parse_error(ParseErrorCode::UnexpectedToken);
@@ -642,6 +646,34 @@ impl<'a> Parser<'a> {
         } else {
             Until { condition, block }.into()
         })
+    }
+
+    fn parse_build_knock_helper(
+        &mut self,
+        begin: TokenType,
+        suffix: TokenType<'a>,
+    ) -> Result<(Identifier, usize), ParseError<'a>> {
+        self.consume(begin);
+        let dest = self.expect_identifier()?;
+        self.expect_token(suffix)?;
+        let extra_count = {
+            let mut c = 0;
+            while let Some(_) = self.match_and_consume(suffix) {
+                c += 1
+            }
+            c
+        };
+        Ok((dest, 1 + extra_count))
+    }
+
+    fn parse_build(&mut self) -> Result<Inc, ParseError<'a>> {
+        let (dest, amount) = self.parse_build_knock_helper(TokenType::Build, TokenType::Up)?;
+        Ok(Inc { dest, amount })
+    }
+
+    fn parse_knock(&mut self) -> Result<Dec, ParseError<'a>> {
+        let (dest, amount) = self.parse_build_knock_helper(TokenType::Knock, TokenType::Down)?;
+        Ok(Dec { dest, amount })
     }
 }
 
@@ -1226,7 +1258,7 @@ mod test {
         ] {
             assert_eq!(
                 Parser::for_source_code(p).parse_pronoun(),
-                Some(PrimaryExpression::Pronoun)
+                Some(Identifier::Pronoun.into())
             );
         }
     }
@@ -2183,6 +2215,52 @@ mod test {
                 .into(),
                 1
             ),]))
+        );
+    }
+
+    #[test]
+    fn parse_build_knock() {
+        let parse = |text| Parser::for_source_code(text).parse_statement();
+
+        assert_eq!(
+            parse("build it up"),
+            Ok(Some(
+                Inc {
+                    dest: Identifier::Pronoun,
+                    amount: 1
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("build it up, up, up"),
+            Ok(Some(
+                Inc {
+                    dest: Identifier::Pronoun,
+                    amount: 3
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("knock it down"),
+            Ok(Some(
+                Dec {
+                    dest: Identifier::Pronoun,
+                    amount: 1
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("knock it down down down, down"),
+            Ok(Some(
+                Dec {
+                    dest: Identifier::Pronoun,
+                    amount: 4
+                }
+                .into()
+            ))
         );
     }
 }

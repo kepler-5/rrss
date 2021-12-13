@@ -25,6 +25,7 @@ pub enum Identifier {
     Simple(SimpleIdentifier),
     Common(CommonIdentifier),
     Proper(ProperIdentifier),
+    Pronoun,
 }
 
 impl From<SimpleIdentifier> for Identifier {
@@ -48,7 +49,6 @@ impl From<ProperIdentifier> for Identifier {
 #[derive(Clone, Debug, PartialEq)]
 pub enum PrimaryExpression {
     Literal(LiteralExpression),
-    Pronoun,
     Identifier(Identifier),
 }
 
@@ -212,12 +212,26 @@ pub struct Until {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct Inc {
+    pub dest: Identifier,
+    pub amount: usize,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Dec {
+    pub dest: Identifier,
+    pub amount: usize,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Statement {
     Assignment(Assignment),
     PoeticAssignment(PoeticAssignment),
     If(If),
     While(While),
     Until(Until),
+    Inc(Inc),
+    Dec(Dec),
 }
 
 impl From<Assignment> for Statement {
@@ -247,6 +261,18 @@ impl From<While> for Statement {
 impl From<Until> for Statement {
     fn from(u: Until) -> Self {
         Statement::Until(u)
+    }
+}
+
+impl From<Inc> for Statement {
+    fn from(i: Inc) -> Self {
+        Statement::Inc(i)
+    }
+}
+
+impl From<Dec> for Statement {
+    fn from(d: Dec) -> Self {
+        Statement::Dec(d)
     }
 }
 
