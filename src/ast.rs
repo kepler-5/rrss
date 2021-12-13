@@ -224,6 +224,16 @@ pub struct Dec {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct Input {
+    pub dest: Option<Identifier>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Output {
+    pub value: Box<Expression>,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Statement {
     Assignment(Assignment),
     PoeticAssignment(PoeticAssignment),
@@ -232,6 +242,8 @@ pub enum Statement {
     Until(Until),
     Inc(Inc),
     Dec(Dec),
+    Input(Input),
+    Output(Output),
 }
 
 impl From<Assignment> for Statement {
@@ -273,6 +285,18 @@ impl From<Inc> for Statement {
 impl From<Dec> for Statement {
     fn from(d: Dec) -> Self {
         Statement::Dec(d)
+    }
+}
+
+impl From<Input> for Statement {
+    fn from(i: Input) -> Self {
+        Statement::Input(i)
+    }
+}
+
+impl From<Output> for Statement {
+    fn from(o: Output) -> Self {
+        Statement::Output(o)
     }
 }
 

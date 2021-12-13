@@ -3,10 +3,11 @@ use itertools::Itertools;
 use crate::{
     ast::{
         Assignment, BinaryExpression, BinaryOperator, Block, CommonIdentifier, Dec, Expression,
-        Identifier, If, Inc, LiteralExpression, PoeticAssignment, PoeticNumberAssignment,
-        PoeticNumberAssignmentRHS, PoeticNumberLiteral, PoeticNumberLiteralElem,
-        PoeticStringAssignment, PrimaryExpression, Program, ProperIdentifier, SimpleIdentifier,
-        Statement, StatementWithLine, UnaryExpression, UnaryOperator, Until, While,
+        Identifier, If, Inc, Input, LiteralExpression, Output, PoeticAssignment,
+        PoeticNumberAssignment, PoeticNumberAssignmentRHS, PoeticNumberLiteral,
+        PoeticNumberLiteralElem, PoeticStringAssignment, PrimaryExpression, Program,
+        ProperIdentifier, SimpleIdentifier, Statement, StatementWithLine, UnaryExpression,
+        UnaryOperator, Until, While,
     },
     lexer::{self, CommentSkippingLexer, Lexer, Token, TokenType},
 };
@@ -428,6 +429,9 @@ impl<'a> Parser<'a> {
                     TokenType::Build => Some(self.parse_build().map(Into::into)),
                     TokenType::Knock => Some(self.parse_knock().map(Into::into)),
 
+                    TokenType::Say | TokenType::SayAlias => Some(self.parse_say().map(Into::into)),
+                    TokenType::Listen => Some(self.parse_listen().map(Into::into)),
+
                     _ => {
                         let error = self.new_parse_error(ParseErrorCode::UnexpectedToken);
                         self.lexer.next();
@@ -604,8 +608,9 @@ impl<'a> Parser<'a> {
             TokenType::ApostropheS,
             TokenType::ApostropheRE,
             TokenType::Says,
+            TokenType::Say,
         ])? {
-            token if token.id == TokenType::Says => self
+            token if token.id == TokenType::Says || token.id == TokenType::Say => self
                 .parse_poetic_string_assignment_rhs(&token)
                 .map(|rhs| PoeticStringAssignment { dest, rhs }.into()),
             _ => self
@@ -675,6 +680,23 @@ impl<'a> Parser<'a> {
         let (dest, amount) = self.parse_build_knock_helper(TokenType::Knock, TokenType::Down)?;
         Ok(Dec { dest, amount })
     }
+
+    fn parse_say(&mut self) -> Result<Output, ParseError<'a>> {
+        self.consume([TokenType::Say, TokenType::SayAlias].as_ref());
+        self.parse_expression().map(|e| Output {
+            value: boxed_expr(e),
+        })
+    }
+
+    fn parse_listen(&mut self) -> Result<Input, ParseError<'a>> {
+        self.consume(TokenType::Listen);
+        self.match_and_consume(TokenType::To)
+            .map(|_| {
+                self.expect_identifier()
+                    .map(|dest| Input { dest: Some(dest) })
+            })
+            .unwrap_or_else(|| Ok(Input { dest: None }))
+    }
 }
 
 pub fn parse(text: &str) -> Result<Program, ParseError> {
@@ -683,6 +705,8 @@ pub fn parse(text: &str) -> Result<Program, ParseError> {
 
 #[cfg(test)]
 mod test {
+    use crate::ast::Output;
+
     use super::*;
 
     #[test]
@@ -1757,11 +1781,29 @@ mod test {
                     TokenType::Is,
                     TokenType::ApostropheS,
                     TokenType::ApostropheRE,
-                    TokenType::Says
+                    TokenType::Says,
+                    TokenType::Say,
                 ]),
                 token: Some(Token {
                     id: TokenType::Dot,
                     spelling: "."
+                })
+            })
+        );
+
+        assert_eq!(
+            parse("My world whisper nothing without your love"),
+            Err(ParseError {
+                code: ParseErrorCode::ExpectedOneOfTokens(vec![
+                    TokenType::Is,
+                    TokenType::ApostropheS,
+                    TokenType::ApostropheRE,
+                    TokenType::Says,
+                    TokenType::Say,
+                ]),
+                token: Some(Token {
+                    id: TokenType::SayAlias,
+                    spelling: "whisper"
                 })
             })
         );
@@ -2262,5 +2304,40 @@ mod test {
                 .into()
             ))
         );
+    }
+
+    #[test]
+    fn parse_io() {
+        let parse = |text| Parser::for_source_code(text).parse_statement();
+
+        assert_eq!(
+            parse("say it"),
+            Ok(Some(
+                Output {
+                    value: boxed_expr(Identifier::Pronoun)
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("shout it"),
+            Ok(Some(
+                Output {
+                    value: boxed_expr(Identifier::Pronoun)
+                }
+                .into()
+            ))
+        );
+
+        assert_eq!(
+            parse("listen to it"),
+            Ok(Some(
+                Input {
+                    dest: Some(Identifier::Pronoun)
+                }
+                .into()
+            ))
+        );
+        assert_eq!(parse("listen"), Ok(Some(Input { dest: None }.into())));
     }
 }

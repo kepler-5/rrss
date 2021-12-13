@@ -56,6 +56,11 @@ pub enum TokenType<'a> {
     While,
     Until,
 
+    Say,
+    SayAlias,
+    Listen,
+    To,
+
     Build,
     Knock,
     Up,
@@ -131,7 +136,7 @@ lazy_static! {
             ],
         );
 
-        alias(TokenType::Says, &["says", "say", "said"]);
+        alias(TokenType::Says, &["says", "said"]);
 
         alias(
             TokenType::Bigger,
@@ -140,6 +145,8 @@ lazy_static! {
         alias(TokenType::Smaller, &["lower", "less", "smaller", "weaker"]);
         alias(TokenType::Big, &["high", "great", "big", "strong"]);
         alias(TokenType::Small, &["low", "little", "small", "weak"]);
+
+        alias(TokenType::SayAlias, &["shout", "whisper", "scream"]);
 
         m.extend([
             ("with", TokenType::With),
@@ -160,6 +167,9 @@ lazy_static! {
             ("knock", TokenType::Knock),
             ("up", TokenType::Up),
             ("down", TokenType::Down),
+            ("say", TokenType::Say),
+            ("listen", TokenType::Listen),
+            ("to", TokenType::To),
         ]);
 
         m.extend(
@@ -758,7 +768,7 @@ mod test {
         assert_eq!(
             lex("say says said"),
             vec![
-                Token::new(TokenType::Says, "say"),
+                Token::new(TokenType::Say, "say"),
                 Token::new(TokenType::Says, "says"),
                 Token::new(TokenType::Says, "said"),
             ]
@@ -825,6 +835,18 @@ mod test {
                 Token::new(TokenType::Up, "up"),
                 Token::new(TokenType::Knock, "knock"),
                 Token::new(TokenType::Down, "down"),
+            ],
+        );
+
+        assert_eq!(
+            lex("say shout whisper scream listen to"),
+            vec![
+                Token::new(TokenType::Say, "say"),
+                Token::new(TokenType::SayAlias, "shout"),
+                Token::new(TokenType::SayAlias, "whisper"),
+                Token::new(TokenType::SayAlias, "scream"),
+                Token::new(TokenType::Listen, "listen"),
+                Token::new(TokenType::To, "to"),
             ],
         );
 
