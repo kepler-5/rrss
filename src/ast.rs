@@ -200,10 +200,24 @@ pub struct If {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct While {
+    pub condition: Box<Expression>,
+    pub block: Block,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Until {
+    pub condition: Box<Expression>,
+    pub block: Block,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Statement {
     Assignment(Assignment),
     PoeticAssignment(PoeticAssignment),
     If(If),
+    While(While),
+    Until(Until),
 }
 
 impl From<Assignment> for Statement {
@@ -224,12 +238,28 @@ impl From<If> for Statement {
     }
 }
 
+impl From<While> for Statement {
+    fn from(w: While) -> Self {
+        Statement::While(w)
+    }
+}
+
+impl From<Until> for Statement {
+    fn from(u: Until) -> Self {
+        Statement::Until(u)
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct StatementWithLine(pub Statement, pub usize);
 
 #[derive(Debug, PartialEq)]
-pub struct Block {
-    pub statements: Vec<StatementWithLine>,
+pub struct Block(pub Vec<StatementWithLine>);
+
+impl Block {
+    pub fn empty() -> Self {
+        Self(Vec::new())
+    }
 }
 
 /////////////// PoeticNumberLiteral::compute_value

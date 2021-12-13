@@ -6,7 +6,7 @@ use crate::{
         Identifier, If, LiteralExpression, PoeticAssignment, PoeticNumberAssignment,
         PoeticNumberAssignmentRHS, PoeticNumberLiteral, PoeticNumberLiteralElem,
         PoeticStringAssignment, PrimaryExpression, Program, ProperIdentifier, SimpleIdentifier,
-        Statement, StatementWithLine, UnaryExpression, UnaryOperator,
+        Statement, StatementWithLine, UnaryExpression, UnaryOperator, Until, While,
     },
     lexer::{self, CommentSkippingLexer, Lexer, Token, TokenType},
 };
@@ -419,6 +419,8 @@ impl<'a> Parser<'a> {
 
                     TokenType::If => Some(self.parse_if_statement().map(Into::into)),
 
+                    TokenType::While | TokenType::Until => Some(self.parse_loop(&current_token.id)),
+
                     TokenType::Else => None,
                     TokenType::Newline => None,
 
@@ -434,8 +436,8 @@ impl<'a> Parser<'a> {
 
     fn parse_block_loop(&mut self) -> Result<Vec<StatementWithLine>, ParseError<'a>> {
         let mut statements = Vec::new();
-        while let Some(s) = self.parse_statement()? {
-            statements.push(StatementWithLine(s, self.current_line()));
+        while let (line, Some(s)) = (self.current_line(), self.parse_statement()?) {
+            statements.push(StatementWithLine(s, line));
             self.expect_token_or_end(TokenType::Newline)?;
         }
         Ok(statements)
@@ -444,7 +446,7 @@ impl<'a> Parser<'a> {
     fn parse_block(&mut self) -> Result<Block, ParseError<'a>> {
         let statements = self.parse_block_loop()?;
         self.expect_token_or_end(TokenType::Newline)?;
-        Ok(Block { statements })
+        Ok(Block(statements))
     }
 
     fn expect_token(&mut self, tok: TokenType<'a>) -> Result<Token<'a>, ParseError<'a>> {
@@ -612,9 +614,7 @@ impl<'a> Parser<'a> {
         self.consume(TokenType::If);
         let condition = self.parse_expression()?;
         self.expect_token_or_end(TokenType::Newline)?;
-        let then_block = Block {
-            statements: self.parse_block_loop()?,
-        };
+        let then_block = Block(self.parse_block_loop()?);
         let else_block = self
             .match_and_consume(TokenType::Else)
             .map(|_| {
@@ -627,6 +627,20 @@ impl<'a> Parser<'a> {
             condition,
             then_block,
             else_block,
+        })
+    }
+
+    fn parse_loop(&mut self, start_token: &TokenType) -> Result<Statement, ParseError<'a>> {
+        self.consume([TokenType::While, TokenType::Until].as_ref());
+        let is_while = *start_token == TokenType::While;
+        let condition = self.parse_expression()?;
+        self.expect_token_or_end(TokenType::Newline)?;
+        let block = Block(self.parse_block_loop()?);
+        let condition = boxed_expr(condition);
+        Ok(if is_while {
+            While { condition, block }.into()
+        } else {
+            Until { condition, block }.into()
         })
     }
 }
@@ -1793,7 +1807,7 @@ mod test {
     #[test]
     fn parse_block() {
         let parse = |text| Parser::for_source_code(text).parse_block();
-        assert_eq!(parse("\n"), Ok(Block { statements: vec![] }));
+        assert_eq!(parse("\n"), Ok(Block::empty()));
 
         assert_eq!(
             parse(
@@ -1801,32 +1815,30 @@ mod test {
             Variable is 1
             Tommy is a rockstar"
             ),
-            Ok(Block {
-                statements: vec![
-                    StatementWithLine(
-                        PoeticNumberAssignment {
-                            dest: SimpleIdentifier("Variable".into()).into(),
-                            rhs: boxed_expr(LiteralExpression::Number(1.0)).into()
+            Ok(Block(vec![
+                StatementWithLine(
+                    PoeticNumberAssignment {
+                        dest: SimpleIdentifier("Variable".into()).into(),
+                        rhs: boxed_expr(LiteralExpression::Number(1.0)).into()
+                    }
+                    .into(),
+                    1
+                ),
+                StatementWithLine(
+                    PoeticNumberAssignment {
+                        dest: SimpleIdentifier("Tommy".into()).into(),
+                        rhs: PoeticNumberLiteral {
+                            elems: vec![
+                                PoeticNumberLiteralElem::Word("a".into()),
+                                PoeticNumberLiteralElem::Word("rockstar".into()),
+                            ]
                         }
                         .into(),
-                        1
-                    ),
-                    StatementWithLine(
-                        PoeticNumberAssignment {
-                            dest: SimpleIdentifier("Tommy".into()).into(),
-                            rhs: PoeticNumberLiteral {
-                                elems: vec![
-                                    PoeticNumberLiteralElem::Word("a".into()),
-                                    PoeticNumberLiteralElem::Word("rockstar".into()),
-                                ]
-                            }
-                            .into(),
-                        }
-                        .into(),
-                        2
-                    )
-                ]
-            })
+                    }
+                    .into(),
+                    2
+                )
+            ]))
         );
         assert_eq!(
             parse(
@@ -1835,32 +1847,30 @@ mod test {
             Tommy is a rockstar
             "
             ),
-            Ok(Block {
-                statements: vec![
-                    StatementWithLine(
-                        PoeticNumberAssignment {
-                            dest: SimpleIdentifier("Variable".into()).into(),
-                            rhs: boxed_expr(LiteralExpression::Number(1.0)).into()
+            Ok(Block(vec![
+                StatementWithLine(
+                    PoeticNumberAssignment {
+                        dest: SimpleIdentifier("Variable".into()).into(),
+                        rhs: boxed_expr(LiteralExpression::Number(1.0)).into()
+                    }
+                    .into(),
+                    1
+                ),
+                StatementWithLine(
+                    PoeticNumberAssignment {
+                        dest: SimpleIdentifier("Tommy".into()).into(),
+                        rhs: PoeticNumberLiteral {
+                            elems: vec![
+                                PoeticNumberLiteralElem::Word("a".into()),
+                                PoeticNumberLiteralElem::Word("rockstar".into()),
+                            ]
                         }
                         .into(),
-                        1
-                    ),
-                    StatementWithLine(
-                        PoeticNumberAssignment {
-                            dest: SimpleIdentifier("Tommy".into()).into(),
-                            rhs: PoeticNumberLiteral {
-                                elems: vec![
-                                    PoeticNumberLiteralElem::Word("a".into()),
-                                    PoeticNumberLiteralElem::Word("rockstar".into()),
-                                ]
-                            }
-                            .into(),
-                        }
-                        .into(),
-                        2
-                    )
-                ]
-            })
+                    }
+                    .into(),
+                    2
+                )
+            ]))
         );
 
         assert_eq!(
@@ -1871,32 +1881,30 @@ mod test {
             
             "
             ),
-            Ok(Block {
-                statements: vec![
-                    StatementWithLine(
-                        PoeticNumberAssignment {
-                            dest: SimpleIdentifier("Variable".into()).into(),
-                            rhs: boxed_expr(LiteralExpression::Number(1.0)).into()
+            Ok(Block(vec![
+                StatementWithLine(
+                    PoeticNumberAssignment {
+                        dest: SimpleIdentifier("Variable".into()).into(),
+                        rhs: boxed_expr(LiteralExpression::Number(1.0)).into()
+                    }
+                    .into(),
+                    1
+                ),
+                StatementWithLine(
+                    PoeticNumberAssignment {
+                        dest: SimpleIdentifier("Tommy".into()).into(),
+                        rhs: PoeticNumberLiteral {
+                            elems: vec![
+                                PoeticNumberLiteralElem::Word("a".into()),
+                                PoeticNumberLiteralElem::Word("rockstar".into()),
+                            ]
                         }
                         .into(),
-                        1
-                    ),
-                    StatementWithLine(
-                        PoeticNumberAssignment {
-                            dest: SimpleIdentifier("Tommy".into()).into(),
-                            rhs: PoeticNumberLiteral {
-                                elems: vec![
-                                    PoeticNumberLiteralElem::Word("a".into()),
-                                    PoeticNumberLiteralElem::Word("rockstar".into()),
-                                ]
-                            }
-                            .into(),
-                        }
-                        .into(),
-                        2
-                    )
-                ]
-            })
+                    }
+                    .into(),
+                    2
+                )
+            ]))
         );
     }
 
@@ -1918,16 +1926,14 @@ mod test {
                         lhs: boxed_expr(SimpleIdentifier("x".into())),
                         rhs: boxed_expr(LiteralExpression::Number(5.0))
                     }),
-                    then_block: Block {
-                        statements: vec![StatementWithLine(
-                            PoeticNumberAssignment {
-                                dest: SimpleIdentifier("x".into()).into(),
-                                rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
-                            }
-                            .into(),
-                            2
-                        )]
-                    },
+                    then_block: Block(vec![StatementWithLine(
+                        PoeticNumberAssignment {
+                            dest: SimpleIdentifier("x".into()).into(),
+                            rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
+                        }
+                        .into(),
+                        2
+                    )]),
                     else_block: None,
                 }
                 .into()
@@ -1949,26 +1955,22 @@ mod test {
                         lhs: boxed_expr(SimpleIdentifier("x".into())),
                         rhs: boxed_expr(LiteralExpression::Number(5.0))
                     }),
-                    then_block: Block {
-                        statements: vec![StatementWithLine(
-                            PoeticNumberAssignment {
-                                dest: SimpleIdentifier("x".into()).into(),
-                                rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
-                            }
-                            .into(),
-                            2
-                        )]
-                    },
-                    else_block: Some(Block {
-                        statements: vec![StatementWithLine(
-                            PoeticNumberAssignment {
-                                dest: SimpleIdentifier("x".into()).into(),
-                                rhs: boxed_expr(LiteralExpression::Number(7.0)).into()
-                            }
-                            .into(),
-                            4
-                        )]
-                    }),
+                    then_block: Block(vec![StatementWithLine(
+                        PoeticNumberAssignment {
+                            dest: SimpleIdentifier("x".into()).into(),
+                            rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
+                        }
+                        .into(),
+                        2
+                    )]),
+                    else_block: Some(Block(vec![StatementWithLine(
+                        PoeticNumberAssignment {
+                            dest: SimpleIdentifier("x".into()).into(),
+                            rhs: boxed_expr(LiteralExpression::Number(7.0)).into()
+                        }
+                        .into(),
+                        4
+                    )])),
                 }
                 .into()
             ))
@@ -1988,17 +1990,15 @@ mod test {
                         lhs: boxed_expr(SimpleIdentifier("x".into())),
                         rhs: boxed_expr(LiteralExpression::Number(5.0))
                     }),
-                    then_block: Block { statements: vec![] },
-                    else_block: Some(Block {
-                        statements: vec![StatementWithLine(
-                            PoeticNumberAssignment {
-                                dest: SimpleIdentifier("x".into()).into(),
-                                rhs: boxed_expr(LiteralExpression::Number(7.0)).into()
-                            }
-                            .into(),
-                            3
-                        )]
-                    }),
+                    then_block: Block::empty(),
+                    else_block: Some(Block(vec![StatementWithLine(
+                        PoeticNumberAssignment {
+                            dest: SimpleIdentifier("x".into()).into(),
+                            rhs: boxed_expr(LiteralExpression::Number(7.0)).into()
+                        }
+                        .into(),
+                        3
+                    )])),
                 }
                 .into()
             ))
@@ -2017,11 +2017,172 @@ mod test {
                         lhs: boxed_expr(SimpleIdentifier("x".into())),
                         rhs: boxed_expr(LiteralExpression::Number(5.0))
                     }),
-                    then_block: Block { statements: vec![] },
-                    else_block: Some(Block { statements: vec![] }),
+                    then_block: Block::empty(),
+                    else_block: Some(Block::empty()),
                 }
                 .into()
             ))
+        );
+    }
+
+    #[test]
+    fn parse_loop() {
+        // kind of testing parse_block in here too
+        let parse = |text| Parser::for_source_code(text).parse_block();
+
+        assert_eq!(
+            parse(
+                "\
+        while x is 5,
+        x is 6
+        
+        until x is 5,
+        x is 6
+        "
+            ),
+            Ok(Block(vec![
+                StatementWithLine(
+                    While {
+                        condition: boxed_expr(BinaryExpression {
+                            operator: BinaryOperator::Eq,
+                            lhs: boxed_expr(SimpleIdentifier("x".into())),
+                            rhs: boxed_expr(LiteralExpression::Number(5.0))
+                        }),
+                        block: Block(vec![StatementWithLine(
+                            PoeticNumberAssignment {
+                                dest: SimpleIdentifier("x".into()).into(),
+                                rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
+                            }
+                            .into(),
+                            2
+                        )])
+                    }
+                    .into(),
+                    1
+                ),
+                StatementWithLine(
+                    Until {
+                        condition: boxed_expr(BinaryExpression {
+                            operator: BinaryOperator::Eq,
+                            lhs: boxed_expr(SimpleIdentifier("x".into())),
+                            rhs: boxed_expr(LiteralExpression::Number(5.0))
+                        }),
+                        block: Block(vec![StatementWithLine(
+                            PoeticNumberAssignment {
+                                dest: SimpleIdentifier("x".into()).into(),
+                                rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
+                            }
+                            .into(),
+                            5
+                        )])
+                    }
+                    .into(),
+                    4
+                )
+            ]))
+        );
+        assert_eq!(
+            parse(
+                "\
+        while x is 5,
+        x is 6
+        (end loop)
+        until x is 5,
+        x is 6
+        "
+            ),
+            Ok(Block(vec![
+                StatementWithLine(
+                    While {
+                        condition: boxed_expr(BinaryExpression {
+                            operator: BinaryOperator::Eq,
+                            lhs: boxed_expr(SimpleIdentifier("x".into())),
+                            rhs: boxed_expr(LiteralExpression::Number(5.0))
+                        }),
+                        block: Block(vec![StatementWithLine(
+                            PoeticNumberAssignment {
+                                dest: SimpleIdentifier("x".into()).into(),
+                                rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
+                            }
+                            .into(),
+                            2
+                        )])
+                    }
+                    .into(),
+                    1
+                ),
+                StatementWithLine(
+                    Until {
+                        condition: boxed_expr(BinaryExpression {
+                            operator: BinaryOperator::Eq,
+                            lhs: boxed_expr(SimpleIdentifier("x".into())),
+                            rhs: boxed_expr(LiteralExpression::Number(5.0))
+                        }),
+                        block: Block(vec![StatementWithLine(
+                            PoeticNumberAssignment {
+                                dest: SimpleIdentifier("x".into()).into(),
+                                rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
+                            }
+                            .into(),
+                            5
+                        )])
+                    }
+                    .into(),
+                    4
+                )
+            ]))
+        );
+
+        assert_eq!(
+            parse(
+                "\
+        while x is 5,
+        while y is 6,
+        y is 7
+
+        x is 6
+        "
+            ),
+            Ok(Block(vec![StatementWithLine(
+                While {
+                    condition: boxed_expr(BinaryExpression {
+                        operator: BinaryOperator::Eq,
+                        lhs: boxed_expr(SimpleIdentifier("x".into())),
+                        rhs: boxed_expr(LiteralExpression::Number(5.0))
+                    }),
+                    block: Block(vec![
+                        StatementWithLine(
+                            While {
+                                condition: boxed_expr(BinaryExpression {
+                                    operator: BinaryOperator::Eq,
+                                    lhs: boxed_expr(SimpleIdentifier("y".into())),
+                                    rhs: boxed_expr(LiteralExpression::Number(6.0))
+                                }),
+                                block: Block(vec![StatementWithLine(
+                                    PoeticNumberAssignment {
+                                        dest: SimpleIdentifier("y".into()).into(),
+                                        rhs: boxed_expr(LiteralExpression::Number(7.0)).into()
+                                    }
+                                    .into(),
+                                    3
+                                )])
+                            }
+                            .into(),
+                            2
+                        ),
+                        StatementWithLine(
+                            PoeticNumberAssignment {
+                                dest: SimpleIdentifier("x".into()).into(),
+                                rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
+                            }
+                            .into(),
+                            5
+                        )
+                    ])
+                }
+                .into(),
+                1
+            ),]))
         );
     }
 }
