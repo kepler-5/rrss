@@ -47,6 +47,7 @@ pub enum ParseErrorCode<'a> {
     UppercaseAfterCommonPrefix(String, String),
     MutationOperandMustBeIdentifier(Expression),
     ExpectedIdentifier,
+    ExpectedText(String),
     ExpectedToken(TokenType<'a>),
     ExpectedOneOfTokens(Vec<TokenType<'a>>),
     ExpectedPoeticNumberLiteral,
@@ -459,6 +460,10 @@ impl<'a> Parser<'a> {
                     }
                     TokenType::Turn => Some(self.parse_rounding().map(Into::into)),
 
+                    TokenType::Break => Some(self.parse_break()),
+                    TokenType::Continue => Some(self.parse_simple_continue()),
+                    TokenType::Take => Some(self.parse_take_it_to_the_top()),
+
                     _ => {
                         let error = self.new_parse_error(ParseErrorCode::UnexpectedToken);
                         self.lexer.next();
@@ -487,6 +492,11 @@ impl<'a> Parser<'a> {
     fn expect_token(&mut self, tok: TokenType<'a>) -> Result<Token<'a>, ParseError<'a>> {
         self.match_and_consume(tok)
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedToken(tok)))
+    }
+
+    fn expect_token_ispelled(&mut self, spelling: &str) -> Result<Token<'a>, ParseError<'a>> {
+        self.match_and_consume(|tok: &Token| tok.is_ispelled(spelling))
+            .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedText(spelling.into())))
     }
 
     fn expect_token_or_end(
@@ -790,6 +800,27 @@ impl<'a> Parser<'a> {
                 ]))
             })?;
         Ok(Rounding { direction, operand })
+    }
+
+    fn parse_break(&mut self) -> Result<Statement, ParseError<'a>> {
+        self.consume(TokenType::Break);
+        self.match_and_consume(|tok: &Token| tok.is_ispelled("it"))
+            .map(|_| self.expect_token(TokenType::Down))
+            .transpose()
+            .map(|_| Statement::Break)
+    }
+
+    fn parse_simple_continue(&mut self) -> Result<Statement, ParseError<'a>> {
+        self.consume(TokenType::Continue);
+        Ok(Statement::Continue)
+    }
+    fn parse_take_it_to_the_top(&mut self) -> Result<Statement, ParseError<'a>> {
+        self.consume(TokenType::Take);
+        self.expect_token_ispelled("it")?;
+        self.expect_token(TokenType::To)?;
+        self.expect_token_ispelled("the")?;
+        self.expect_token(TokenType::Top)?;
+        Ok(Statement::Continue)
     }
 }
 
@@ -2616,6 +2647,33 @@ mod test {
                 }
                 .into()
             ))
+        );
+    }
+
+    #[test]
+    fn parse_break_continue() {
+        let parse = |text| Parser::for_source_code(text).parse_statement();
+
+        assert_eq!(parse("break"), Ok(Some(Statement::Break)));
+        assert_eq!(parse("break it down"), Ok(Some(Statement::Break)));
+        assert_eq!(parse("BREAK IT DOWN"), Ok(Some(Statement::Break)));
+        assert_eq!(parse("continue"), Ok(Some(Statement::Continue)));
+        assert_eq!(parse("take it to the top"), Ok(Some(Statement::Continue)));
+        assert_eq!(parse("TAKE IT TO THE TOP"), Ok(Some(Statement::Continue)));
+
+        assert_eq!(
+            parse("break it"),
+            Err(ParseError {
+                code: ParseErrorCode::ExpectedToken(TokenType::Down),
+                token: None
+            })
+        );
+        assert_eq!(
+            parse("take it to"),
+            Err(ParseError {
+                code: ParseErrorCode::ExpectedText("the".into()),
+                token: None
+            })
         );
     }
 }

@@ -274,6 +274,8 @@ pub enum Statement {
     Output(Output),
     Mutation(Mutation),
     Rounding(Rounding),
+    Continue,
+    Break,
 }
 
 impl From<Assignment> for Statement {

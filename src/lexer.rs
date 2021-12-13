@@ -55,6 +55,10 @@ pub enum TokenType<'a> {
     Else,
     While,
     Until,
+    Continue,
+    Break,
+    Take,
+    Top,
 
     Say,
     SayAlias,
@@ -90,6 +94,10 @@ impl<'a> Token<'a> {
     }
     pub fn is_comment(&self) -> bool {
         self.id.is_comment()
+    }
+    pub fn is_ispelled(&self, text: &str) -> bool {
+        assert!(text.chars().all(|c| c.is_lowercase()));
+        self.spelling.to_lowercase() == text
     }
 }
 
@@ -182,6 +190,10 @@ lazy_static! {
             ("listen", TokenType::Listen),
             ("to", TokenType::To),
             ("turn", TokenType::Turn),
+            ("continue", TokenType::Continue),
+            ("break", TokenType::Break),
+            ("take", TokenType::Take),
+            ("top", TokenType::Top),
         ]);
 
         m.extend(
@@ -891,6 +903,16 @@ mod test {
                 Token::new(TokenType::Turn, "turn"),
                 Token::new(TokenType::Round, "round"),
                 Token::new(TokenType::Round, "around"),
+            ],
+        );
+
+        assert_eq!(
+            lex("continue break take top"),
+            vec![
+                Token::new(TokenType::Continue, "continue"),
+                Token::new(TokenType::Break, "break"),
+                Token::new(TokenType::Take, "take"),
+                Token::new(TokenType::Top, "top"),
             ],
         );
 
