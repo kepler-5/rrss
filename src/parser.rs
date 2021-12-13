@@ -3,8 +3,8 @@ use itertools::Itertools;
 use crate::{
     ast::{
         Assignment, BinaryExpression, BinaryOperator, Block, CommonIdentifier, Dec, Expression,
-        Identifier, If, Inc, Input, LiteralExpression, Output, PoeticAssignment,
-        PoeticNumberAssignment, PoeticNumberAssignmentRHS, PoeticNumberLiteral,
+        Identifier, If, Inc, Input, LiteralExpression, Mutation, MutationOperator, Output,
+        PoeticAssignment, PoeticNumberAssignment, PoeticNumberAssignmentRHS, PoeticNumberLiteral,
         PoeticNumberLiteralElem, PoeticStringAssignment, PrimaryExpression, Program,
         ProperIdentifier, SimpleIdentifier, Statement, StatementWithLine, UnaryExpression,
         UnaryOperator, Until, While,
@@ -45,6 +45,7 @@ pub enum ParseErrorCode<'a> {
     Generic(String),
     MissingIDAfterCommonPrefix(String),
     UppercaseAfterCommonPrefix(String, String),
+    MutationOperandMustBeIdentifier(Expression),
     ExpectedIdentifier,
     ExpectedToken(TokenType<'a>),
     ExpectedOneOfTokens(Vec<TokenType<'a>>),
@@ -114,6 +115,16 @@ fn get_binary_operator(token: TokenType) -> Option<BinaryOperator> {
     }
 }
 
+fn get_mutation_operator(token: TokenType) -> Option<MutationOperator> {
+    match token {
+        TokenType::Cut => Some(MutationOperator::Cut),
+        TokenType::Join => Some(MutationOperator::Join),
+        TokenType::Cast => Some(MutationOperator::Cast),
+
+        _ => None,
+    }
+}
+
 fn boxed_expr(x: impl Into<Expression>) -> Box<Expression> {
     Box::new(x.into())
 }
@@ -136,11 +147,11 @@ fn is_literal_word(token: TokenType) -> bool {
 }
 
 impl<'a> Parser<'a> {
-    fn current(&mut self) -> Option<Token<'a>> {
+    fn current(&self) -> Option<Token<'a>> {
         self.lexer.clone().next()
     }
 
-    fn current_or_error(&mut self) -> Result<Token<'a>, ParseError<'a>> {
+    fn current_or_error(&self) -> Result<Token<'a>, ParseError<'a>> {
         self.current()
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::UnexpectedEndOfTokens))
     }
@@ -149,7 +160,7 @@ impl<'a> Parser<'a> {
         self.lexer.underlying().current_line()
     }
 
-    fn new_parse_error(&mut self, code: ParseErrorCode<'a>) -> ParseError<'a> {
+    fn new_parse_error(&self, code: ParseErrorCode<'a>) -> ParseError<'a> {
         ParseError::new(code, self.current())
     }
 
@@ -187,9 +198,10 @@ impl<'a> Parser<'a> {
     }
 
     // step past a token we *know* satisfies the predicate
-    fn consume<M: MatchesToken>(&mut self, m: M) {
+    fn consume<M: MatchesToken>(&mut self, m: M) -> Token<'a> {
         let tok = self.lexer.next();
         assert!(tok.filter(|tok| m.matches_token(tok)).is_some());
+        tok.unwrap()
     }
 
     fn parse_expression(&mut self) -> Result<Expression, ParseError<'a>> {
@@ -431,6 +443,10 @@ impl<'a> Parser<'a> {
 
                     TokenType::Say | TokenType::SayAlias => Some(self.parse_say().map(Into::into)),
                     TokenType::Listen => Some(self.parse_listen().map(Into::into)),
+
+                    TokenType::Cut | TokenType::Join | TokenType::Cast => {
+                        Some(self.parse_mutation().map(Into::into))
+                    }
 
                     _ => {
                         let error = self.new_parse_error(ParseErrorCode::UnexpectedToken);
@@ -696,6 +712,55 @@ impl<'a> Parser<'a> {
                     .map(|dest| Input { dest: Some(dest) })
             })
             .unwrap_or_else(|| Ok(Input { dest: None }))
+    }
+
+    fn check_mutation_args(
+        &self,
+        operand: &Expression,
+        dest: &Option<Identifier>,
+    ) -> Result<(), ParseError<'a>> {
+        // this isn't strictly a *parse* error, but it's easy enough to handle here;
+        // mutations without a destination must have operands that are identifiers
+        if dest.is_some() {
+            Ok(())
+        } else {
+            matches!(
+                *operand,
+                Expression::Primary(PrimaryExpression::Identifier(_))
+            )
+            .then(|| ())
+            .ok_or_else(|| {
+                self.new_parse_error(ParseErrorCode::MutationOperandMustBeIdentifier(
+                    operand.clone(),
+                ))
+            })
+        }
+    }
+
+    fn parse_mutation(&mut self) -> Result<Mutation, ParseError<'a>> {
+        let operator = get_mutation_operator(
+            self.consume([TokenType::Cut, TokenType::Join, TokenType::Cast].as_ref())
+                .id,
+        )
+        .unwrap();
+        let operand = self.parse_expression()?;
+        let dest = self
+            .match_and_consume(TokenType::Into)
+            .map(|_| self.expect_identifier())
+            .transpose()?;
+        self.check_mutation_args(&operand, &dest)?;
+        let param = self
+            .match_and_consume(TokenType::With)
+            .map(|_| self.parse_expression())
+            .transpose()?
+            .map(boxed_expr);
+        let operand = boxed_expr(operand);
+        Ok(Mutation {
+            operator,
+            operand,
+            dest,
+            param,
+        })
     }
 }
 
@@ -2339,5 +2404,93 @@ mod test {
             ))
         );
         assert_eq!(parse("listen"), Ok(Some(Input { dest: None }.into())));
+    }
+
+    #[test]
+    fn parse_mutation() {
+        let parse = |text| Parser::for_source_code(text).parse_statement();
+
+        assert_eq!(
+            parse("cut it"),
+            Ok(Some(
+                Mutation {
+                    operator: MutationOperator::Cut,
+                    operand: boxed_expr(Identifier::Pronoun),
+                    dest: None,
+                    param: None,
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("cut it into pieces"),
+            Ok(Some(
+                Mutation {
+                    operator: MutationOperator::Cut,
+                    operand: boxed_expr(Identifier::Pronoun),
+                    dest: Some(SimpleIdentifier("pieces".into()).into()),
+                    param: None,
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("cut it with my knife"),
+            Ok(Some(
+                Mutation {
+                    operator: MutationOperator::Cut,
+                    operand: boxed_expr(Identifier::Pronoun),
+                    dest: None,
+                    param: Some(boxed_expr(CommonIdentifier("my".into(), "knife".into()))),
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("cut it into pieces with my knife"),
+            Ok(Some(
+                Mutation {
+                    operator: MutationOperator::Cut,
+                    operand: boxed_expr(Identifier::Pronoun),
+                    dest: Some(SimpleIdentifier("pieces".into()).into()),
+                    param: Some(boxed_expr(CommonIdentifier("my".into(), "knife".into()))),
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("cut \"2, 2\" with my knife"),
+            Err(ParseError::new(
+                ParseErrorCode::MutationOperandMustBeIdentifier(
+                    LiteralExpression::String("2, 2".into()).into()
+                ),
+                Some(Token::new(TokenType::With, "with"))
+            ))
+        );
+
+        assert_eq!(
+            parse("join it"),
+            Ok(Some(
+                Mutation {
+                    operator: MutationOperator::Join,
+                    operand: boxed_expr(Identifier::Pronoun),
+                    dest: None,
+                    param: None,
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("cast it into the fire"),
+            Ok(Some(
+                Mutation {
+                    operator: MutationOperator::Cast,
+                    operand: boxed_expr(Identifier::Pronoun),
+                    dest: Some(CommonIdentifier("the".into(), "fire".into()).into()),
+                    param: None,
+                }
+                .into()
+            ))
+        );
     }
 }

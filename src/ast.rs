@@ -70,7 +70,7 @@ pub enum UnaryOperator {
     Not,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct UnaryExpression {
     pub operator: UnaryOperator,
     pub operand: Box<Expression>,
@@ -93,14 +93,14 @@ pub enum BinaryOperator {
     LessEq,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BinaryExpression {
     pub operator: BinaryOperator,
     pub lhs: Box<Expression>,
     pub rhs: Box<Expression>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
     Primary(PrimaryExpression),
     Binary(BinaryExpression),
@@ -233,6 +233,21 @@ pub struct Output {
     pub value: Box<Expression>,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum MutationOperator {
+    Cut,
+    Join,
+    Cast,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Mutation {
+    pub operator: MutationOperator,
+    pub operand: Box<Expression>,
+    pub dest: Option<Identifier>,
+    pub param: Option<Box<Expression>>,
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Statement {
     Assignment(Assignment),
@@ -244,6 +259,7 @@ pub enum Statement {
     Dec(Dec),
     Input(Input),
     Output(Output),
+    Mutation(Mutation),
 }
 
 impl From<Assignment> for Statement {
@@ -297,6 +313,12 @@ impl From<Input> for Statement {
 impl From<Output> for Statement {
     fn from(o: Output) -> Self {
         Statement::Output(o)
+    }
+}
+
+impl From<Mutation> for Statement {
+    fn from(m: Mutation) -> Self {
+        Statement::Mutation(m)
     }
 }
 

@@ -66,6 +66,10 @@ pub enum TokenType<'a> {
     Up,
     Down,
 
+    Cut,
+    Join,
+    Cast,
+
     Dot,
     Newline,
     Comment(&'a str),
@@ -147,6 +151,10 @@ lazy_static! {
         alias(TokenType::Small, &["low", "little", "small", "weak"]);
 
         alias(TokenType::SayAlias, &["shout", "whisper", "scream"]);
+
+        alias(TokenType::Cut, &["cut", "split", "shatter"]);
+        alias(TokenType::Join, &["join", "unite"]);
+        alias(TokenType::Cast, &["cast", "burn"]);
 
         m.extend([
             ("with", TokenType::With),
@@ -847,6 +855,29 @@ mod test {
                 Token::new(TokenType::SayAlias, "scream"),
                 Token::new(TokenType::Listen, "listen"),
                 Token::new(TokenType::To, "to"),
+            ],
+        );
+
+        assert_eq!(
+            lex("cut split shatter"),
+            vec![
+                Token::new(TokenType::Cut, "cut"),
+                Token::new(TokenType::Cut, "split"),
+                Token::new(TokenType::Cut, "shatter"),
+            ],
+        );
+        assert_eq!(
+            lex("join unite"),
+            vec![
+                Token::new(TokenType::Join, "join"),
+                Token::new(TokenType::Join, "unite"),
+            ],
+        );
+        assert_eq!(
+            lex("cast burn"),
+            vec![
+                Token::new(TokenType::Cast, "cast"),
+                Token::new(TokenType::Cast, "burn"),
             ],
         );
 
