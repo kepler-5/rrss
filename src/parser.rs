@@ -526,7 +526,7 @@ impl<'a> Parser<'a> {
 
     fn parse_put_assignment(&mut self) -> Result<Assignment, ParseError<'a>> {
         self.consume(TokenType::Put);
-        let value = boxed_expr(self.parse_expression()?);
+        let value = self.parse_expression()?;
         self.expect_token(TokenType::Into)?;
         let dest = self.expect_identifier()?;
         Ok(Assignment {
@@ -551,7 +551,7 @@ impl<'a> Parser<'a> {
                 .as_ref(),
             )
             .map(|tok| get_binary_operator(tok.id).unwrap());
-        let value = boxed_expr(self.parse_expression()?);
+        let value = self.parse_expression()?;
         Ok(Assignment {
             dest,
             value,
@@ -563,7 +563,7 @@ impl<'a> Parser<'a> {
         &mut self,
     ) -> Result<PoeticNumberAssignmentRHS, ParseError<'a>> {
         is_literal_word(self.current_or_error()?.id)
-            .then(|| self.parse_expression().map(|e| boxed_expr(e).into()))
+            .then(|| self.parse_expression().map(Into::into))
             .unwrap_or_else(|| {
                 let elems = self.match_and_consume_while(
                     |tok: &Token| {
@@ -718,9 +718,7 @@ impl<'a> Parser<'a> {
 
     fn parse_say(&mut self) -> Result<Output, ParseError<'a>> {
         self.consume([TokenType::Say, TokenType::SayAlias].as_ref());
-        self.parse_expression().map(|e| Output {
-            value: boxed_expr(e),
-        })
+        self.parse_expression().map(|value| Output { value })
     }
 
     fn parse_listen(&mut self) -> Result<Input, ParseError<'a>> {
@@ -1444,11 +1442,12 @@ mod test {
             parse("Put x plus y into result"),
             Ok(Assignment {
                 dest: SimpleIdentifier("result".into()).into(),
-                value: boxed_expr(BinaryExpression {
+                value: BinaryExpression {
                     operator: BinaryOperator::Plus,
                     lhs: boxed_expr(SimpleIdentifier("x".into())),
                     rhs: boxed_expr(SimpleIdentifier("y".into()))
-                }),
+                }
+                .into(),
                 operator: None
             }
             .into())
@@ -1458,7 +1457,7 @@ mod test {
             parse("Put 123 into X"),
             Ok(Assignment {
                 dest: SimpleIdentifier("X".into()).into(),
-                value: boxed_expr(LiteralExpression::Number(123.0)),
+                value: LiteralExpression::Number(123.0).into(),
                 operator: None
             }
             .into())
@@ -1467,7 +1466,7 @@ mod test {
             parse("Put \"Hello San Francisco\" into the message"),
             Ok(Assignment {
                 dest: CommonIdentifier("the".into(), "message".into()).into(),
-                value: boxed_expr(LiteralExpression::String("Hello San Francisco".into())),
+                value: LiteralExpression::String("Hello San Francisco".into()).into(),
                 operator: None
             }
             .into())
@@ -1476,7 +1475,7 @@ mod test {
             parse("Let my balance be 1000000"),
             Ok(Assignment {
                 dest: CommonIdentifier("my".into(), "balance".into()).into(),
-                value: boxed_expr(LiteralExpression::Number(1000000.0)),
+                value: LiteralExpression::Number(1000000.0).into(),
                 operator: None
             }
             .into())
@@ -1485,11 +1484,12 @@ mod test {
             parse("Let the survivors be the brave without the fallen"),
             Ok(Assignment {
                 dest: CommonIdentifier("the".into(), "survivors".into()).into(),
-                value: boxed_expr(BinaryExpression {
+                value: BinaryExpression {
                     operator: BinaryOperator::Minus,
                     lhs: boxed_expr(CommonIdentifier("the".into(), "brave".into())),
                     rhs: boxed_expr(CommonIdentifier("the".into(), "fallen".into()))
-                }),
+                }
+                .into(),
                 operator: None
             }
             .into())
@@ -1499,7 +1499,7 @@ mod test {
             parse("Let X be with 10"),
             Ok(Assignment {
                 dest: SimpleIdentifier("X".into()).into(),
-                value: boxed_expr(LiteralExpression::Number(10.0)),
+                value: LiteralExpression::Number(10.0).into(),
                 operator: Some(BinaryOperator::Plus),
             }
             .into())
@@ -1508,7 +1508,7 @@ mod test {
             parse("Let the children be without fear"),
             Ok(Assignment {
                 dest: CommonIdentifier("the".into(), "children".into()).into(),
-                value: boxed_expr(SimpleIdentifier("fear".into())),
+                value: SimpleIdentifier("fear".into()).into(),
                 operator: Some(BinaryOperator::Minus),
             }
             .into())
@@ -1517,7 +1517,7 @@ mod test {
             parse("Let my heart be over the moon"),
             Ok(Assignment {
                 dest: CommonIdentifier("my".into(), "heart".into()).into(),
-                value: boxed_expr(CommonIdentifier("the".into(), "moon".into())),
+                value: CommonIdentifier("the".into(), "moon".into()).into(),
                 operator: Some(BinaryOperator::Divide),
             }
             .into())
@@ -1527,11 +1527,12 @@ mod test {
             parse("Put the whole of your heart into my hands"),
             Ok(Assignment {
                 dest: CommonIdentifier("my".into(), "hands".into()).into(),
-                value: boxed_expr(BinaryExpression {
+                value: BinaryExpression {
                     operator: BinaryOperator::Multiply,
                     lhs: boxed_expr(CommonIdentifier("the".into(), "whole".into())),
                     rhs: boxed_expr(CommonIdentifier("your".into(), "heart".into()))
-                }),
+                }
+                .into(),
                 operator: None
             }
             .into())
@@ -1598,7 +1599,7 @@ mod test {
             parse("Variable is 1"),
             Ok(PoeticNumberAssignment {
                 dest: SimpleIdentifier("Variable".into()).into(),
-                rhs: boxed_expr(LiteralExpression::Number(1.0)).into(),
+                rhs: LiteralExpression::Number(1.0).into(),
             }
             .into())
         );
@@ -1737,7 +1738,7 @@ mod test {
             parse("X is 2"),
             Ok(PoeticNumberAssignment {
                 dest: SimpleIdentifier("X".into()).into(),
-                rhs: boxed_expr(LiteralExpression::Number(2.0)).into(),
+                rhs: LiteralExpression::Number(2.0).into(),
             }
             .into())
         );
@@ -1745,7 +1746,7 @@ mod test {
             parse("Y is 3"),
             Ok(PoeticNumberAssignment {
                 dest: SimpleIdentifier("Y".into()).into(),
-                rhs: boxed_expr(LiteralExpression::Number(3.0)).into(),
+                rhs: LiteralExpression::Number(3.0).into(),
             }
             .into())
         );
@@ -1753,7 +1754,7 @@ mod test {
             parse("noise is silence"),
             Ok(PoeticNumberAssignment {
                 dest: SimpleIdentifier("noise".into()).into(),
-                rhs: boxed_expr(LiteralExpression::String(String::new())).into(),
+                rhs: LiteralExpression::String(String::new()).into(),
             }
             .into())
         );
@@ -1762,7 +1763,7 @@ mod test {
             parse("Variable's 1"),
             Ok(PoeticNumberAssignment {
                 dest: SimpleIdentifier("Variable".into()).into(),
-                rhs: boxed_expr(LiteralExpression::Number(1.0)).into(),
+                rhs: LiteralExpression::Number(1.0).into(),
             }
             .into())
         );
@@ -1770,7 +1771,7 @@ mod test {
             parse("Variables are 1"),
             Ok(PoeticNumberAssignment {
                 dest: SimpleIdentifier("Variables".into()).into(),
-                rhs: boxed_expr(LiteralExpression::Number(1.0)).into(),
+                rhs: LiteralExpression::Number(1.0).into(),
             }
             .into())
         );
@@ -1778,7 +1779,7 @@ mod test {
             parse("We're 1"),
             Ok(PoeticNumberAssignment {
                 dest: SimpleIdentifier("We".into()).into(),
-                rhs: boxed_expr(LiteralExpression::Number(1.0)).into(),
+                rhs: LiteralExpression::Number(1.0).into(),
             }
             .into())
         );
@@ -1786,11 +1787,11 @@ mod test {
             parse("My world is nothing without your love"),
             Ok(PoeticNumberAssignment {
                 dest: CommonIdentifier("My".into(), "world".into()).into(),
-                rhs: boxed_expr(BinaryExpression {
+                rhs: BinaryExpression {
                     operator: BinaryOperator::Minus,
                     lhs: boxed_expr(LiteralExpression::Null),
                     rhs: boxed_expr(CommonIdentifier("your".into(), "love".into()))
-                })
+                }
                 .into(),
             }
             .into())
@@ -2018,7 +2019,7 @@ mod test {
                 StatementWithLine(
                     PoeticNumberAssignment {
                         dest: SimpleIdentifier("Variable".into()).into(),
-                        rhs: boxed_expr(LiteralExpression::Number(1.0)).into()
+                        rhs: LiteralExpression::Number(1.0).into()
                     }
                     .into(),
                     1
@@ -2050,7 +2051,7 @@ mod test {
                 StatementWithLine(
                     PoeticNumberAssignment {
                         dest: SimpleIdentifier("Variable".into()).into(),
-                        rhs: boxed_expr(LiteralExpression::Number(1.0)).into()
+                        rhs: LiteralExpression::Number(1.0).into()
                     }
                     .into(),
                     1
@@ -2084,7 +2085,7 @@ mod test {
                 StatementWithLine(
                     PoeticNumberAssignment {
                         dest: SimpleIdentifier("Variable".into()).into(),
-                        rhs: boxed_expr(LiteralExpression::Number(1.0)).into()
+                        rhs: LiteralExpression::Number(1.0).into()
                     }
                     .into(),
                     1
@@ -2129,7 +2130,7 @@ mod test {
                     then_block: Block(vec![StatementWithLine(
                         PoeticNumberAssignment {
                             dest: SimpleIdentifier("x".into()).into(),
-                            rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
+                            rhs: LiteralExpression::Number(6.0).into()
                         }
                         .into(),
                         2
@@ -2159,7 +2160,7 @@ mod test {
                     then_block: Block(vec![StatementWithLine(
                         PoeticNumberAssignment {
                             dest: SimpleIdentifier("x".into()).into(),
-                            rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
+                            rhs: LiteralExpression::Number(6.0).into()
                         }
                         .into(),
                         2
@@ -2167,7 +2168,7 @@ mod test {
                     else_block: Some(Block(vec![StatementWithLine(
                         PoeticNumberAssignment {
                             dest: SimpleIdentifier("x".into()).into(),
-                            rhs: boxed_expr(LiteralExpression::Number(7.0)).into()
+                            rhs: LiteralExpression::Number(7.0).into()
                         }
                         .into(),
                         4
@@ -2196,7 +2197,7 @@ mod test {
                     else_block: Some(Block(vec![StatementWithLine(
                         PoeticNumberAssignment {
                             dest: SimpleIdentifier("x".into()).into(),
-                            rhs: boxed_expr(LiteralExpression::Number(7.0)).into()
+                            rhs: LiteralExpression::Number(7.0).into()
                         }
                         .into(),
                         3
@@ -2255,7 +2256,7 @@ mod test {
                         block: Block(vec![StatementWithLine(
                             PoeticNumberAssignment {
                                 dest: SimpleIdentifier("x".into()).into(),
-                                rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
+                                rhs: LiteralExpression::Number(6.0).into()
                             }
                             .into(),
                             2
@@ -2275,7 +2276,7 @@ mod test {
                         block: Block(vec![StatementWithLine(
                             PoeticNumberAssignment {
                                 dest: SimpleIdentifier("x".into()).into(),
-                                rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
+                                rhs: LiteralExpression::Number(6.0).into()
                             }
                             .into(),
                             5
@@ -2308,7 +2309,7 @@ mod test {
                         block: Block(vec![StatementWithLine(
                             PoeticNumberAssignment {
                                 dest: SimpleIdentifier("x".into()).into(),
-                                rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
+                                rhs: LiteralExpression::Number(6.0).into()
                             }
                             .into(),
                             2
@@ -2328,7 +2329,7 @@ mod test {
                         block: Block(vec![StatementWithLine(
                             PoeticNumberAssignment {
                                 dest: SimpleIdentifier("x".into()).into(),
-                                rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
+                                rhs: LiteralExpression::Number(6.0).into()
                             }
                             .into(),
                             5
@@ -2370,7 +2371,7 @@ mod test {
                                 block: Block(vec![StatementWithLine(
                                     PoeticNumberAssignment {
                                         dest: SimpleIdentifier("y".into()).into(),
-                                        rhs: boxed_expr(LiteralExpression::Number(7.0)).into()
+                                        rhs: LiteralExpression::Number(7.0).into()
                                     }
                                     .into(),
                                     3
@@ -2382,7 +2383,7 @@ mod test {
                         StatementWithLine(
                             PoeticNumberAssignment {
                                 dest: SimpleIdentifier("x".into()).into(),
-                                rhs: boxed_expr(LiteralExpression::Number(6.0)).into()
+                                rhs: LiteralExpression::Number(6.0).into()
                             }
                             .into(),
                             5
@@ -2449,7 +2450,7 @@ mod test {
             parse("say it"),
             Ok(Some(
                 Output {
-                    value: boxed_expr(Identifier::Pronoun)
+                    value: Identifier::Pronoun.into()
                 }
                 .into()
             ))
@@ -2458,7 +2459,7 @@ mod test {
             parse("shout it"),
             Ok(Some(
                 Output {
-                    value: boxed_expr(Identifier::Pronoun)
+                    value: Identifier::Pronoun.into()
                 }
                 .into()
             ))

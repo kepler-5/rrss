@@ -126,9 +126,18 @@ impl From<BinaryExpression> for Expression {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct ExpressionList(pub Vec<Expression>);
+
+impl<E: Into<Expression>> From<E> for ExpressionList {
+    fn from(e: E) -> Self {
+        Self(vec![e.into()])
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub struct Assignment {
     pub dest: Identifier,
-    pub value: Box<Expression>,
+    pub value: Expression,
     pub operator: Option<BinaryOperator>, // for compound assignments
 }
 
@@ -146,13 +155,13 @@ pub struct PoeticNumberLiteral {
 
 #[derive(Debug, PartialEq)]
 pub enum PoeticNumberAssignmentRHS {
-    Expression(Box<Expression>),
+    Expression(Expression),
     PoeticNumberLiteral(PoeticNumberLiteral),
 }
 
-impl From<Box<Expression>> for PoeticNumberAssignmentRHS {
-    fn from(e: Box<Expression>) -> Self {
-        PoeticNumberAssignmentRHS::Expression(e)
+impl<E: Into<Expression>> From<E> for PoeticNumberAssignmentRHS {
+    fn from(e: E) -> Self {
+        PoeticNumberAssignmentRHS::Expression(e.into())
     }
 }
 
@@ -230,7 +239,7 @@ pub struct Input {
 
 #[derive(Debug, PartialEq)]
 pub struct Output {
-    pub value: Box<Expression>,
+    pub value: Expression,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
