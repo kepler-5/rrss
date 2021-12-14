@@ -4,10 +4,10 @@ use itertools::Itertools;
 
 use crate::{
     ast::{
-        ArrayPop, ArrayPush, ArraySubscript, Assignment, AssignmentLHS, BinaryExpression,
-        BinaryOperator, Block, CommonIdentifier, Dec, Expression, ExpressionList, Identifier, If,
-        Inc, Input, LiteralExpression, Mutation, MutationOperator, Output, PoeticAssignment,
-        PoeticNumberAssignment, PoeticNumberAssignmentRHS, PoeticNumberLiteral,
+        ArrayPop, ArrayPush, ArrayPushRHS, ArraySubscript, Assignment, AssignmentLHS,
+        BinaryExpression, BinaryOperator, Block, CommonIdentifier, Dec, Expression, ExpressionList,
+        Identifier, If, Inc, Input, LiteralExpression, Mutation, MutationOperator, Output,
+        PoeticAssignment, PoeticNumberAssignment, PoeticNumberAssignmentRHS, PoeticNumberLiteral,
         PoeticNumberLiteralElem, PoeticStringAssignment, PrimaryExpression, Program,
         ProperIdentifier, Rounding, RoundingDirection, SimpleIdentifier, Statement,
         StatementWithLine, UnaryExpression, UnaryOperator, Until, While,
@@ -624,58 +624,53 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_poetic_number_literal(&mut self) -> Result<PoeticNumberLiteral, ParseError<'a>> {
+        let elems = self.match_and_consume_while(
+            |tok: &Token| {
+                matches!(
+                    tok.id,
+                    TokenType::Dot | TokenType::ApostropheS | TokenType::ApostropheRE
+                ) || *tok == Token::new(TokenType::Minus, "-")
+                    || lexer::is_word(tok.spelling)
+            },
+            |tok, myself| match tok {
+                Token {
+                    id: TokenType::Dot, ..
+                } => Ok(PoeticNumberLiteralElem::Dot),
+                Token {
+                    id: TokenType::ApostropheS | TokenType::ApostropheRE,
+                    ..
+                } => Ok(PoeticNumberLiteralElem::WordSuffix(tok.spelling.into())),
+                Token {
+                    id: TokenType::Minus,
+                    spelling: "-",
+                } => {
+                    let next_token = myself.lexer.next().ok_or_else(|| {
+                        myself.new_parse_error(ParseErrorCode::UnexpectedEndOfTokens)
+                    })?;
+                    lexer::is_word(next_token.spelling)
+                        .then(|| next_token)
+                        .ok_or_else(|| {
+                            ParseError::new(ParseErrorCode::UnexpectedToken, Some(next_token))
+                        })
+                        .map(|word| {
+                            PoeticNumberLiteralElem::WordSuffix("-".to_owned() + word.spelling)
+                        })
+                }
+                _ => Ok(PoeticNumberLiteralElem::Word(tok.spelling.into())),
+            },
+        )?;
+        (!elems.is_empty())
+            .then(|| PoeticNumberLiteral { elems }.into())
+            .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedPoeticNumberLiteral))
+    }
+
     fn parse_poetic_number_assignment_rhs(
         &mut self,
     ) -> Result<PoeticNumberAssignmentRHS, ParseError<'a>> {
         is_literal_word(self.current_or_error()?.id)
             .then(|| self.parse_expression().map(Into::into))
-            .unwrap_or_else(|| {
-                let elems = self.match_and_consume_while(
-                    |tok: &Token| {
-                        matches!(
-                            tok.id,
-                            TokenType::Dot | TokenType::ApostropheS | TokenType::ApostropheRE
-                        ) || *tok == Token::new(TokenType::Minus, "-")
-                            || lexer::is_word(tok.spelling)
-                    },
-                    |tok, myself| match tok {
-                        Token {
-                            id: TokenType::Dot, ..
-                        } => Ok(PoeticNumberLiteralElem::Dot),
-                        Token {
-                            id: TokenType::ApostropheS | TokenType::ApostropheRE,
-                            ..
-                        } => Ok(PoeticNumberLiteralElem::WordSuffix(tok.spelling.into())),
-                        Token {
-                            id: TokenType::Minus,
-                            spelling: "-",
-                        } => {
-                            let next_token = myself.lexer.next().ok_or_else(|| {
-                                myself.new_parse_error(ParseErrorCode::UnexpectedEndOfTokens)
-                            })?;
-                            lexer::is_word(next_token.spelling)
-                                .then(|| next_token)
-                                .ok_or_else(|| {
-                                    ParseError::new(
-                                        ParseErrorCode::UnexpectedToken,
-                                        Some(next_token),
-                                    )
-                                })
-                                .map(|word| {
-                                    PoeticNumberLiteralElem::WordSuffix(
-                                        "-".to_owned() + word.spelling,
-                                    )
-                                })
-                        }
-                        _ => Ok(PoeticNumberLiteralElem::Word(tok.spelling.into())),
-                    },
-                )?;
-                (!elems.is_empty())
-                    .then(|| PoeticNumberLiteral { elems }.into())
-                    .ok_or_else(|| {
-                        self.new_parse_error(ParseErrorCode::ExpectedPoeticNumberLiteral)
-                    })
-            })
+            .unwrap_or_else(|| self.parse_poetic_number_literal().map(Into::into))
     }
 
     fn parse_poetic_string_assignment_rhs(
@@ -881,11 +876,19 @@ impl<'a> Parser<'a> {
         Ok(Statement::Continue)
     }
 
+    fn parse_array_push_rhs(&mut self) -> Result<ArrayPushRHS, ParseError<'a>> {
+        match self.expect_any(&[TokenType::With, TokenType::Like])?.id {
+            TokenType::With => self.parse_expression_list().map(Into::into),
+            TokenType::Like => self.parse_poetic_number_literal().map(Into::into),
+
+            _ => unreachable!(),
+        }
+    }
+
     fn parse_array_push(&mut self) -> Result<ArrayPush, ParseError<'a>> {
         self.consume(TokenType::Rock);
         let array = self.parse_primary_expression()?;
-        self.expect_token(TokenType::With)?;
-        let value = self.parse_expression_list()?.into();
+        let value = self.parse_array_push_rhs()?;
         Ok(ArrayPush { array, value })
     }
 
@@ -2964,6 +2967,35 @@ mod test {
                             LiteralExpression::Number(2.0).into(),
                             LiteralExpression::Number(3.0).into()
                         ]
+                    }
+                    .into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("rock you like a hurricane"),
+            Ok(Some(
+                ArrayPush {
+                    array: SimpleIdentifier("you".into()).into(),
+                    value: PoeticNumberLiteral {
+                        elems: vec![
+                            PoeticNumberLiteralElem::Word("a".into()),
+                            PoeticNumberLiteralElem::Word("hurricane".into())
+                        ]
+                    }
+                    .into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("rock you like nothing"),
+            Ok(Some(
+                ArrayPush {
+                    array: SimpleIdentifier("you".into()).into(),
+                    value: PoeticNumberLiteral {
+                        elems: vec![PoeticNumberLiteralElem::Word("nothing".into())]
                     }
                     .into()
                 }

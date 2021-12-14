@@ -210,11 +210,7 @@ impl<E: Into<Expression>> From<E> for PoeticNumberAssignmentRHS {
     }
 }
 
-impl From<PoeticNumberLiteral> for PoeticNumberAssignmentRHS {
-    fn from(p: PoeticNumberLiteral) -> Self {
-        PoeticNumberAssignmentRHS::PoeticNumberLiteral(p)
-    }
-}
+trivial_from!(for PoeticNumberAssignmentRHS: PoeticNumberLiteral);
 
 #[derive(Debug, PartialEq)]
 pub struct PoeticNumberAssignment {
@@ -318,7 +314,7 @@ pub struct Rounding {
 #[derive(Debug, PartialEq)]
 pub enum ArrayPushRHS {
     ExpressionList(ExpressionList),
-    PoeticNumberAssignmentRHS(PoeticNumberAssignmentRHS),
+    PoeticNumberLiteral(PoeticNumberLiteral),
 }
 
 impl<E: Into<ExpressionList>> From<E> for ArrayPushRHS {
@@ -327,7 +323,7 @@ impl<E: Into<ExpressionList>> From<E> for ArrayPushRHS {
     }
 }
 
-trivial_from!(for ArrayPushRHS: PoeticNumberAssignmentRHS);
+trivial_from!(for ArrayPushRHS: PoeticNumberLiteral);
 
 #[derive(Debug, PartialEq)]
 pub struct ArrayPush {
