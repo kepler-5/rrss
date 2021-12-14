@@ -144,7 +144,7 @@ impl From<BinaryExpression> for Expression {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ExpressionList {
     pub first: Expression,
     pub rest: Vec<Expression>,
@@ -165,7 +165,7 @@ impl<E: Into<Expression>> From<E> for ExpressionList {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum AssignmentLHS {
     Identifier(Identifier),
     ArraySubscript(ArraySubscript),
@@ -179,7 +179,7 @@ impl<I: Into<Identifier>> From<I> for AssignmentLHS {
 
 trivial_from!(for AssignmentLHS: ArraySubscript);
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Assignment {
     pub dest: AssignmentLHS,
     pub value: ExpressionList,
@@ -218,13 +218,13 @@ impl From<PoeticNumberLiteral> for PoeticNumberAssignmentRHS {
 
 #[derive(Debug, PartialEq)]
 pub struct PoeticNumberAssignment {
-    pub dest: Identifier,
+    pub dest: AssignmentLHS,
     pub rhs: PoeticNumberAssignmentRHS,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PoeticStringAssignment {
-    pub dest: Identifier,
+    pub dest: AssignmentLHS,
     pub rhs: String,
 }
 
@@ -279,7 +279,7 @@ pub struct Dec {
 
 #[derive(Debug, PartialEq)]
 pub struct Input {
-    pub dest: Option<Identifier>,
+    pub dest: Option<AssignmentLHS>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -298,7 +298,7 @@ pub enum MutationOperator {
 pub struct Mutation {
     pub operator: MutationOperator,
     pub operand: PrimaryExpression,
-    pub dest: Option<Identifier>,
+    pub dest: Option<AssignmentLHS>,
     pub param: Option<Expression>,
 }
 
@@ -316,15 +316,29 @@ pub struct Rounding {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum ArrayPushRHS {
+    ExpressionList(ExpressionList),
+    PoeticNumberAssignmentRHS(PoeticNumberAssignmentRHS),
+}
+
+impl<E: Into<ExpressionList>> From<E> for ArrayPushRHS {
+    fn from(e: E) -> Self {
+        ArrayPushRHS::ExpressionList(e.into())
+    }
+}
+
+trivial_from!(for ArrayPushRHS: PoeticNumberAssignmentRHS);
+
+#[derive(Debug, PartialEq)]
 pub struct ArrayPush {
     pub array: PrimaryExpression,
-    pub values: ExpressionList,
+    pub value: ArrayPushRHS,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct ArrayPop {
     pub array: PrimaryExpression,
-    pub dest: Option<Identifier>,
+    pub dest: Option<AssignmentLHS>,
 }
 
 #[derive(Debug, PartialEq)]

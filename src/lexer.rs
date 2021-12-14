@@ -18,6 +18,7 @@ pub enum TokenType<'a> {
     CommonVariablePrefix,
     Pronoun,
     At,
+    Like,
 
     Plus,
     Minus,
@@ -201,6 +202,7 @@ lazy_static! {
             ("rock", TokenType::Rock),
             ("roll", TokenType::Roll),
             ("at", TokenType::At),
+            ("like", TokenType::Like),
         ]);
 
         m.extend(
@@ -777,7 +779,7 @@ mod test {
             ]
         );
         assert_eq!(
-            lex("is isn't put let be not at"),
+            lex("is isn't put let be not at like"),
             vec![
                 Token::new(TokenType::Is, "is"),
                 Token::new(TokenType::Isnt, "isn't"),
@@ -786,6 +788,7 @@ mod test {
                 Token::new(TokenType::Be, "be"),
                 Token::new(TokenType::Not, "not"),
                 Token::new(TokenType::At, "at"),
+                Token::new(TokenType::Like, "like"),
             ]
         );
         assert_eq!(

@@ -141,11 +141,7 @@ fn get_rounding_direction(token: TokenType) -> Option<RoundingDirection> {
     }
 }
 
-fn boxed_expr(x: impl Into<Expression>) -> Box<Expression> {
-    Box::new(x.into())
-}
-
-fn boxed_primary(x: impl Into<PrimaryExpression>) -> Box<PrimaryExpression> {
+fn boxed_expr<E>(x: impl Into<E>) -> Box<E> {
     Box::new(x.into())
 }
 
@@ -408,8 +404,8 @@ impl<'a> Parser<'a> {
             .map(|_| self.parse_primary_expression())
             .transpose()?
         {
-            let array = boxed_primary(expr);
-            let subscript = boxed_primary(subscript);
+            let array = boxed_expr(expr);
+            let subscript = boxed_expr(subscript);
             Ok(ArraySubscript { array, subscript }.into())
         } else {
             Ok(expr.into())
@@ -705,9 +701,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_poetic_assignment(&mut self) -> Result<PoeticAssignment, ParseError<'a>> {
-        // not using expect_identifier since we know for sure the first token is a Word or CapitalizedWord,
-        // so we either have an identifier or a parse error at the beginning
-        let dest = self.parse_identifier()?.unwrap();
+        let dest = self.parse_assignment_lhs()?;
 
         match self.expect_any(&[
             TokenType::Is,
@@ -794,7 +788,7 @@ impl<'a> Parser<'a> {
         self.consume(TokenType::Listen);
         self.match_and_consume(TokenType::To)
             .map(|_| {
-                self.expect_identifier()
+                self.parse_assignment_lhs()
                     .map(|dest| Input { dest: Some(dest) })
             })
             .unwrap_or_else(|| Ok(Input { dest: None }))
@@ -803,7 +797,7 @@ impl<'a> Parser<'a> {
     fn check_mutation_args(
         &self,
         operand: &PrimaryExpression,
-        dest: &Option<Identifier>,
+        dest: &Option<AssignmentLHS>,
     ) -> Result<(), ParseError<'a>> {
         // this isn't strictly a *parse* error, but it's easy enough to handle here;
         // mutations without a destination must have operands that are identifiers
@@ -829,7 +823,7 @@ impl<'a> Parser<'a> {
         let operand = self.parse_primary_expression()?;
         let dest = self
             .match_and_consume(TokenType::Into)
-            .map(|_| self.expect_identifier())
+            .map(|_| self.parse_assignment_lhs())
             .transpose()?;
         self.check_mutation_args(&operand, &dest)?;
         let param = self
@@ -891,8 +885,8 @@ impl<'a> Parser<'a> {
         self.consume(TokenType::Rock);
         let array = self.parse_primary_expression()?;
         self.expect_token(TokenType::With)?;
-        let values = self.parse_expression_list()?;
-        Ok(ArrayPush { array, values })
+        let value = self.parse_expression_list()?.into();
+        Ok(ArrayPush { array, value })
     }
 
     fn parse_array_pop(&mut self) -> Result<ArrayPop, ParseError<'a>> {
@@ -900,7 +894,7 @@ impl<'a> Parser<'a> {
         let array = self.parse_primary_expression()?;
         let dest = self
             .match_and_consume(TokenType::Into)
-            .map(|_| self.expect_identifier())
+            .map(|_| self.parse_assignment_lhs())
             .transpose()?;
         Ok(ArrayPop { array, dest })
     }
@@ -1678,8 +1672,8 @@ mod test {
             parse("Let my array at 255 be \"some value\""),
             Ok(Assignment {
                 dest: ArraySubscript {
-                    array: boxed_primary(CommonIdentifier("my".into(), "array".into())),
-                    subscript: boxed_primary(LiteralExpression::Number(255.0))
+                    array: boxed_expr(CommonIdentifier("my".into(), "array".into())),
+                    subscript: boxed_expr(LiteralExpression::Number(255.0))
                 }
                 .into(),
                 value: LiteralExpression::String("some value".into()).into(),
@@ -1691,13 +1685,13 @@ mod test {
             parse("Let my array at 255 be my array at 255"),
             Ok(Assignment {
                 dest: ArraySubscript {
-                    array: boxed_primary(CommonIdentifier("my".into(), "array".into())),
-                    subscript: boxed_primary(LiteralExpression::Number(255.0))
+                    array: boxed_expr(CommonIdentifier("my".into(), "array".into())),
+                    subscript: boxed_expr(LiteralExpression::Number(255.0))
                 }
                 .into(),
                 value: ArraySubscript {
-                    array: boxed_primary(CommonIdentifier("my".into(), "array".into())),
-                    subscript: boxed_primary(LiteralExpression::Number(255.0))
+                    array: boxed_expr(CommonIdentifier("my".into(), "array".into())),
+                    subscript: boxed_expr(LiteralExpression::Number(255.0))
                 }
                 .into(),
                 operator: None,
@@ -1785,6 +1779,18 @@ mod test {
             parse("Variable is 1"),
             Ok(PoeticNumberAssignment {
                 dest: SimpleIdentifier("Variable".into()).into(),
+                rhs: LiteralExpression::Number(1.0).into(),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Variable at 1 is 1"),
+            Ok(PoeticNumberAssignment {
+                dest: ArraySubscript {
+                    array: boxed_expr(SimpleIdentifier("Variable".into())),
+                    subscript: boxed_expr(LiteralExpression::Number(1.0)),
+                }
+                .into(),
                 rhs: LiteralExpression::Number(1.0).into(),
             }
             .into())
@@ -2655,8 +2661,8 @@ mod test {
             Ok(Some(
                 Output {
                     value: ArraySubscript {
-                        array: boxed_primary(Identifier::Pronoun),
-                        subscript: boxed_primary(LiteralExpression::Number(255.0))
+                        array: boxed_expr(Identifier::Pronoun),
+                        subscript: boxed_expr(LiteralExpression::Number(255.0))
                     }
                     .into()
                 }
@@ -2668,7 +2674,22 @@ mod test {
             parse("listen to it"),
             Ok(Some(
                 Input {
-                    dest: Some(Identifier::Pronoun)
+                    dest: Some(Identifier::Pronoun.into())
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("listen to it at night"),
+            Ok(Some(
+                Input {
+                    dest: Some(
+                        ArraySubscript {
+                            array: boxed_expr(Identifier::Pronoun),
+                            subscript: boxed_expr(SimpleIdentifier("night".into())),
+                        }
+                        .into()
+                    )
                 }
                 .into()
             ))
@@ -2776,6 +2797,28 @@ mod test {
                     operator: MutationOperator::Cast,
                     operand: Identifier::Pronoun.into(),
                     dest: Some(CommonIdentifier("the".into(), "fire".into()).into()),
+                    param: None,
+                }
+                .into()
+            ))
+        );
+
+        assert_eq!(
+            parse("cast it into the fire at Mount Doom"),
+            Ok(Some(
+                Mutation {
+                    operator: MutationOperator::Cast,
+                    operand: Identifier::Pronoun.into(),
+                    dest: Some(
+                        ArraySubscript {
+                            array: boxed_expr(CommonIdentifier("the".into(), "fire".into())),
+                            subscript: boxed_expr(ProperIdentifier(vec![
+                                "Mount".into(),
+                                "Doom".into()
+                            ]))
+                        }
+                        .into()
+                    ),
                     param: None,
                 }
                 .into()
@@ -2905,7 +2948,7 @@ mod test {
             Ok(Some(
                 ArrayPush {
                     array: SimpleIdentifier("ints".into()).into(),
-                    values: LiteralExpression::Number(1.0).into()
+                    value: LiteralExpression::Number(1.0).into()
                 }
                 .into()
             ))
@@ -2915,13 +2958,14 @@ mod test {
             Ok(Some(
                 ArrayPush {
                     array: SimpleIdentifier("ints".into()).into(),
-                    values: ExpressionList {
+                    value: ExpressionList {
                         first: LiteralExpression::Number(1.0).into(),
                         rest: vec![
                             LiteralExpression::Number(2.0).into(),
                             LiteralExpression::Number(3.0).into()
                         ]
                     }
+                    .into()
                 }
                 .into()
             ))
@@ -2931,11 +2975,11 @@ mod test {
             Ok(Some(
                 ArrayPush {
                     array: ArraySubscript {
-                        array: boxed_primary(SimpleIdentifier("ints".into())),
-                        subscript: boxed_primary(SimpleIdentifier("night".into()))
+                        array: boxed_expr(SimpleIdentifier("ints".into())),
+                        subscript: boxed_expr(SimpleIdentifier("night".into()))
                     }
                     .into(),
-                    values: LiteralExpression::Number(1.0).into()
+                    value: LiteralExpression::Number(1.0).into()
                 }
                 .into()
             ))
@@ -2956,7 +3000,7 @@ mod test {
             Ok(Some(
                 ArrayPop {
                     array: SimpleIdentifier("ints".into()).into(),
-                    dest: Some(Identifier::Pronoun)
+                    dest: Some(Identifier::Pronoun.into())
                 }
                 .into()
             ))
@@ -2966,8 +3010,8 @@ mod test {
             Ok(Some(
                 ArrayPop {
                     array: ArraySubscript {
-                        array: boxed_primary(SimpleIdentifier("ints".into())),
-                        subscript: boxed_primary(SimpleIdentifier("night".into()))
+                        array: boxed_expr(SimpleIdentifier("ints".into())),
+                        subscript: boxed_expr(SimpleIdentifier("night".into()))
                     }
                     .into(),
                     dest: None
