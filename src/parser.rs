@@ -4,13 +4,13 @@ use itertools::Itertools;
 
 use crate::{
     ast::{
-        ArrayPop, ArrayPush, Assignment, BinaryExpression, BinaryOperator, Block, CommonIdentifier,
-        Dec, Expression, ExpressionList, Identifier, If, Inc, Input, LiteralExpression, Mutation,
-        MutationOperator, Output, PoeticAssignment, PoeticNumberAssignment,
-        PoeticNumberAssignmentRHS, PoeticNumberLiteral, PoeticNumberLiteralElem,
-        PoeticStringAssignment, PrimaryExpression, Program, ProperIdentifier, Rounding,
-        RoundingDirection, SimpleIdentifier, Statement, StatementWithLine, UnaryExpression,
-        UnaryOperator, Until, While,
+        ArrayPop, ArrayPush, ArraySubscript, Assignment, AssignmentLHS, BinaryExpression,
+        BinaryOperator, Block, CommonIdentifier, Dec, Expression, ExpressionList, Identifier, If,
+        Inc, Input, LiteralExpression, Mutation, MutationOperator, Output, PoeticAssignment,
+        PoeticNumberAssignment, PoeticNumberAssignmentRHS, PoeticNumberLiteral,
+        PoeticNumberLiteralElem, PoeticStringAssignment, PrimaryExpression, Program,
+        ProperIdentifier, Rounding, RoundingDirection, SimpleIdentifier, Statement,
+        StatementWithLine, UnaryExpression, UnaryOperator, Until, While,
     },
     lexer::{self, CommentSkippingLexer, Lexer, Token, TokenType},
 };
@@ -142,6 +142,10 @@ fn get_rounding_direction(token: TokenType) -> Option<RoundingDirection> {
 }
 
 fn boxed_expr(x: impl Into<Expression>) -> Box<Expression> {
+    Box::new(x.into())
+}
+
+fn boxed_primary(x: impl Into<PrimaryExpression>) -> Box<PrimaryExpression> {
     Box::new(x.into())
 }
 
@@ -387,10 +391,34 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_primary_expression(&mut self) -> Result<PrimaryExpression, ParseError<'a>> {
-        self.parse_identifier()?
+        let expr: PrimaryExpression = self
+            .parse_identifier()?
             .map(Into::into)
             .or_else(|| self.parse_literal_expression().map(Into::into))
-            .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedPrimaryExpression))
+            .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedPrimaryExpression))?;
+        self.parse_array_subscript_after(expr)
+    }
+
+    fn parse_array_subscript_after<As: From<ArraySubscript>>(
+        &mut self,
+        expr: impl Into<PrimaryExpression> + Into<As>,
+    ) -> Result<As, ParseError<'a>> {
+        if let Some(subscript) = self
+            .match_and_consume(TokenType::At)
+            .map(|_| self.parse_primary_expression())
+            .transpose()?
+        {
+            let array = boxed_primary(expr);
+            let subscript = boxed_primary(subscript);
+            Ok(ArraySubscript { array, subscript }.into())
+        } else {
+            Ok(expr.into())
+        }
+    }
+
+    fn parse_assignment_lhs(&mut self) -> Result<AssignmentLHS, ParseError<'a>> {
+        let ident = self.expect_identifier()?;
+        self.parse_array_subscript_after(ident)
     }
 
     fn parse_pronoun(&mut self) -> Option<Identifier> {
@@ -566,7 +594,7 @@ impl<'a> Parser<'a> {
         self.consume(TokenType::Put);
         let value = self.parse_expression()?.into();
         self.expect_token(TokenType::Into)?;
-        let dest = self.expect_identifier()?;
+        let dest = self.parse_assignment_lhs()?;
         Ok(Assignment {
             dest,
             value,
@@ -575,7 +603,7 @@ impl<'a> Parser<'a> {
     }
     fn parse_let_assignment(&mut self) -> Result<Assignment, ParseError<'a>> {
         self.consume(TokenType::Let);
-        let dest = self.expect_identifier()?;
+        let dest = self.parse_assignment_lhs()?;
         self.expect_token(TokenType::Be)?;
         let operator = self
             .match_and_consume(
@@ -1645,6 +1673,37 @@ mod test {
             }
             .into())
         );
+
+        assert_eq!(
+            parse("Let my array at 255 be \"some value\""),
+            Ok(Assignment {
+                dest: ArraySubscript {
+                    array: boxed_primary(CommonIdentifier("my".into(), "array".into())),
+                    subscript: boxed_primary(LiteralExpression::Number(255.0))
+                }
+                .into(),
+                value: LiteralExpression::String("some value".into()).into(),
+                operator: None,
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Let my array at 255 be my array at 255"),
+            Ok(Assignment {
+                dest: ArraySubscript {
+                    array: boxed_primary(CommonIdentifier("my".into(), "array".into())),
+                    subscript: boxed_primary(LiteralExpression::Number(255.0))
+                }
+                .into(),
+                value: ArraySubscript {
+                    array: boxed_primary(CommonIdentifier("my".into(), "array".into())),
+                    subscript: boxed_primary(LiteralExpression::Number(255.0))
+                }
+                .into(),
+                operator: None,
+            }
+            .into())
+        );
     }
 
     #[test]
@@ -2591,6 +2650,19 @@ mod test {
                 .into()
             ))
         );
+        assert_eq!(
+            parse("shout it at 255"),
+            Ok(Some(
+                Output {
+                    value: ArraySubscript {
+                        array: boxed_primary(Identifier::Pronoun),
+                        subscript: boxed_primary(LiteralExpression::Number(255.0))
+                    }
+                    .into()
+                }
+                .into()
+            ))
+        );
 
         assert_eq!(
             parse("listen to it"),
@@ -2854,6 +2926,20 @@ mod test {
                 .into()
             ))
         );
+        assert_eq!(
+            parse("rock ints at night with 1"),
+            Ok(Some(
+                ArrayPush {
+                    array: ArraySubscript {
+                        array: boxed_primary(SimpleIdentifier("ints".into())),
+                        subscript: boxed_primary(SimpleIdentifier("night".into()))
+                    }
+                    .into(),
+                    values: LiteralExpression::Number(1.0).into()
+                }
+                .into()
+            ))
+        );
 
         assert_eq!(
             parse("roll ints"),
@@ -2871,6 +2957,20 @@ mod test {
                 ArrayPop {
                     array: SimpleIdentifier("ints".into()).into(),
                     dest: Some(Identifier::Pronoun)
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("roll ints at night"),
+            Ok(Some(
+                ArrayPop {
+                    array: ArraySubscript {
+                        array: boxed_primary(SimpleIdentifier("ints".into())),
+                        subscript: boxed_primary(SimpleIdentifier("night".into()))
+                    }
+                    .into(),
+                    dest: None
                 }
                 .into()
             ))

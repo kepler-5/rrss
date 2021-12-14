@@ -57,9 +57,16 @@ impl From<ProperIdentifier> for Identifier {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct ArraySubscript {
+    pub array: Box<PrimaryExpression>,
+    pub subscript: Box<PrimaryExpression>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum PrimaryExpression {
     Literal(LiteralExpression),
     Identifier(Identifier),
+    ArraySubscript(ArraySubscript),
 }
 
 impl From<LiteralExpression> for PrimaryExpression {
@@ -73,6 +80,8 @@ impl<I: Into<Identifier>> From<I> for PrimaryExpression {
         PrimaryExpression::Identifier(id.into())
     }
 }
+
+trivial_from!(for PrimaryExpression: ArraySubscript);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum UnaryOperator {
@@ -157,8 +166,22 @@ impl<E: Into<Expression>> From<E> for ExpressionList {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum AssignmentLHS {
+    Identifier(Identifier),
+    ArraySubscript(ArraySubscript),
+}
+
+impl<I: Into<Identifier>> From<I> for AssignmentLHS {
+    fn from(i: I) -> Self {
+        AssignmentLHS::Identifier(i.into())
+    }
+}
+
+trivial_from!(for AssignmentLHS: ArraySubscript);
+
+#[derive(Debug, PartialEq)]
 pub struct Assignment {
-    pub dest: Identifier,
+    pub dest: AssignmentLHS,
     pub value: ExpressionList,
     pub operator: Option<BinaryOperator>, // for compound assignments
 }
