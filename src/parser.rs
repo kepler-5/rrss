@@ -1,12 +1,14 @@
+use std::ops::Not;
+
 use itertools::Itertools;
 
 use crate::{
     ast::{
         Assignment, BinaryExpression, BinaryOperator, Block, CommonIdentifier, Dec, Expression,
-        Identifier, If, Inc, Input, LiteralExpression, Mutation, MutationOperator, Output,
-        PoeticAssignment, PoeticNumberAssignment, PoeticNumberAssignmentRHS, PoeticNumberLiteral,
-        PoeticNumberLiteralElem, PoeticStringAssignment, PrimaryExpression, Program,
-        ProperIdentifier, Rounding, RoundingDirection, SimpleIdentifier, Statement,
+        ExpressionList, Identifier, If, Inc, Input, LiteralExpression, Mutation, MutationOperator,
+        Output, PoeticAssignment, PoeticNumberAssignment, PoeticNumberAssignmentRHS,
+        PoeticNumberLiteral, PoeticNumberLiteralElem, PoeticStringAssignment, PrimaryExpression,
+        Program, ProperIdentifier, Rounding, RoundingDirection, SimpleIdentifier, Statement,
         StatementWithLine, UnaryExpression, UnaryOperator, Until, While,
     },
     lexer::{self, CommentSkippingLexer, Lexer, Token, TokenType},
@@ -45,7 +47,9 @@ pub enum ParseErrorCode<'a> {
     Generic(String),
     MissingIDAfterCommonPrefix(String),
     UppercaseAfterCommonPrefix(String, String),
-    MutationOperandMustBeIdentifier(Expression),
+    MutationOperandMustBeIdentifier(PrimaryExpression),
+    ListExpressionWithoutOperator,
+    ExpectedPrimaryExpression,
     ExpectedIdentifier,
     ExpectedText(String),
     ExpectedToken(TokenType<'a>),
@@ -175,6 +179,17 @@ impl<'a> Parser<'a> {
         ParseError::new(code, self.current())
     }
 
+    fn error_if<F: FnOnce() -> ParseErrorCode<'a>>(
+        &self,
+        condition: bool,
+        f: F,
+    ) -> Result<(), ParseError<'a>> {
+        condition
+            .not()
+            .then(|| ())
+            .ok_or_else(|| self.new_parse_error(f()))
+    }
+
     fn match_and_consume<M: MatchesToken>(&mut self, m: M) -> Option<Token<'a>> {
         if self
             .lexer
@@ -213,6 +228,27 @@ impl<'a> Parser<'a> {
         let tok = self.lexer.next();
         assert!(tok.filter(|tok| m.matches_token(tok)).is_some());
         tok.unwrap()
+    }
+
+    fn parse_expression_list(&mut self) -> Result<ExpressionList, ParseError<'a>> {
+        let first = self.parse_expression()?;
+        let rest = {
+            let mut exprs = Vec::new();
+            while let Some(e) = match self.parse_expression() {
+                Ok(e) => Some(e),
+                Err(e) => {
+                    if e.code == ParseErrorCode::ExpectedPrimaryExpression {
+                        None
+                    } else {
+                        Err(e)?
+                    }
+                }
+            } {
+                exprs.push(e)
+            }
+            exprs
+        };
+        Ok(ExpressionList { first, rest })
     }
 
     fn parse_expression(&mut self) -> Result<Expression, ParseError<'a>> {
@@ -287,7 +323,9 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_term(&mut self) -> Result<Expression, ParseError<'a>> {
-        self.parse_binary_expression(&[TokenType::Plus, TokenType::Minus], |p| p.parse_factor())
+        self.parse_binary_expression(&[TokenType::Plus, TokenType::With, TokenType::Minus], |p| {
+            p.parse_factor()
+        })
     }
 
     fn parse_factor(&mut self) -> Result<Expression, ParseError<'a>> {
@@ -351,11 +389,7 @@ impl<'a> Parser<'a> {
         self.parse_identifier()?
             .map(Into::into)
             .or_else(|| self.parse_literal_expression().map(Into::into))
-            .ok_or_else(|| {
-                self.new_parse_error(ParseErrorCode::Generic(
-                    "Expected primary expression".into(),
-                ))
-            })
+            .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedPrimaryExpression))
     }
 
     fn parse_pronoun(&mut self) -> Option<Identifier> {
@@ -526,7 +560,7 @@ impl<'a> Parser<'a> {
 
     fn parse_put_assignment(&mut self) -> Result<Assignment, ParseError<'a>> {
         self.consume(TokenType::Put);
-        let value = self.parse_expression()?;
+        let value = self.parse_expression()?.into();
         self.expect_token(TokenType::Into)?;
         let dest = self.expect_identifier()?;
         Ok(Assignment {
@@ -551,7 +585,10 @@ impl<'a> Parser<'a> {
                 .as_ref(),
             )
             .map(|tok| get_binary_operator(tok.id).unwrap());
-        let value = self.parse_expression()?;
+        let value = self.parse_expression_list()?;
+        self.error_if(operator.is_none() && value.has_multiple(), || {
+            ParseErrorCode::ListExpressionWithoutOperator
+        })?;
         Ok(Assignment {
             dest,
             value,
@@ -733,7 +770,7 @@ impl<'a> Parser<'a> {
 
     fn check_mutation_args(
         &self,
-        operand: &Expression,
+        operand: &PrimaryExpression,
         dest: &Option<Identifier>,
     ) -> Result<(), ParseError<'a>> {
         // this isn't strictly a *parse* error, but it's easy enough to handle here;
@@ -741,16 +778,13 @@ impl<'a> Parser<'a> {
         if dest.is_some() {
             Ok(())
         } else {
-            matches!(
-                *operand,
-                Expression::Primary(PrimaryExpression::Identifier(_))
-            )
-            .then(|| ())
-            .ok_or_else(|| {
-                self.new_parse_error(ParseErrorCode::MutationOperandMustBeIdentifier(
-                    operand.clone(),
-                ))
-            })
+            matches!(*operand, PrimaryExpression::Identifier(_))
+                .then(|| ())
+                .ok_or_else(|| {
+                    self.new_parse_error(ParseErrorCode::MutationOperandMustBeIdentifier(
+                        operand.clone(),
+                    ))
+                })
         }
     }
 
@@ -760,7 +794,7 @@ impl<'a> Parser<'a> {
                 .id,
         )
         .unwrap();
-        let operand = self.parse_expression()?;
+        let operand = self.parse_primary_expression()?;
         let dest = self
             .match_and_consume(TokenType::Into)
             .map(|_| self.expect_identifier())
@@ -921,7 +955,23 @@ mod test {
             }))
         );
         assert_eq!(
+            parse("1 with 1"),
+            Ok(Expression::Binary(BinaryExpression {
+                operator: BinaryOperator::Plus,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }))
+        );
+        assert_eq!(
             parse("1 - 1"),
+            Ok(Expression::Binary(BinaryExpression {
+                operator: BinaryOperator::Minus,
+                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                rhs: boxed_expr(LiteralExpression::Number(1.0))
+            }))
+        );
+        assert_eq!(
+            parse("1 without 1"),
             Ok(Expression::Binary(BinaryExpression {
                 operator: BinaryOperator::Minus,
                 lhs: boxed_expr(LiteralExpression::Number(1.0)),
@@ -1537,6 +1587,42 @@ mod test {
             }
             .into())
         );
+
+        assert_eq!(
+            parse("Let X be with 10, 11, 12"),
+            Ok(Assignment {
+                dest: SimpleIdentifier("X".into()).into(),
+                value: ExpressionList {
+                    first: LiteralExpression::Number(10.0).into(),
+                    rest: vec![
+                        LiteralExpression::Number(11.0).into(),
+                        LiteralExpression::Number(12.0).into()
+                    ]
+                },
+                operator: Some(BinaryOperator::Plus),
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Let X be with 10, 11 with 12, 13"),
+            Ok(Assignment {
+                dest: SimpleIdentifier("X".into()).into(),
+                value: ExpressionList {
+                    first: LiteralExpression::Number(10.0).into(),
+                    rest: vec![
+                        BinaryExpression {
+                            operator: BinaryOperator::Plus,
+                            lhs: boxed_expr(LiteralExpression::Number(11.0)),
+                            rhs: boxed_expr(LiteralExpression::Number(12.0))
+                        }
+                        .into(),
+                        LiteralExpression::Number(13.0).into()
+                    ]
+                },
+                operator: Some(BinaryOperator::Plus),
+            }
+            .into())
+        );
     }
 
     #[test]
@@ -1584,6 +1670,25 @@ mod test {
                     id: TokenType::Word,
                     spelling: "intoo"
                 })
+            })
+        );
+
+        assert_eq!(
+            parse("Put 1, 2, 3 into six"),
+            Err(ParseError {
+                code: ParseErrorCode::ExpectedToken(TokenType::Into),
+                token: Some(Token {
+                    id: TokenType::Number(2.0),
+                    spelling: "2"
+                })
+            })
+        );
+
+        assert_eq!(
+            parse("Let X be 10, 11 with 12, 13"),
+            Err(ParseError {
+                code: ParseErrorCode::ListExpressionWithoutOperator,
+                token: None
             })
         );
     }
@@ -2525,6 +2630,25 @@ mod test {
                     operand: Identifier::Pronoun.into(),
                     dest: Some(SimpleIdentifier("pieces".into()).into()),
                     param: Some(CommonIdentifier("my".into(), "knife".into()).into()),
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("cut it into pieces with my knife, with my knife"),
+            Ok(Some(
+                Mutation {
+                    operator: MutationOperator::Cut,
+                    operand: Identifier::Pronoun.into(),
+                    dest: Some(SimpleIdentifier("pieces".into()).into()),
+                    param: Some(
+                        BinaryExpression {
+                            operator: BinaryOperator::Plus,
+                            lhs: boxed_expr(CommonIdentifier("my".into(), "knife".into())),
+                            rhs: boxed_expr(CommonIdentifier("my".into(), "knife".into())),
+                        }
+                        .into()
+                    ),
                 }
                 .into()
             ))

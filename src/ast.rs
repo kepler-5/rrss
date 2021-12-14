@@ -126,18 +126,30 @@ impl From<BinaryExpression> for Expression {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct ExpressionList(pub Vec<Expression>);
+pub struct ExpressionList {
+    pub first: Expression,
+    pub rest: Vec<Expression>,
+}
+
+impl ExpressionList {
+    pub fn has_multiple(&self) -> bool {
+        !self.rest.is_empty()
+    }
+}
 
 impl<E: Into<Expression>> From<E> for ExpressionList {
     fn from(e: E) -> Self {
-        Self(vec![e.into()])
+        Self {
+            first: e.into(),
+            rest: Vec::new(),
+        }
     }
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Assignment {
     pub dest: Identifier,
-    pub value: Expression,
+    pub value: ExpressionList,
     pub operator: Option<BinaryOperator>, // for compound assignments
 }
 
@@ -252,7 +264,7 @@ pub enum MutationOperator {
 #[derive(Debug, PartialEq)]
 pub struct Mutation {
     pub operator: MutationOperator,
-    pub operand: Expression,
+    pub operand: PrimaryExpression,
     pub dest: Option<Identifier>,
     pub param: Option<Expression>,
 }
