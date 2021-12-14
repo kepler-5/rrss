@@ -4,12 +4,13 @@ use itertools::Itertools;
 
 use crate::{
     ast::{
-        Assignment, BinaryExpression, BinaryOperator, Block, CommonIdentifier, Dec, Expression,
-        ExpressionList, Identifier, If, Inc, Input, LiteralExpression, Mutation, MutationOperator,
-        Output, PoeticAssignment, PoeticNumberAssignment, PoeticNumberAssignmentRHS,
-        PoeticNumberLiteral, PoeticNumberLiteralElem, PoeticStringAssignment, PrimaryExpression,
-        Program, ProperIdentifier, Rounding, RoundingDirection, SimpleIdentifier, Statement,
-        StatementWithLine, UnaryExpression, UnaryOperator, Until, While,
+        ArrayPop, ArrayPush, Assignment, BinaryExpression, BinaryOperator, Block, CommonIdentifier,
+        Dec, Expression, ExpressionList, Identifier, If, Inc, Input, LiteralExpression, Mutation,
+        MutationOperator, Output, PoeticAssignment, PoeticNumberAssignment,
+        PoeticNumberAssignmentRHS, PoeticNumberLiteral, PoeticNumberLiteralElem,
+        PoeticStringAssignment, PrimaryExpression, Program, ProperIdentifier, Rounding,
+        RoundingDirection, SimpleIdentifier, Statement, StatementWithLine, UnaryExpression,
+        UnaryOperator, Until, While,
     },
     lexer::{self, CommentSkippingLexer, Lexer, Token, TokenType},
 };
@@ -498,6 +499,9 @@ impl<'a> Parser<'a> {
                     TokenType::Continue => Some(self.parse_simple_continue()),
                     TokenType::Take => Some(self.parse_take_it_to_the_top()),
 
+                    TokenType::Rock => Some(self.parse_array_push().map(Into::into)),
+                    TokenType::Roll => Some(self.parse_array_pop().map(Into::into)),
+
                     _ => {
                         let error = self.new_parse_error(ParseErrorCode::UnexpectedToken);
                         self.lexer.next();
@@ -853,6 +857,24 @@ impl<'a> Parser<'a> {
         self.expect_token_ispelled("the")?;
         self.expect_token(TokenType::Top)?;
         Ok(Statement::Continue)
+    }
+
+    fn parse_array_push(&mut self) -> Result<ArrayPush, ParseError<'a>> {
+        self.consume(TokenType::Rock);
+        let array = self.parse_primary_expression()?;
+        self.expect_token(TokenType::With)?;
+        let values = self.parse_expression_list()?;
+        Ok(ArrayPush { array, values })
+    }
+
+    fn parse_array_pop(&mut self) -> Result<ArrayPop, ParseError<'a>> {
+        self.consume(TokenType::Roll);
+        let array = self.parse_primary_expression()?;
+        let dest = self
+            .match_and_consume(TokenType::Into)
+            .map(|_| self.expect_identifier())
+            .transpose()?;
+        Ok(ArrayPop { array, dest })
     }
 }
 
@@ -2799,6 +2821,59 @@ mod test {
                 code: ParseErrorCode::ExpectedText("the".into()),
                 token: None
             })
+        );
+    }
+
+    #[test]
+    fn parse_array_push_pop() {
+        let parse = |text| Parser::for_source_code(text).parse_statement();
+
+        assert_eq!(
+            parse("rock ints with 1"),
+            Ok(Some(
+                ArrayPush {
+                    array: SimpleIdentifier("ints".into()).into(),
+                    values: LiteralExpression::Number(1.0).into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("rock ints with 1, 2, 3"),
+            Ok(Some(
+                ArrayPush {
+                    array: SimpleIdentifier("ints".into()).into(),
+                    values: ExpressionList {
+                        first: LiteralExpression::Number(1.0).into(),
+                        rest: vec![
+                            LiteralExpression::Number(2.0).into(),
+                            LiteralExpression::Number(3.0).into()
+                        ]
+                    }
+                }
+                .into()
+            ))
+        );
+
+        assert_eq!(
+            parse("roll ints"),
+            Ok(Some(
+                ArrayPop {
+                    array: SimpleIdentifier("ints".into()).into(),
+                    dest: None
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("roll ints into it"),
+            Ok(Some(
+                ArrayPop {
+                    array: SimpleIdentifier("ints".into()).into(),
+                    dest: Some(Identifier::Pronoun)
+                }
+                .into()
+            ))
         );
     }
 }

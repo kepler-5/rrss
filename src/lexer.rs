@@ -76,6 +76,9 @@ pub enum TokenType<'a> {
     Turn,
     Round,
 
+    Rock,
+    Roll,
+
     Dot,
     Newline,
     Comment(&'a str),
@@ -194,6 +197,8 @@ lazy_static! {
             ("break", TokenType::Break),
             ("take", TokenType::Take),
             ("top", TokenType::Top),
+            ("rock", TokenType::Rock),
+            ("roll", TokenType::Roll),
         ]);
 
         m.extend(
@@ -913,6 +918,14 @@ mod test {
                 Token::new(TokenType::Break, "break"),
                 Token::new(TokenType::Take, "take"),
                 Token::new(TokenType::Top, "top"),
+            ],
+        );
+
+        assert_eq!(
+            lex("rock roll"),
+            vec![
+                Token::new(TokenType::Rock, "rock"),
+                Token::new(TokenType::Roll, "roll"),
             ],
         );
 
