@@ -1,5 +1,15 @@
 use std::iter::Peekable;
 
+macro_rules! trivial_from {
+    (for $for_struct:ty: $($from_struct:ident),+) => {
+        $(impl From<$from_struct> for $for_struct {
+            fn from(x: $from_struct) -> Self {
+                Self::$from_struct(x.into())
+            }
+        })+
+    };
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Program {
     pub code: Vec<Block>,
@@ -283,6 +293,18 @@ pub struct Rounding {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct ArrayPush {
+    pub array: PrimaryExpression,
+    pub values: ExpressionList,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ArrayPop {
+    pub array: PrimaryExpression,
+    pub dest: Option<Identifier>,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Statement {
     Assignment(Assignment),
     PoeticAssignment(PoeticAssignment),
@@ -297,12 +319,8 @@ pub enum Statement {
     Rounding(Rounding),
     Continue,
     Break,
-}
-
-impl From<Assignment> for Statement {
-    fn from(a: Assignment) -> Self {
-        Statement::Assignment(a)
-    }
+    ArrayPush(ArrayPush),
+    ArrayPop(ArrayPop),
 }
 
 impl<P: Into<PoeticAssignment>> From<P> for Statement {
@@ -311,59 +329,10 @@ impl<P: Into<PoeticAssignment>> From<P> for Statement {
     }
 }
 
-impl From<If> for Statement {
-    fn from(i: If) -> Self {
-        Statement::If(i)
-    }
-}
-
-impl From<While> for Statement {
-    fn from(w: While) -> Self {
-        Statement::While(w)
-    }
-}
-
-impl From<Until> for Statement {
-    fn from(u: Until) -> Self {
-        Statement::Until(u)
-    }
-}
-
-impl From<Inc> for Statement {
-    fn from(i: Inc) -> Self {
-        Statement::Inc(i)
-    }
-}
-
-impl From<Dec> for Statement {
-    fn from(d: Dec) -> Self {
-        Statement::Dec(d)
-    }
-}
-
-impl From<Input> for Statement {
-    fn from(i: Input) -> Self {
-        Statement::Input(i)
-    }
-}
-
-impl From<Output> for Statement {
-    fn from(o: Output) -> Self {
-        Statement::Output(o)
-    }
-}
-
-impl From<Mutation> for Statement {
-    fn from(m: Mutation) -> Self {
-        Statement::Mutation(m)
-    }
-}
-
-impl From<Rounding> for Statement {
-    fn from(r: Rounding) -> Self {
-        Statement::Rounding(r)
-    }
-}
+trivial_from!(
+    for Statement:
+    Assignment, If, While, Until, Inc, Dec, Input, Output, Mutation, Rounding, ArrayPush, ArrayPop
+);
 
 #[derive(Debug, PartialEq)]
 pub struct StatementWithLine(pub Statement, pub usize);
