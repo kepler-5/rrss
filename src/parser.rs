@@ -238,7 +238,10 @@ impl<'a> Parser<'a> {
             let mut exprs = Vec::new();
             while let Some(e) = self
                 .match_and_consume(TokenType::Comma)
-                .map(|_| next(self))
+                .map(|_| {
+                    self.match_and_consume(TokenType::And);
+                    next(self)
+                })
                 .transpose()?
                 .map(Into::into)
             {
@@ -1646,6 +1649,26 @@ mod test {
 
         assert_eq!(
             parse("Let X be 1 with 2, 3, 4"),
+            Ok(Assignment {
+                dest: SimpleIdentifier("X".into()).into(),
+                value: BinaryExpression {
+                    operator: BinaryOperator::Plus,
+                    lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                    rhs: boxed_expr(ExpressionList {
+                        first: LiteralExpression::Number(2.0).into(),
+                        rest: vec![
+                            LiteralExpression::Number(3.0).into(),
+                            LiteralExpression::Number(4.0).into()
+                        ]
+                    })
+                }
+                .into(),
+                operator: None,
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Let X be 1 with 2, 3, and 4"),
             Ok(Assignment {
                 dest: SimpleIdentifier("X".into()).into(),
                 value: BinaryExpression {
