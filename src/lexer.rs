@@ -81,6 +81,13 @@ pub enum TokenType<'a> {
     Rock,
     Roll,
 
+    Takes,
+    Taking,
+    Return,
+    Back,
+    Ampersand,
+    ApostropheNApostrophe,
+
     Comma,
     Dot,
     Newline,
@@ -115,7 +122,7 @@ impl<'a> TokenType<'a> {
 
 lazy_static! {
     static ref KEYWORDS: HashMap<&'static str, TokenType<'static>> = {
-        let mut m = HashMap::new();
+        let mut m = HashMap::with_capacity(128);
         m.insert("mysterious", TokenType::Mysterious);
 
         let mut alias = |token, names: &[&'static str]| {
@@ -172,6 +179,8 @@ lazy_static! {
         alias(TokenType::Join, &["join", "unite"]);
         alias(TokenType::Cast, &["cast", "burn"]);
         alias(TokenType::Round, &["round", "around"]);
+        alias(TokenType::Takes, &["takes", "wants"]);
+        alias(TokenType::Return, &["return", "give", "send"]);
 
         m.extend([
             ("with", TokenType::With),
@@ -204,6 +213,8 @@ lazy_static! {
             ("roll", TokenType::Roll),
             ("at", TokenType::At),
             ("like", TokenType::Like),
+            ("taking", TokenType::Taking),
+            ("back", TokenType::Back),
         ]);
 
         m.extend(
@@ -238,7 +249,11 @@ pub fn is_word(text: &str) -> bool {
 fn find_word_start<'a>(
     char_indices: &mut CharIndices,
 ) -> Option<<CharIndices<'a> as Iterator>::Item> {
-    char_indices.find(|&(_, c)| !is_ignorable_whitespace(c))
+    char_indices
+        .as_str()
+        .starts_with("'n'")
+        .then(|| char_indices.next())
+        .unwrap_or_else(|| char_indices.find(|&(_, c)| !is_ignorable_whitespace(c)))
 }
 
 struct LexResult<'a> {
@@ -442,6 +457,14 @@ impl<'a> Lexer<'a> {
         )
     }
 
+    fn scan_apostrophe_n_apostrophe(&self, start: usize) -> Option<LexResult<'a>> {
+        self.substr(start..).strip_prefix("'n'").map(|_| LexResult {
+            token: Token::new(TokenType::ApostropheNApostrophe, "'n'"),
+            end: start + 3,
+            newlines: 0,
+        })
+    }
+
     fn make_error_token(&self, start: usize, error: ErrorMessage) -> LexResult<'a> {
         let end = self.find_next_word_end();
         LexResult {
@@ -496,8 +519,8 @@ impl<'a> Lexer<'a> {
                         }
                     }
                     ',' => self.char_token(TokenType::Comma, start),
+                    '&' => self.char_token(TokenType::Ampersand, start),
 
-                    '\'' => continue,
                     '+' => self.char_token(TokenType::Plus, start),
                     '-' => self.char_token(TokenType::Minus, start),
                     '*' => self.char_token(TokenType::Multiply, start),
@@ -524,17 +547,21 @@ impl<'a> Lexer<'a> {
                         .unwrap_or_else(|| self.char_token(TokenType::Greater, start)),
 
                     c => {
-                        if is_ignorable_punctuation(c) {
+                        if let Some(result) = self.scan_apostrophe_n_apostrophe(start) {
+                            result
+                        } else if is_ignorable_punctuation(c) || c == '\'' {
                             continue;
-                        }
-                        let error = || self.make_error_token(start, ErrorMessage("Invalid token"));
-                        if c.is_numeric() {
-                            self.scan_number(start).unwrap_or_else(error)
-                        } else if c.is_alphabetic() {
-                            self.scan_keyword(start)
-                                .unwrap_or_else(|| self.scan_word(start))
                         } else {
-                            error()
+                            let error =
+                                || self.make_error_token(start, ErrorMessage("Invalid token"));
+                            if c.is_numeric() {
+                                self.scan_number(start).unwrap_or_else(error)
+                            } else if c.is_alphabetic() {
+                                self.scan_keyword(start)
+                                    .unwrap_or_else(|| self.scan_word(start))
+                            } else {
+                                error()
+                            }
                         }
                     }
                 };
@@ -587,7 +614,6 @@ mod test {
         fn types<'a>(tokens: Vec<Token<'a>>) -> Vec<TokenType<'a>> {
             tokens.into_iter().map(|tok| tok.id).collect()
         }
-
         assert_eq!(lex(""), vec![]);
         assert_eq!(lex("       "), vec![]);
         assert_eq!(
@@ -935,6 +961,26 @@ mod test {
             vec![
                 Token::new(TokenType::Rock, "rock"),
                 Token::new(TokenType::Roll, "roll"),
+            ],
+        );
+
+        assert_eq!(
+            lex("takes wants return give send back"),
+            vec![
+                Token::new(TokenType::Takes, "takes"),
+                Token::new(TokenType::Takes, "wants"),
+                Token::new(TokenType::Return, "return"),
+                Token::new(TokenType::Return, "give"),
+                Token::new(TokenType::Return, "send"),
+                Token::new(TokenType::Back, "back"),
+            ],
+        );
+
+        assert_eq!(
+            lex("& 'n'"),
+            vec![
+                Token::new(TokenType::Ampersand, "&"),
+                Token::new(TokenType::ApostropheNApostrophe, "'n'"),
             ],
         );
 
