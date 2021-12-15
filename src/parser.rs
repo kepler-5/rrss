@@ -1,5 +1,3 @@
-use std::ops::Not;
-
 use itertools::Itertools;
 
 use crate::{
@@ -74,11 +72,15 @@ impl<'a> ParseError<'a> {
 
 pub struct Parser<'a> {
     lexer: CommentSkippingLexer<'a>,
+    parsing_list: bool,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(lexer: CommentSkippingLexer<'a>) -> Self {
-        Self { lexer }
+        Self {
+            lexer,
+            parsing_list: false,
+        }
     }
 
     pub fn for_source_code(text: &'a str) -> Self {
@@ -221,20 +223,35 @@ impl<'a> Parser<'a> {
         tok.unwrap()
     }
 
-    fn parse_expression_list(&mut self) -> Result<ExpressionList, ParseError<'a>> {
-        let first = self.parse_expression()?;
-        let rest = {
+    fn parse_expression_list<
+        E: Into<Expression>,
+        F: Fn(&mut Parser<'a>) -> Result<E, ParseError<'a>>,
+    >(
+        &mut self,
+        next: F,
+    ) -> Result<ExpressionList, ParseError<'a>> {
+        let first = next(self)?.into();
+        let rest = if self.parsing_list {
+            Vec::new()
+        } else {
+            self.parsing_list = true; // nested lists are not allowed
             let mut exprs = Vec::new();
             while let Some(e) = self
                 .match_and_consume(TokenType::Comma)
-                .map(|_| self.parse_expression())
+                .map(|_| next(self))
                 .transpose()?
+                .map(Into::into)
             {
                 exprs.push(e)
             }
             exprs
         };
+        self.parsing_list = false;
         Ok(ExpressionList { first, rest })
+    }
+
+    fn parse_toplevel_expression_list(&mut self) -> Result<ExpressionList, ParseError<'a>> {
+        self.parse_expression_list(|p| p.parse_expression())
     }
 
     fn parse_expression(&mut self) -> Result<Expression, ParseError<'a>> {
@@ -345,7 +362,7 @@ impl<'a> Parser<'a> {
             .match_and_consume(operators)
             .map(|token| get_binary_operator(token.id).unwrap())
         {
-            let rhs = boxed_expr(next(self)?);
+            let rhs = boxed_expr(self.parse_expression_list(&next)?);
             expr = BinaryExpression {
                 operator,
                 lhs: boxed_expr(expr),
@@ -603,7 +620,7 @@ impl<'a> Parser<'a> {
                 .as_ref(),
             )
             .map(|tok| get_binary_operator(tok.id).unwrap());
-        let value = self.parse_expression_list()?;
+        let value = self.parse_toplevel_expression_list()?;
         Ok(Assignment {
             dest,
             value,
@@ -870,7 +887,7 @@ impl<'a> Parser<'a> {
 
     fn parse_array_push_rhs(&mut self) -> Result<ArrayPushRHS, ParseError<'a>> {
         match self.expect_any(&[TokenType::With, TokenType::Like])?.id {
-            TokenType::With => self.parse_expression_list().map(Into::into),
+            TokenType::With => self.parse_toplevel_expression_list().map(Into::into),
             TokenType::Like => self.parse_poetic_number_literal().map(Into::into),
 
             _ => unreachable!(),
@@ -1631,13 +1648,34 @@ mod test {
             parse("Let X be 1 with 2, 3, 4"),
             Ok(Assignment {
                 dest: SimpleIdentifier("X".into()).into(),
+                value: BinaryExpression {
+                    operator: BinaryOperator::Plus,
+                    lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                    rhs: boxed_expr(ExpressionList {
+                        first: LiteralExpression::Number(2.0).into(),
+                        rest: vec![
+                            LiteralExpression::Number(3.0).into(),
+                            LiteralExpression::Number(4.0).into()
+                        ]
+                    })
+                }
+                .into(),
+                operator: None,
+            }
+            .into())
+        );
+        assert_eq!(
+            parse("Let X be with 2, 3, 4"),
+            Ok(Assignment {
+                dest: SimpleIdentifier("X".into()).into(),
                 value: ExpressionList {
-                    first: LiteralExpression::Number(10.0).into(),
+                    first: LiteralExpression::Number(2.0).into(),
                     rest: vec![
-                        LiteralExpression::Number(11.0).into(),
-                        LiteralExpression::Number(12.0).into()
+                        LiteralExpression::Number(3.0).into(),
+                        LiteralExpression::Number(4.0).into()
                     ]
-                },
+                }
+                .into(),
                 operator: Some(BinaryOperator::Plus),
             }
             .into())

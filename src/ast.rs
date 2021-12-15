@@ -116,7 +116,7 @@ pub enum BinaryOperator {
 pub struct BinaryExpression {
     pub operator: BinaryOperator,
     pub lhs: Box<Expression>,
-    pub rhs: Box<Expression>,
+    pub rhs: Box<ExpressionList>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
