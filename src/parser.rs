@@ -7,7 +7,7 @@ use crate::{
         Identifier, If, Inc, Input, LiteralExpression, Mutation, MutationOperator, Output,
         PoeticAssignment, PoeticNumberAssignment, PoeticNumberAssignmentRHS, PoeticNumberLiteral,
         PoeticNumberLiteralElem, PoeticStringAssignment, PrimaryExpression, Program,
-        ProperIdentifier, Rounding, RoundingDirection, SimpleIdentifier, Statement,
+        ProperIdentifier, Return, Rounding, RoundingDirection, SimpleIdentifier, Statement,
         StatementWithLine, UnaryExpression, UnaryOperator, Until, While,
     },
     lexer::{self, CommentSkippingLexer, Lexer, Token, TokenType},
@@ -428,15 +428,20 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_literal_expression(&mut self) -> Option<LiteralExpression> {
-        self.lexer.next().and_then(|token| match token.id {
-            TokenType::Null => Some(LiteralExpression::Null),
-            TokenType::Number(n) => Some(LiteralExpression::Number(n)),
-            TokenType::StringLiteral(s) => Some(LiteralExpression::String(s.to_owned())),
-            TokenType::Empty => Some(LiteralExpression::String(String::new())),
-            TokenType::True => Some(LiteralExpression::Boolean(true)),
-            TokenType::False => Some(LiteralExpression::Boolean(false)),
-            _ => None,
-        })
+        self.current()
+            .and_then(|token| match token.id {
+                TokenType::Null => Some(LiteralExpression::Null),
+                TokenType::Number(n) => Some(LiteralExpression::Number(n)),
+                TokenType::StringLiteral(s) => Some(LiteralExpression::String(s.to_owned())),
+                TokenType::Empty => Some(LiteralExpression::String(String::new())),
+                TokenType::True => Some(LiteralExpression::Boolean(true)),
+                TokenType::False => Some(LiteralExpression::Boolean(false)),
+                _ => None,
+            })
+            .map(|tok| {
+                self.lexer.next();
+                tok
+            })
     }
 
     fn parse_common_identifier(&mut self) -> Result<Option<CommonIdentifier>, ParseError<'a>> {
@@ -530,6 +535,8 @@ impl<'a> Parser<'a> {
 
                     TokenType::Rock => Some(self.parse_array_push().map(Into::into)),
                     TokenType::Roll => Some(self.parse_array_pop().map(Into::into)),
+
+                    TokenType::Return => Some(self.parse_return().map(Into::into)),
 
                     _ => {
                         let error = self.new_parse_error(ParseErrorCode::UnexpectedToken);
@@ -912,6 +919,16 @@ impl<'a> Parser<'a> {
             .map(|_| self.parse_assignment_lhs())
             .transpose()?;
         Ok(ArrayPop { array, dest })
+    }
+
+    fn parse_return(&mut self) -> Result<Return, ParseError<'a>> {
+        let return_token = self.consume(TokenType::Return);
+        return_token
+            .is_ispelled("give")
+            .then(|| self.match_and_consume(TokenType::Back));
+        let value = self.parse_expression()?;
+        self.match_and_consume(TokenType::Back);
+        Ok(Return { value })
     }
 }
 
@@ -3095,6 +3112,95 @@ mod test {
                     }
                     .into(),
                     dest: None
+                }
+                .into()
+            ))
+        );
+    }
+    #[test]
+    fn parse_return() {
+        let parse = |text| Parser::for_source_code(text).parse_statement();
+
+        assert_eq!(
+            parse("return it"),
+            Ok(Some(
+                Return {
+                    value: Identifier::Pronoun.into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("give it"),
+            Ok(Some(
+                Return {
+                    value: Identifier::Pronoun.into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("give it back"),
+            Ok(Some(
+                Return {
+                    value: Identifier::Pronoun.into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("give back it"),
+            Ok(Some(
+                Return {
+                    value: Identifier::Pronoun.into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("give back it back"),
+            Ok(Some(
+                Return {
+                    value: Identifier::Pronoun.into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("return it back"),
+            Ok(Some(
+                Return {
+                    value: Identifier::Pronoun.into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("send it back"),
+            Ok(Some(
+                Return {
+                    value: Identifier::Pronoun.into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse("send back it"),
+            Err(ParseError::new(
+                ParseErrorCode::ExpectedPrimaryExpression,
+                Some(Token::new(TokenType::Back, "back"))
+            ))
+        );
+        assert_eq!(
+            parse("give back X with Y"),
+            Ok(Some(
+                Return {
+                    value: BinaryExpression {
+                        operator: BinaryOperator::Plus,
+                        lhs: boxed_expr(SimpleIdentifier("X".into())),
+                        rhs: boxed_expr(SimpleIdentifier("Y".into()))
+                    }
+                    .into()
                 }
                 .into()
             ))

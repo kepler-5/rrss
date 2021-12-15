@@ -338,6 +338,11 @@ pub struct ArrayPop {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct Return {
+    pub value: Expression,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Statement {
     Assignment(Assignment),
     PoeticAssignment(PoeticAssignment),
@@ -354,6 +359,7 @@ pub enum Statement {
     Break,
     ArrayPush(ArrayPush),
     ArrayPop(ArrayPop),
+    Return(Return),
 }
 
 impl<P: Into<PoeticAssignment>> From<P> for Statement {
@@ -364,7 +370,7 @@ impl<P: Into<PoeticAssignment>> From<P> for Statement {
 
 trivial_from!(
     for Statement:
-    Assignment, If, While, Until, Inc, Dec, Input, Output, Mutation, Rounding, ArrayPush, ArrayPop
+    Assignment, If, While, Until, Inc, Dec, Input, Output, Mutation, Rounding, ArrayPush, ArrayPop, Return
 );
 
 #[derive(Debug, PartialEq)]
