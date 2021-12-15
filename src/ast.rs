@@ -443,7 +443,7 @@ where
     }
 }
 
-fn find_or_end<I, F, T>(mut iter: I, pred: F) -> usize
+fn position_or_end<I, F, T>(mut iter: I, pred: F) -> usize
 where
     I: Iterator<Item = T>,
     F: Fn(&T) -> bool,
@@ -471,7 +471,7 @@ impl PoeticNumberLiteral {
 
     pub fn compute_value(&self) -> f64 {
         let exponent =
-            find_or_end(self.iter(), |e| *e == PoeticNumberLiteralIteratorItem::Dot) as i32 - 1;
+            position_or_end(self.iter(), |e| *e == PoeticNumberLiteralIteratorItem::Dot) as i32 - 1;
         self.iter()
             .filter(|e| *e != PoeticNumberLiteralIteratorItem::Dot)
             .enumerate()
@@ -523,11 +523,11 @@ mod test {
 
     #[test]
     fn test_find_or_end() {
-        assert_eq!(find_or_end(vec![].into_iter(), |x: &i32| *x == 1), 0);
-        assert_eq!(find_or_end(vec![1, 2, 3].into_iter(), |x| *x == 1), 0);
-        assert_eq!(find_or_end(vec![1, 2, 3].into_iter(), |x| *x == 2), 1);
-        assert_eq!(find_or_end(vec![1, 2, 3].into_iter(), |x| *x == 3), 2);
-        assert_eq!(find_or_end(vec![1, 2, 3].into_iter(), |x| *x == 4), 3);
-        assert_eq!(find_or_end(vec![1, 2, 3].into_iter(), |x| *x == 9), 3);
+        assert_eq!(position_or_end(vec![].into_iter(), |x: &i32| *x == 1), 0);
+        assert_eq!(position_or_end(vec![1, 2, 3].into_iter(), |x| *x == 1), 0);
+        assert_eq!(position_or_end(vec![1, 2, 3].into_iter(), |x| *x == 2), 1);
+        assert_eq!(position_or_end(vec![1, 2, 3].into_iter(), |x| *x == 3), 2);
+        assert_eq!(position_or_end(vec![1, 2, 3].into_iter(), |x| *x == 4), 3);
+        assert_eq!(position_or_end(vec![1, 2, 3].into_iter(), |x| *x == 9), 3);
     }
 }
