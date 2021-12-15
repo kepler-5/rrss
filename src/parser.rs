@@ -2974,6 +2974,29 @@ mod test {
             ))
         );
         assert_eq!(
+            parse("rock ints with 1, 2 with 3, 4, 5"),
+            Ok(Some(
+                ArrayPush {
+                    array: SimpleIdentifier("ints".into()).into(),
+                    value: ExpressionList {
+                        first: LiteralExpression::Number(1.0).into(),
+                        rest: vec![
+                            BinaryExpression {
+                                operator: BinaryOperator::Plus,
+                                lhs: boxed_expr(LiteralExpression::Number(2.0)),
+                                rhs: boxed_expr(LiteralExpression::Number(3.0))
+                            }
+                            .into(),
+                            LiteralExpression::Number(4.0).into(),
+                            LiteralExpression::Number(5.0).into(),
+                        ]
+                    }
+                    .into()
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
             parse("rock you like a hurricane"),
             Ok(Some(
                 ArrayPush {
