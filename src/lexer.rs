@@ -81,6 +81,7 @@ pub enum TokenType<'a> {
     Rock,
     Roll,
 
+    Comma,
     Dot,
     Newline,
     Comment(&'a str),
@@ -494,6 +495,7 @@ impl<'a> Lexer<'a> {
                             self.char_token(TokenType::Dot, start)
                         }
                     }
+                    ',' => self.char_token(TokenType::Comma, start),
 
                     '\'' => continue,
                     '+' => self.char_token(TokenType::Plus, start),
@@ -686,6 +688,7 @@ mod test {
             lex("hello, world."),
             vec![
                 Token::new(TokenType::Word, "hello"),
+                Token::new(TokenType::Comma, ","),
                 Token::new(TokenType::Word, "world"),
                 Token::new(TokenType::Dot, "."),
             ]

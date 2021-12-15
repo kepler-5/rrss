@@ -49,7 +49,6 @@ pub enum ParseErrorCode<'a> {
     MissingIDAfterCommonPrefix(String),
     UppercaseAfterCommonPrefix(String, String),
     MutationOperandMustBeIdentifier(PrimaryExpression),
-    ListExpressionWithoutOperator,
     ExpectedPrimaryExpression,
     ExpectedIdentifier,
     ExpectedText(String),
@@ -180,17 +179,6 @@ impl<'a> Parser<'a> {
         ParseError::new(code, self.current())
     }
 
-    fn error_if<F: FnOnce() -> ParseErrorCode<'a>>(
-        &self,
-        condition: bool,
-        f: F,
-    ) -> Result<(), ParseError<'a>> {
-        condition
-            .not()
-            .then(|| ())
-            .ok_or_else(|| self.new_parse_error(f()))
-    }
-
     fn match_and_consume<M: MatchesToken>(&mut self, m: M) -> Option<Token<'a>> {
         if self
             .lexer
@@ -208,11 +196,13 @@ impl<'a> Parser<'a> {
     fn match_and_consume_while<M, R, Tx>(&mut self, m: M, tx: Tx) -> Result<Vec<R>, ParseError<'a>>
     where
         for<'b> &'b M: MatchesToken,
-        Tx: Fn(&Token, &mut Parser<'a>) -> Result<R, ParseError<'a>>,
+        Tx: Fn(&Token, &mut Parser<'a>) -> Result<Option<R>, ParseError<'a>>,
     {
         let mut result = Vec::new();
         while let Some(token) = self.match_and_consume(&m) {
-            result.push(tx(&token, self)?);
+            if let Some(r) = tx(&token, self)? {
+                result.push(r);
+            }
         }
         Ok(result)
     }
@@ -235,16 +225,11 @@ impl<'a> Parser<'a> {
         let first = self.parse_expression()?;
         let rest = {
             let mut exprs = Vec::new();
-            while let Some(e) = match self.parse_expression() {
-                Ok(e) => Some(e),
-                Err(e) => {
-                    if e.code == ParseErrorCode::ExpectedPrimaryExpression {
-                        None
-                    } else {
-                        Err(e)?
-                    }
-                }
-            } {
+            while let Some(e) = self
+                .match_and_consume(TokenType::Comma)
+                .map(|_| self.parse_expression())
+                .transpose()?
+            {
                 exprs.push(e)
             }
             exprs
@@ -470,7 +455,7 @@ impl<'a> Parser<'a> {
         let names = self
             .match_and_consume_while(
                 |tok: &Token| tok.id == TokenType::CapitalizedWord,
-                |tok, _| Ok(tok.spelling.to_owned()),
+                |tok, _| Ok(Some(tok.spelling.to_owned())),
             )
             .unwrap();
         match names.len() {
@@ -536,18 +521,23 @@ impl<'a> Parser<'a> {
             .transpose()
     }
 
+    fn expect_eol(&mut self) -> Result<(), ParseError<'a>> {
+        self.match_and_consume(TokenType::Comma);
+        self.expect_token_or_end(TokenType::Newline).map(|_| ())
+    }
+
     fn parse_block_loop(&mut self) -> Result<Vec<StatementWithLine>, ParseError<'a>> {
         let mut statements = Vec::new();
         while let (line, Some(s)) = (self.current_line(), self.parse_statement()?) {
             statements.push(StatementWithLine(s, line));
-            self.expect_token_or_end(TokenType::Newline)?;
+            self.expect_eol()?;
         }
         Ok(statements)
     }
 
     fn parse_block(&mut self) -> Result<Block, ParseError<'a>> {
         let statements = self.parse_block_loop()?;
-        self.expect_token_or_end(TokenType::Newline)?;
+        self.expect_eol()?;
         Ok(Block(statements))
     }
 
@@ -614,9 +604,6 @@ impl<'a> Parser<'a> {
             )
             .map(|tok| get_binary_operator(tok.id).unwrap());
         let value = self.parse_expression_list()?;
-        self.error_if(operator.is_none() && value.has_multiple(), || {
-            ParseErrorCode::ListExpressionWithoutOperator
-        })?;
         Ok(Assignment {
             dest,
             value,
@@ -629,18 +616,19 @@ impl<'a> Parser<'a> {
             |tok: &Token| {
                 matches!(
                     tok.id,
-                    TokenType::Dot | TokenType::ApostropheS | TokenType::ApostropheRE
+                    TokenType::Dot
+                        | TokenType::Comma
+                        | TokenType::ApostropheS
+                        | TokenType::ApostropheRE
                 ) || *tok == Token::new(TokenType::Minus, "-")
                     || lexer::is_word(tok.spelling)
             },
             |tok, myself| match tok {
-                Token {
-                    id: TokenType::Dot, ..
-                } => Ok(PoeticNumberLiteralElem::Dot),
-                Token {
-                    id: TokenType::ApostropheS | TokenType::ApostropheRE,
-                    ..
-                } => Ok(PoeticNumberLiteralElem::WordSuffix(tok.spelling.into())),
+                tok if tok.id == TokenType::Comma => Ok(None),
+                tok if tok.id == TokenType::Dot => Ok(Some(PoeticNumberLiteralElem::Dot)),
+                tok if matches!(tok.id, TokenType::ApostropheS | TokenType::ApostropheRE) => Ok(
+                    Some(PoeticNumberLiteralElem::WordSuffix(tok.spelling.into())),
+                ),
                 Token {
                     id: TokenType::Minus,
                     spelling: "-",
@@ -654,10 +642,12 @@ impl<'a> Parser<'a> {
                             ParseError::new(ParseErrorCode::UnexpectedToken, Some(next_token))
                         })
                         .map(|word| {
-                            PoeticNumberLiteralElem::WordSuffix("-".to_owned() + word.spelling)
+                            Some(PoeticNumberLiteralElem::WordSuffix(
+                                "-".to_owned() + word.spelling,
+                            ))
                         })
                 }
-                _ => Ok(PoeticNumberLiteralElem::Word(tok.spelling.into())),
+                _ => Ok(Some(PoeticNumberLiteralElem::Word(tok.spelling.into()))),
             },
         )?;
         (!elems.is_empty())
@@ -717,7 +707,7 @@ impl<'a> Parser<'a> {
     fn parse_if_statement(&mut self) -> Result<If, ParseError<'a>> {
         self.consume(TokenType::If);
         let condition = self.parse_expression()?;
-        self.expect_token_or_end(TokenType::Newline)?;
+        self.expect_eol()?;
         let then_block = Block(self.parse_block_loop()?);
         let else_block = self
             .match_and_consume(TokenType::Else)
@@ -737,7 +727,7 @@ impl<'a> Parser<'a> {
         self.consume([TokenType::While, TokenType::Until].as_ref());
         let is_while = *start_token == TokenType::While;
         let condition = self.parse_expression()?;
-        self.expect_token_or_end(TokenType::Newline)?;
+        self.expect_eol()?;
         let block = Block(self.parse_block_loop()?);
         Ok(if is_while {
             While { condition, block }.into()
@@ -756,8 +746,10 @@ impl<'a> Parser<'a> {
         self.expect_token(suffix)?;
         let extra_count = {
             let mut c = 0;
+            self.match_and_consume(TokenType::Comma);
             while let Some(_) = self.match_and_consume(suffix) {
-                c += 1
+                c += 1;
+                self.match_and_consume(TokenType::Comma);
             }
             c
         };
@@ -1636,7 +1628,7 @@ mod test {
         );
 
         assert_eq!(
-            parse("Let X be with 10, 11, 12"),
+            parse("Let X be 1 with 2, 3, 4"),
             Ok(Assignment {
                 dest: SimpleIdentifier("X".into()).into(),
                 value: ExpressionList {
@@ -1644,26 +1636,6 @@ mod test {
                     rest: vec![
                         LiteralExpression::Number(11.0).into(),
                         LiteralExpression::Number(12.0).into()
-                    ]
-                },
-                operator: Some(BinaryOperator::Plus),
-            }
-            .into())
-        );
-        assert_eq!(
-            parse("Let X be with 10, 11 with 12, 13"),
-            Ok(Assignment {
-                dest: SimpleIdentifier("X".into()).into(),
-                value: ExpressionList {
-                    first: LiteralExpression::Number(10.0).into(),
-                    rest: vec![
-                        BinaryExpression {
-                            operator: BinaryOperator::Plus,
-                            lhs: boxed_expr(LiteralExpression::Number(11.0)),
-                            rhs: boxed_expr(LiteralExpression::Number(12.0))
-                        }
-                        .into(),
-                        LiteralExpression::Number(13.0).into()
                     ]
                 },
                 operator: Some(BinaryOperator::Plus),
@@ -1756,17 +1728,9 @@ mod test {
             Err(ParseError {
                 code: ParseErrorCode::ExpectedToken(TokenType::Into),
                 token: Some(Token {
-                    id: TokenType::Number(2.0),
-                    spelling: "2"
+                    id: TokenType::Comma,
+                    spelling: ","
                 })
-            })
-        );
-
-        assert_eq!(
-            parse("Let X be 10, 11 with 12, 13"),
-            Err(ParseError {
-                code: ParseErrorCode::ListExpressionWithoutOperator,
-                token: None
             })
         );
     }
@@ -2753,7 +2717,7 @@ mod test {
             ))
         );
         assert_eq!(
-            parse("cut it into pieces with my knife, with my knife"),
+            parse("cut it into pieces with my knife with my knife"),
             Ok(Some(
                 Mutation {
                     operator: MutationOperator::Cut,
