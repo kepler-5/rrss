@@ -4,11 +4,11 @@ use crate::{
     ast::{
         ArrayPop, ArrayPush, ArrayPushRHS, ArraySubscript, Assignment, AssignmentLHS,
         BinaryExpression, BinaryOperator, Block, CommonIdentifier, Dec, Expression, ExpressionList,
-        Identifier, If, Inc, Input, LiteralExpression, Mutation, MutationOperator, Output,
-        PoeticAssignment, PoeticNumberAssignment, PoeticNumberAssignmentRHS, PoeticNumberLiteral,
-        PoeticNumberLiteralElem, PoeticStringAssignment, PrimaryExpression, Program,
-        ProperIdentifier, Return, Rounding, RoundingDirection, SimpleIdentifier, Statement,
-        StatementWithLine, UnaryExpression, UnaryOperator, Until, While,
+        Function, Identifier, If, Inc, Input, LiteralExpression, Mutation, MutationOperator,
+        Output, PoeticAssignment, PoeticNumberAssignment, PoeticNumberAssignmentRHS,
+        PoeticNumberLiteral, PoeticNumberLiteralElem, PoeticStringAssignment, PrimaryExpression,
+        Program, ProperIdentifier, Return, Rounding, RoundingDirection, SimpleIdentifier,
+        Statement, StatementWithLine, UnaryExpression, UnaryOperator, Until, While,
     },
     lexer::{self, CommentSkippingLexer, Lexer, Token, TokenType},
 };
@@ -175,6 +175,11 @@ impl<'a> Parser<'a> {
 
     fn current_line(&self) -> usize {
         self.lexer.underlying().current_line()
+    }
+
+    fn peek_next(&self) -> Option<Token<'a>> {
+        let mut lexer = self.lexer.clone();
+        lexer.next().and_then(|_| lexer.next())
     }
 
     fn new_parse_error(&self, code: ParseErrorCode<'a>) -> ParseError<'a> {
@@ -507,9 +512,11 @@ impl<'a> Parser<'a> {
                     TokenType::Let => Some(self.parse_let_assignment().map(Into::into)),
                     TokenType::Word
                     | TokenType::CapitalizedWord
-                    | TokenType::CommonVariablePrefix => {
-                        Some(self.parse_poetic_assignment().map(Into::into))
-                    }
+                    | TokenType::CommonVariablePrefix => self
+                        .peek_next()
+                        .filter(|tok| tok.id == TokenType::Takes)
+                        .map(|_| self.parse_function().map(Into::into))
+                        .or_else(|| Some(self.parse_poetic_assignment().map(Into::into))),
 
                     TokenType::If => Some(self.parse_if_statement().map(Into::into)),
 
@@ -729,6 +736,38 @@ impl<'a> Parser<'a> {
                 .parse_poetic_number_assignment_rhs()
                 .map(|rhs| PoeticNumberAssignment { dest, rhs }.into()),
         }
+    }
+
+    fn parse_parameter_list<R, P: FnMut(&mut Parser<'a>) -> Result<R, ParseError<'a>>>(
+        &mut self,
+        mut p: P,
+    ) -> Result<Vec<R>, ParseError<'a>> {
+        let mut params = vec![p(self)?];
+        while let Some(sep) = self.match_and_consume(
+            [
+                TokenType::Ampersand,
+                TokenType::Comma,
+                TokenType::ApostropheNApostrophe,
+            ]
+            .as_ref(),
+        ) {
+            if sep.id == TokenType::Comma {
+                self.match_and_consume(TokenType::And);
+            }
+            params.push(p(self)?);
+        }
+        Ok(params)
+    }
+
+    fn parse_function(&mut self) -> Result<Function, ParseError<'a>> {
+        let name = self
+            .parse_simple_identifier()
+            .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedIdentifier))?;
+        self.consume(TokenType::Takes); // we checked this from the outside already
+        let params = self.parse_parameter_list(|p| p.expect_identifier())?;
+        self.expect_eol()?;
+        let body = self.parse_block()?;
+        Ok(Function { name, params, body })
     }
 
     fn parse_if_statement(&mut self) -> Result<If, ParseError<'a>> {
@@ -3201,6 +3240,98 @@ mod test {
                         rhs: boxed_expr(SimpleIdentifier("Y".into()))
                     }
                     .into()
+                }
+                .into()
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_function() {
+        let parse = |text| Parser::for_source_code(text).parse_statement();
+
+        assert_eq!(
+            parse(
+                "\
+            Echo takes X
+            say X
+            "
+            ),
+            Ok(Some(
+                Function {
+                    name: SimpleIdentifier("Echo".into()),
+                    params: vec![SimpleIdentifier("X".into()).into()],
+                    body: Block(vec![StatementWithLine(
+                        Output {
+                            value: SimpleIdentifier("X".into()).into()
+                        }
+                        .into(),
+                        2
+                    )])
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse(
+                "\
+            AddOrSub takes X, and B
+            if B
+            Give Back X plus 1
+            (end if)
+            say \"else\"
+            Give Back X minus 1
+            (end function)
+            "
+            ),
+            Ok(Some(
+                Function {
+                    name: SimpleIdentifier("AddOrSub".into()),
+                    params: vec![
+                        SimpleIdentifier("X".into()).into(),
+                        SimpleIdentifier("B".into()).into()
+                    ],
+                    body: Block(vec![
+                        StatementWithLine(
+                            If {
+                                condition: SimpleIdentifier("B".into()).into(),
+                                then_block: Block(vec![StatementWithLine(
+                                    Return {
+                                        value: BinaryExpression {
+                                            operator: BinaryOperator::Plus,
+                                            lhs: boxed_expr(SimpleIdentifier("X".into())),
+                                            rhs: boxed_expr(LiteralExpression::Number(1.0))
+                                        }
+                                        .into()
+                                    }
+                                    .into(),
+                                    3
+                                )]),
+                                else_block: None,
+                            }
+                            .into(),
+                            2
+                        ),
+                        StatementWithLine(
+                            Output {
+                                value: LiteralExpression::String("else".into()).into()
+                            }
+                            .into(),
+                            5
+                        ),
+                        StatementWithLine(
+                            Return {
+                                value: BinaryExpression {
+                                    operator: BinaryOperator::Minus,
+                                    lhs: boxed_expr(SimpleIdentifier("X".into())),
+                                    rhs: boxed_expr(LiteralExpression::Number(1.0))
+                                }
+                                .into()
+                            }
+                            .into(),
+                            6
+                        )
+                    ])
                 }
                 .into()
             ))

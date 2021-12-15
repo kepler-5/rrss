@@ -343,6 +343,13 @@ pub struct Return {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct Function {
+    pub name: SimpleIdentifier,
+    pub params: Vec<Identifier>,
+    pub body: Block,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Statement {
     Assignment(Assignment),
     PoeticAssignment(PoeticAssignment),
@@ -360,6 +367,7 @@ pub enum Statement {
     ArrayPush(ArrayPush),
     ArrayPop(ArrayPop),
     Return(Return),
+    Function(Function),
 }
 
 impl<P: Into<PoeticAssignment>> From<P> for Statement {
@@ -370,7 +378,8 @@ impl<P: Into<PoeticAssignment>> From<P> for Statement {
 
 trivial_from!(
     for Statement:
-    Assignment, If, While, Until, Inc, Dec, Input, Output, Mutation, Rounding, ArrayPush, ArrayPop, Return
+    Assignment, If, While, Until, Inc, Dec, Input, Output,
+    Mutation, Rounding, ArrayPush, ArrayPop, Return, Function
 );
 
 #[derive(Debug, PartialEq)]
