@@ -169,6 +169,10 @@ impl<'a> Parser<'a> {
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::UnexpectedEndOfTokens))
     }
 
+    fn current_matches<M: MatchesToken>(&self, m: M) -> bool {
+        self.current().filter(|tok| m.matches_token(tok)).is_some()
+    }
+
     fn current_line(&self) -> usize {
         self.lexer.underlying().current_line()
     }
@@ -510,6 +514,12 @@ impl<'a> Parser<'a> {
         self.parse_parameter_list(|p| p.parse_primary_expression())
     }
 
+    fn parse_function_call(&mut self, name: VariableName) -> Result<FunctionCall, ParseError<'a>> {
+        self.consume(TokenType::Taking);
+        self.parse_rest_of_function_call()
+            .map(|args| FunctionCall { name, args })
+    }
+
     fn parse_identifier_or_function_call(
         &mut self,
     ) -> Result<Option<PrimaryExpression>, ParseError<'a>> {
@@ -518,9 +528,8 @@ impl<'a> Parser<'a> {
         } else {
             self.parse_variable_name()?
                 .map(|name| {
-                    if self.match_and_consume(TokenType::Taking).is_some() {
-                        self.parse_rest_of_function_call()
-                            .map(|args| FunctionCall { name, args }.into())
+                    if self.current_matches(TokenType::Taking) {
+                        self.parse_function_call(name).map(Into::into)
                     } else {
                         Ok(name.into())
                     }
@@ -791,6 +800,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_function(&mut self, name: VariableName) -> Result<Function, ParseError<'a>> {
+        self.consume(TokenType::Takes);
         let params = self.parse_parameter_list(|p| p.expect_variable_name())?;
         self.expect_eol()?;
         let body = self.parse_block()?;
@@ -798,14 +808,14 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_statement_starting_with_word(&mut self) -> Result<Statement, ParseError<'a>> {
-        // TODO calling functions should be allowed to be its own statement
         let name = self
             .parse_variable_name()?
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedIdentifier))?;
-        if self.match_and_consume(TokenType::Takes).is_some() {
-            self.parse_function(name).map(Into::into)
-        } else {
-            self.parse_poetic_assignment(name).map(Into::into)
+        match self.current().map(|tok| tok.id) {
+            Some(TokenType::Takes) => self.parse_function(name).map(Into::into),
+            Some(TokenType::Taking) => self.parse_function_call(name).map(Into::into),
+
+            _ => self.parse_poetic_assignment(name).map(Into::into),
         }
     }
 
@@ -3437,7 +3447,7 @@ mod test {
     }
 
     #[test]
-    fn parse_function_call() {
+    fn parse_function_call_expr() {
         let parse = |text| Parser::for_source_code(text).parse_expression();
 
         assert_eq!(
@@ -3461,6 +3471,38 @@ mod test {
                 ]
             }
             .into())
+        );
+    }
+
+    #[test]
+    fn parse_function_call_statement() {
+        let parse = |text| Parser::for_source_code(text).parse_statement();
+
+        assert_eq!(
+            parse("F taking X"),
+            Ok(Some(
+                FunctionCall {
+                    name: SimpleIdentifier("F".into()).into(),
+                    args: vec![SimpleIdentifier("X".into()).into()]
+                }
+                .into()
+            ))
+        );
+
+        assert_eq!(
+            parse("my heart taking X, Y, and Z, and 12"),
+            Ok(Some(
+                FunctionCall {
+                    name: CommonIdentifier("my".into(), "heart".into()).into(),
+                    args: vec![
+                        SimpleIdentifier("X".into()).into(),
+                        SimpleIdentifier("Y".into()).into(),
+                        SimpleIdentifier("Z".into()).into(),
+                        LiteralExpression::Number(12.0).into(),
+                    ]
+                }
+                .into()
+            ))
         );
     }
 }

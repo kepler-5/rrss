@@ -332,6 +332,7 @@ pub enum Statement {
     ArrayPop(ArrayPop),
     Return(Return),
     Function(Function),
+    FunctionCall(FunctionCall),
 }
 
 bridging_from!(for Statement: PoeticAssignment);
