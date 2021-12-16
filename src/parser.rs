@@ -4,11 +4,12 @@ use crate::{
     ast::{
         ArrayPop, ArrayPush, ArrayPushRHS, ArraySubscript, Assignment, AssignmentLHS,
         BinaryExpression, BinaryOperator, Block, CommonIdentifier, Dec, Expression, ExpressionList,
-        Function, Identifier, If, Inc, Input, LiteralExpression, Mutation, MutationOperator,
-        Output, PoeticAssignment, PoeticNumberAssignment, PoeticNumberAssignmentRHS,
-        PoeticNumberLiteral, PoeticNumberLiteralElem, PoeticStringAssignment, PrimaryExpression,
-        Program, ProperIdentifier, Return, Rounding, RoundingDirection, SimpleIdentifier,
-        Statement, StatementWithLine, UnaryExpression, UnaryOperator, Until, While,
+        Function, FunctionCall, Identifier, If, Inc, Input, LiteralExpression, Mutation,
+        MutationOperator, Output, PoeticAssignment, PoeticNumberAssignment,
+        PoeticNumberAssignmentRHS, PoeticNumberLiteral, PoeticNumberLiteralElem,
+        PoeticStringAssignment, PrimaryExpression, Program, ProperIdentifier, Return, Rounding,
+        RoundingDirection, SimpleIdentifier, Statement, StatementWithLine, UnaryExpression,
+        UnaryOperator, Until, VariableName, While,
     },
     lexer::{self, CommentSkippingLexer, Lexer, Token, TokenType},
 };
@@ -398,8 +399,7 @@ impl<'a> Parser<'a> {
 
     fn parse_primary_expression(&mut self) -> Result<PrimaryExpression, ParseError<'a>> {
         let expr: PrimaryExpression = self
-            .parse_identifier()?
-            .map(Into::into)
+            .parse_identifier_or_function_call()?
             .or_else(|| self.parse_literal_expression().map(Into::into))
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedPrimaryExpression))?;
         self.parse_array_subscript_after(expr)
@@ -481,7 +481,7 @@ impl<'a> Parser<'a> {
             .map(|tok| SimpleIdentifier(tok.spelling.into()))
     }
 
-    fn parse_capitalized_identifier(&mut self) -> Option<Identifier> {
+    fn parse_capitalized_identifier(&mut self) -> Option<VariableName> {
         let names = self
             .match_and_consume_while(
                 |tok: &Token| tok.id == TokenType::CapitalizedWord,
@@ -495,13 +495,42 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_identifier(&mut self) -> Result<Option<Identifier>, ParseError<'a>> {
+    fn parse_variable_name(&mut self) -> Result<Option<VariableName>, ParseError<'a>> {
         Ok(self
             .parse_common_identifier()?
             .map(Into::into)
-            .or_else(|| self.parse_pronoun())
-            .or_else(|| self.parse_capitalized_identifier())
+            .or_else(|| self.parse_capitalized_identifier().map(Into::into))
             .or_else(|| self.parse_simple_identifier().map(Into::into)))
+    }
+
+    fn parse_identifier(&mut self) -> Result<Option<Identifier>, ParseError<'a>> {
+        Ok(self
+            .parse_variable_name()?
+            .map(Into::into)
+            .or_else(|| self.parse_pronoun()))
+    }
+
+    fn parse_rest_of_function_call(&mut self) -> Result<Vec<PrimaryExpression>, ParseError<'a>> {
+        self.parse_parameter_list(|p| p.parse_primary_expression())
+    }
+
+    fn parse_identifier_or_function_call(
+        &mut self,
+    ) -> Result<Option<PrimaryExpression>, ParseError<'a>> {
+        if let pronoun @ Some(_) = self.parse_pronoun() {
+            Ok(pronoun.map(Into::into))
+        } else {
+            self.parse_variable_name()?
+                .map(|name| {
+                    if self.match_and_consume(TokenType::Taking).is_some() {
+                        self.parse_rest_of_function_call()
+                            .map(|args| FunctionCall { name, args }.into())
+                    } else {
+                        Ok(name.into())
+                    }
+                })
+                .transpose()
+        }
     }
 
     fn parse_statement(&mut self) -> Result<Option<Statement>, ParseError<'a>> {
@@ -607,6 +636,11 @@ impl<'a> Parser<'a> {
 
     fn expect_identifier(&mut self) -> Result<Identifier, ParseError<'a>> {
         self.parse_identifier()?
+            .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedIdentifier))
+    }
+
+    fn expect_variable_name(&mut self) -> Result<VariableName, ParseError<'a>> {
+        self.parse_variable_name()?
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedIdentifier))
     }
 
@@ -761,10 +795,10 @@ impl<'a> Parser<'a> {
 
     fn parse_function(&mut self) -> Result<Function, ParseError<'a>> {
         let name = self
-            .parse_simple_identifier()
+            .parse_variable_name()?
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedIdentifier))?;
         self.consume(TokenType::Takes); // we checked this from the outside already
-        let params = self.parse_parameter_list(|p| p.expect_identifier())?;
+        let params = self.parse_parameter_list(|p| p.expect_variable_name())?;
         self.expect_eol()?;
         let body = self.parse_block()?;
         Ok(Function { name, params, body })
@@ -3259,7 +3293,7 @@ mod test {
             ),
             Ok(Some(
                 Function {
-                    name: SimpleIdentifier("Echo".into()),
+                    name: SimpleIdentifier("Echo".into()).into(),
                     params: vec![SimpleIdentifier("X".into()).into()],
                     body: Block(vec![StatementWithLine(
                         Output {
@@ -3286,7 +3320,7 @@ mod test {
             ),
             Ok(Some(
                 Function {
-                    name: SimpleIdentifier("AddOrSub".into()),
+                    name: SimpleIdentifier("AddOrSub".into()).into(),
                     params: vec![
                         SimpleIdentifier("X".into()).into(),
                         SimpleIdentifier("B".into()).into()
@@ -3335,6 +3369,34 @@ mod test {
                 }
                 .into()
             ))
+        );
+    }
+
+    #[test]
+    fn parse_function_call() {
+        let parse = |text| Parser::for_source_code(text).parse_expression();
+
+        assert_eq!(
+            parse("F taking X"),
+            Ok(FunctionCall {
+                name: SimpleIdentifier("F".into()).into(),
+                args: vec![SimpleIdentifier("X".into()).into()]
+            }
+            .into())
+        );
+
+        assert_eq!(
+            parse("my heart taking X, Y, and Z, and 12"),
+            Ok(FunctionCall {
+                name: CommonIdentifier("my".into(), "heart".into()).into(),
+                args: vec![
+                    SimpleIdentifier("X".into()).into(),
+                    SimpleIdentifier("Y".into()).into(),
+                    SimpleIdentifier("Z".into()).into(),
+                    LiteralExpression::Number(12.0).into(),
+                ]
+            }
+            .into())
         );
     }
 }

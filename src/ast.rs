@@ -31,28 +31,39 @@ pub struct CommonIdentifier(pub String, pub String);
 pub struct ProperIdentifier(pub Vec<String>);
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Identifier {
+pub enum VariableName {
     Simple(SimpleIdentifier),
     Common(CommonIdentifier),
     Proper(ProperIdentifier),
+}
+
+impl From<SimpleIdentifier> for VariableName {
+    fn from(expr: SimpleIdentifier) -> Self {
+        VariableName::Simple(expr)
+    }
+}
+
+impl From<CommonIdentifier> for VariableName {
+    fn from(expr: CommonIdentifier) -> Self {
+        VariableName::Common(expr)
+    }
+}
+
+impl From<ProperIdentifier> for VariableName {
+    fn from(expr: ProperIdentifier) -> Self {
+        VariableName::Proper(expr)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Identifier {
+    VariableName(VariableName),
     Pronoun,
 }
 
-impl From<SimpleIdentifier> for Identifier {
-    fn from(expr: SimpleIdentifier) -> Self {
-        Identifier::Simple(expr)
-    }
-}
-
-impl From<CommonIdentifier> for Identifier {
-    fn from(expr: CommonIdentifier) -> Self {
-        Identifier::Common(expr)
-    }
-}
-
-impl From<ProperIdentifier> for Identifier {
-    fn from(expr: ProperIdentifier) -> Self {
-        Identifier::Proper(expr)
+impl<N: Into<VariableName>> From<N> for Identifier {
+    fn from(n: N) -> Self {
+        Identifier::VariableName(n.into())
     }
 }
 
@@ -63,10 +74,17 @@ pub struct ArraySubscript {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct FunctionCall {
+    pub name: VariableName,
+    pub args: Vec<PrimaryExpression>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum PrimaryExpression {
     Literal(LiteralExpression),
     Identifier(Identifier),
     ArraySubscript(ArraySubscript),
+    FunctionCall(FunctionCall),
 }
 
 impl From<LiteralExpression> for PrimaryExpression {
@@ -81,7 +99,7 @@ impl<I: Into<Identifier>> From<I> for PrimaryExpression {
     }
 }
 
-trivial_from!(for PrimaryExpression: ArraySubscript);
+trivial_from!(for PrimaryExpression: ArraySubscript, FunctionCall);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum UnaryOperator {
@@ -344,8 +362,8 @@ pub struct Return {
 
 #[derive(Debug, PartialEq)]
 pub struct Function {
-    pub name: SimpleIdentifier,
-    pub params: Vec<Identifier>,
+    pub name: VariableName,
+    pub params: Vec<VariableName>,
     pub body: Block,
 }
 
@@ -375,7 +393,7 @@ impl<P: Into<PoeticAssignment>> From<P> for Statement {
         Statement::PoeticAssignment(p.into())
     }
 }
-
+// derive more
 trivial_from!(
     for Statement:
     Assignment, If, While, Until, Inc, Dec, Input, Output,
