@@ -2,6 +2,9 @@ use std::iter::Peekable;
 
 use derive_more::From;
 
+#[cfg(test)]
+mod tests;
+
 macro_rules! bridging_from {
     (for $for_struct:ty: $($from_struct:ident),+) => {
         $(impl<T: Into<$from_struct>> From<T> for $for_struct {
@@ -456,48 +459,5 @@ impl PoeticNumberLiteral {
                 (length % 10) as f64 * Self::ten_to_the(exponent - idx as i32)
             })
             .fold(0.0, |a, b| a + b)
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn poetic_number_literal_iterator() {
-        fn items<'a>(
-            elems: &'a Vec<PoeticNumberLiteralElem>,
-        ) -> Vec<PoeticNumberLiteralIteratorItem<'a>> {
-            PoeticNumberLiteralIterator::new(elems.iter()).collect()
-        }
-
-        assert_eq!(
-            items(&vec![PoeticNumberLiteralElem::Dot]),
-            vec![PoeticNumberLiteralIteratorItem::Dot]
-        );
-        assert_eq!(
-            items(&vec![PoeticNumberLiteralElem::Word("foo".into())]),
-            vec![PoeticNumberLiteralIteratorItem::Word(&"foo".into())]
-        );
-        assert_eq!(
-            items(&vec![
-                PoeticNumberLiteralElem::Word("foo".into()),
-                PoeticNumberLiteralElem::WordSuffix("'s".into())
-            ]),
-            vec![PoeticNumberLiteralIteratorItem::SuffixedWord(
-                &"foo".into(),
-                vec![&"'s".into()],
-            )]
-        );
-    }
-
-    #[test]
-    fn test_find_or_end() {
-        assert_eq!(position_or_end(vec![].into_iter(), |x: &i32| *x == 1), 0);
-        assert_eq!(position_or_end(vec![1, 2, 3].into_iter(), |x| *x == 1), 0);
-        assert_eq!(position_or_end(vec![1, 2, 3].into_iter(), |x| *x == 2), 1);
-        assert_eq!(position_or_end(vec![1, 2, 3].into_iter(), |x| *x == 3), 2);
-        assert_eq!(position_or_end(vec![1, 2, 3].into_iter(), |x| *x == 4), 3);
-        assert_eq!(position_or_end(vec![1, 2, 3].into_iter(), |x| *x == 9), 3);
     }
 }
