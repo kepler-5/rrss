@@ -1,7 +1,7 @@
 use derive_more::Constructor;
 use itertools::Itertools;
 
-use crate::{
+use crate::frontend::{
     ast::{
         ArrayPop, ArrayPush, ArrayPushRHS, ArraySubscript, Assignment, AssignmentLHS,
         BinaryExpression, BinaryOperator, Block, CommonIdentifier, Dec, Expression, ExpressionList,
@@ -1026,8 +1026,6 @@ pub fn parse(text: &str) -> Result<Program, ParseError> {
 
 #[cfg(test)]
 mod test {
-    use crate::ast::Output;
-
     use super::*;
 
     #[test]
