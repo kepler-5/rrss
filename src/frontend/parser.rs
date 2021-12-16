@@ -57,6 +57,9 @@ pub struct ParseError<'a> {
     pub token: Option<Token<'a>>,
 }
 
+#[derive(Clone, Constructor, Debug, PartialEq)]
+pub struct ParseErrorWithLine<'a>(ParseError<'a>, usize);
+
 pub struct Parser<'a> {
     lexer: CommentSkippingLexer<'a>,
     parsing_list: bool,
@@ -74,10 +77,12 @@ impl<'a> Parser<'a> {
         Self::new(Lexer::new(text).skip_comments())
     }
 
-    pub fn parse(mut self) -> Result<Program, ParseError<'a>> {
-        Ok(Program {
-            code: vec![self.parse_block()?],
-        })
+    pub fn parse(mut self) -> Result<Program, ParseErrorWithLine<'a>> {
+        let mut blocks = Vec::new();
+        while self.current().is_some() {
+            blocks.push(self.parse_block().map_err(|e| self.add_line(e))?);
+        }
+        Ok(Program { code: blocks })
     }
 }
 
@@ -170,6 +175,10 @@ impl<'a> Parser<'a> {
 
     fn new_parse_error(&self, code: ParseErrorCode<'a>) -> ParseError<'a> {
         ParseError::new(code, self.current())
+    }
+
+    fn add_line(&self, error: ParseError<'a>) -> ParseErrorWithLine<'a> {
+        ParseErrorWithLine(error, self.current_line())
     }
 
     fn match_and_consume<M: MatchesToken>(&mut self, m: M) -> Option<Token<'a>> {
@@ -1011,6 +1020,6 @@ impl<'a> Parser<'a> {
     }
 }
 
-pub fn parse(text: &str) -> Result<Program, ParseError> {
+pub fn parse(text: &str) -> Result<Program, ParseErrorWithLine> {
     Parser::for_source_code(text).parse()
 }

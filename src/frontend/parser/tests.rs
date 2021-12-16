@@ -2475,3 +2475,56 @@ fn parse_function_call_statement() {
         ))
     );
 }
+
+#[test]
+fn parse() {
+    let parse = super::parse;
+
+    assert_eq!(
+        parse(
+            "\
+    let X be Y
+
+    let Y be Z
+
+
+    let Z be Z
+    "
+        ),
+        Ok(Program {
+            code: vec![
+                Block(vec![StatementWithLine(
+                    Assignment {
+                        dest: SimpleIdentifier("X".into()).into(),
+                        value: SimpleIdentifier("Y".into()).into(),
+                        operator: None
+                    }
+                    .into(),
+                    1
+                )])
+                .into(),
+                Block(vec![StatementWithLine(
+                    Assignment {
+                        dest: SimpleIdentifier("Y".into()).into(),
+                        value: SimpleIdentifier("Z".into()).into(),
+                        operator: None
+                    }
+                    .into(),
+                    3
+                )])
+                .into(),
+                Block::empty(),
+                Block(vec![StatementWithLine(
+                    Assignment {
+                        dest: SimpleIdentifier("Z".into()).into(),
+                        value: SimpleIdentifier("Z".into()).into(),
+                        operator: None
+                    }
+                    .into(),
+                    6
+                )])
+                .into()
+            ]
+        })
+    );
+}
