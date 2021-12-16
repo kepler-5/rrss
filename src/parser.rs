@@ -178,11 +178,6 @@ impl<'a> Parser<'a> {
         self.lexer.underlying().current_line()
     }
 
-    fn peek_next(&self) -> Option<Token<'a>> {
-        let mut lexer = self.lexer.clone();
-        lexer.next().and_then(|_| lexer.next())
-    }
-
     fn new_parse_error(&self, code: ParseErrorCode<'a>) -> ParseError<'a> {
         ParseError::new(code, self.current())
     }
@@ -422,9 +417,15 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_assignment_lhs_with(
+        &mut self,
+        ident: Identifier,
+    ) -> Result<AssignmentLHS, ParseError<'a>> {
+        self.parse_array_subscript_after(ident)
+    }
     fn parse_assignment_lhs(&mut self) -> Result<AssignmentLHS, ParseError<'a>> {
         let ident = self.expect_identifier()?;
-        self.parse_array_subscript_after(ident)
+        self.parse_assignment_lhs_with(ident)
     }
 
     fn parse_pronoun(&mut self) -> Option<Identifier> {
@@ -541,11 +542,9 @@ impl<'a> Parser<'a> {
                     TokenType::Let => Some(self.parse_let_assignment().map(Into::into)),
                     TokenType::Word
                     | TokenType::CapitalizedWord
-                    | TokenType::CommonVariablePrefix => self
-                        .peek_next()
-                        .filter(|tok| tok.id == TokenType::Takes)
-                        .map(|_| self.parse_function().map(Into::into))
-                        .or_else(|| Some(self.parse_poetic_assignment().map(Into::into))),
+                    | TokenType::CommonVariablePrefix => {
+                        Some(self.parse_statement_starting_with_word())
+                    }
 
                     TokenType::If => Some(self.parse_if_statement().map(Into::into)),
 
@@ -753,8 +752,11 @@ impl<'a> Parser<'a> {
             .map(Into::into)
     }
 
-    fn parse_poetic_assignment(&mut self) -> Result<PoeticAssignment, ParseError<'a>> {
-        let dest = self.parse_assignment_lhs()?;
+    fn parse_poetic_assignment(
+        &mut self,
+        name: VariableName,
+    ) -> Result<PoeticAssignment, ParseError<'a>> {
+        let dest = self.parse_assignment_lhs_with(name.into())?;
 
         match self.expect_any(&[
             TokenType::Is,
@@ -793,15 +795,22 @@ impl<'a> Parser<'a> {
         Ok(params)
     }
 
-    fn parse_function(&mut self) -> Result<Function, ParseError<'a>> {
-        let name = self
-            .parse_variable_name()?
-            .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedIdentifier))?;
-        self.consume(TokenType::Takes); // we checked this from the outside already
+    fn parse_function(&mut self, name: VariableName) -> Result<Function, ParseError<'a>> {
         let params = self.parse_parameter_list(|p| p.expect_variable_name())?;
         self.expect_eol()?;
         let body = self.parse_block()?;
         Ok(Function { name, params, body })
+    }
+
+    fn parse_statement_starting_with_word(&mut self) -> Result<Statement, ParseError<'a>> {
+        let name = self
+            .parse_variable_name()?
+            .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedIdentifier))?;
+        if self.match_and_consume(TokenType::Takes).is_some() {
+            self.parse_function(name).map(Into::into)
+        } else {
+            self.parse_poetic_assignment(name).map(Into::into)
+        }
     }
 
     fn parse_if_statement(&mut self) -> Result<If, ParseError<'a>> {
@@ -2283,7 +2292,9 @@ mod test {
         let val = |text| {
             inner!(
                 inner!(
-                    Parser::for_source_code(text).parse_poetic_assignment().unwrap(),
+                    inner!(
+                        Parser::for_source_code(text).parse_statement_starting_with_word().unwrap(),
+                        if Statement::PoeticAssignment),
                     if PoeticAssignment::Number
                 ).rhs,
                 if PoeticNumberAssignmentRHS::PoeticNumberLiteral
@@ -2296,14 +2307,14 @@ mod test {
         assert_eq!(val("Tommy is a rockstar!"), 18.0);
         assert_eq!(val("Tommy is a rockstar's rockstar!"), 108.0);
         assert_eq!(val("Tommy was a lovestruck ladykiller"), 100.0);
-        assert_eq!(val("Sweet Lucy was a dancer"), 16.0);
-        assert_eq!(val("A killer is on the loose"), 235.0);
+        assert_eq!(val("Tommy was a dancer"), 16.0);
+        assert_eq!(val("Tommy is on the loose"), 235.0);
         assert_eq!(
-        val("My dreams were ice. A life unfulfilled; wakin' everybody up, taking booze and pills"),
-        3.1415926535
-    );
+            val("Tommy were ice. A life unfulfilled; wakin' everybody up, taking booze and pills"),
+            3.1415926535
+        );
         assert_eq!(
-        val("My dreams were ice... A. life .. ...unfulfilled;....;;;''''' wakin' .everybody. .up, ..taking booze ....and pills......"),
+        val("Tommy were ice... A. life .. ...unfulfilled;....;;;''''' wakin' .everybody. .up, ..taking booze ....and pills......"),
         3.1415926535
     );
         assert_eq!(val("Tommy was without"), 7.0);
@@ -3295,6 +3306,50 @@ mod test {
                 Function {
                     name: SimpleIdentifier("Echo".into()).into(),
                     params: vec![SimpleIdentifier("X".into()).into()],
+                    body: Block(vec![StatementWithLine(
+                        Output {
+                            value: SimpleIdentifier("X".into()).into()
+                        }
+                        .into(),
+                        2
+                    )])
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse(
+                "\
+            my heart takes X
+            say X
+            "
+            ),
+            Ok(Some(
+                Function {
+                    name: CommonIdentifier("my".into(), "heart".into()).into(),
+                    params: vec![SimpleIdentifier("X".into()).into()],
+                    body: Block(vec![StatementWithLine(
+                        Output {
+                            value: SimpleIdentifier("X".into()).into()
+                        }
+                        .into(),
+                        2
+                    )])
+                }
+                .into()
+            ))
+        );
+        assert_eq!(
+            parse(
+                "\
+            Tom Sawyer wants my body
+            say X
+            "
+            ),
+            Ok(Some(
+                Function {
+                    name: ProperIdentifier(vec!["Tom".into(), "Sawyer".into()]).into(),
+                    params: vec![CommonIdentifier("my".into(), "body".into()).into()],
                     body: Block(vec![StatementWithLine(
                         Output {
                             value: SimpleIdentifier("X".into()).into()
