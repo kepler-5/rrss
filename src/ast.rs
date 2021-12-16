@@ -1,9 +1,11 @@
 use std::iter::Peekable;
 
-macro_rules! trivial_from {
+use derive_more::From;
+
+macro_rules! bridging_from {
     (for $for_struct:ty: $($from_struct:ident),+) => {
-        $(impl From<$from_struct> for $for_struct {
-            fn from(x: $from_struct) -> Self {
+        $(impl<T: Into<$from_struct>> From<T> for $for_struct {
+            fn from(x: T) -> Self {
                 Self::$from_struct(x.into())
             }
         })+
@@ -61,11 +63,7 @@ pub enum Identifier {
     Pronoun,
 }
 
-impl<N: Into<VariableName>> From<N> for Identifier {
-    fn from(n: N) -> Self {
-        Identifier::VariableName(n.into())
-    }
-}
+bridging_from!(for Identifier: VariableName);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ArraySubscript {
@@ -79,27 +77,16 @@ pub struct FunctionCall {
     pub args: Vec<PrimaryExpression>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, From, PartialEq)]
 pub enum PrimaryExpression {
     Literal(LiteralExpression),
+    #[from(ignore)]
     Identifier(Identifier),
     ArraySubscript(ArraySubscript),
     FunctionCall(FunctionCall),
 }
 
-impl From<LiteralExpression> for PrimaryExpression {
-    fn from(expr: LiteralExpression) -> Self {
-        PrimaryExpression::Literal(expr)
-    }
-}
-
-impl<I: Into<Identifier>> From<I> for PrimaryExpression {
-    fn from(id: I) -> Self {
-        PrimaryExpression::Identifier(id.into())
-    }
-}
-
-trivial_from!(for PrimaryExpression: ArraySubscript, FunctionCall);
+bridging_from!(for PrimaryExpression: Identifier);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum UnaryOperator {
@@ -137,30 +124,15 @@ pub struct BinaryExpression {
     pub rhs: Box<ExpressionList>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, From, PartialEq)]
 pub enum Expression {
-    Primary(PrimaryExpression),
-    Binary(BinaryExpression),
-    Unary(UnaryExpression),
+    #[from(ignore)]
+    PrimaryExpression(PrimaryExpression),
+    BinaryExpression(BinaryExpression),
+    UnaryExpression(UnaryExpression),
 }
 
-impl<E: Into<PrimaryExpression>> From<E> for Expression {
-    fn from(expr: E) -> Self {
-        Expression::Primary(expr.into())
-    }
-}
-
-impl From<UnaryExpression> for Expression {
-    fn from(expr: UnaryExpression) -> Self {
-        Expression::Unary(expr)
-    }
-}
-
-impl From<BinaryExpression> for Expression {
-    fn from(expr: BinaryExpression) -> Self {
-        Expression::Binary(expr)
-    }
-}
+bridging_from!(for Expression: PrimaryExpression);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExpressionList {
@@ -183,19 +155,14 @@ impl<E: Into<Expression>> From<E> for ExpressionList {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, From, PartialEq)]
 pub enum AssignmentLHS {
+    #[from(ignore)]
     Identifier(Identifier),
     ArraySubscript(ArraySubscript),
 }
 
-impl<I: Into<Identifier>> From<I> for AssignmentLHS {
-    fn from(i: I) -> Self {
-        AssignmentLHS::Identifier(i.into())
-    }
-}
-
-trivial_from!(for AssignmentLHS: ArraySubscript);
+bridging_from!(for AssignmentLHS: Identifier);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Assignment {
@@ -216,19 +183,14 @@ pub struct PoeticNumberLiteral {
     pub elems: Vec<PoeticNumberLiteralElem>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, From, PartialEq)]
 pub enum PoeticNumberAssignmentRHS {
+    #[from(ignore)]
     Expression(Expression),
     PoeticNumberLiteral(PoeticNumberLiteral),
 }
 
-impl<E: Into<Expression>> From<E> for PoeticNumberAssignmentRHS {
-    fn from(e: E) -> Self {
-        PoeticNumberAssignmentRHS::Expression(e.into())
-    }
-}
-
-trivial_from!(for PoeticNumberAssignmentRHS: PoeticNumberLiteral);
+bridging_from!(for PoeticNumberAssignmentRHS: Expression);
 
 #[derive(Debug, PartialEq)]
 pub struct PoeticNumberAssignment {
@@ -242,22 +204,10 @@ pub struct PoeticStringAssignment {
     pub rhs: String,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, From, PartialEq)]
 pub enum PoeticAssignment {
     Number(PoeticNumberAssignment),
     String(PoeticStringAssignment),
-}
-
-impl From<PoeticNumberAssignment> for PoeticAssignment {
-    fn from(p: PoeticNumberAssignment) -> Self {
-        PoeticAssignment::Number(p)
-    }
-}
-
-impl From<PoeticStringAssignment> for PoeticAssignment {
-    fn from(p: PoeticStringAssignment) -> Self {
-        PoeticAssignment::String(p)
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -329,19 +279,14 @@ pub struct Rounding {
     pub operand: Expression,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, From, PartialEq)]
 pub enum ArrayPushRHS {
+    #[from(ignore)]
     ExpressionList(ExpressionList),
     PoeticNumberLiteral(PoeticNumberLiteral),
 }
 
-impl<E: Into<ExpressionList>> From<E> for ArrayPushRHS {
-    fn from(e: E) -> Self {
-        ArrayPushRHS::ExpressionList(e.into())
-    }
-}
-
-trivial_from!(for ArrayPushRHS: PoeticNumberLiteral);
+bridging_from!(for ArrayPushRHS: ExpressionList);
 
 #[derive(Debug, PartialEq)]
 pub struct ArrayPush {
@@ -367,9 +312,10 @@ pub struct Function {
     pub body: Block,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, From, PartialEq)]
 pub enum Statement {
     Assignment(Assignment),
+    #[from(ignore)]
     PoeticAssignment(PoeticAssignment),
     If(If),
     While(While),
@@ -388,17 +334,7 @@ pub enum Statement {
     Function(Function),
 }
 
-impl<P: Into<PoeticAssignment>> From<P> for Statement {
-    fn from(p: P) -> Self {
-        Statement::PoeticAssignment(p.into())
-    }
-}
-// derive more
-trivial_from!(
-    for Statement:
-    Assignment, If, While, Until, Inc, Dec, Input, Output,
-    Mutation, Rounding, ArrayPush, ArrayPop, Return, Function
-);
+bridging_from!(for Statement: PoeticAssignment);
 
 #[derive(Debug, PartialEq)]
 pub struct StatementWithLine(pub Statement, pub usize);

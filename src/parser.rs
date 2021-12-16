@@ -803,6 +803,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_statement_starting_with_word(&mut self) -> Result<Statement, ParseError<'a>> {
+        // TODO calling functions should be allowed to be its own statement
         let name = self
             .parse_variable_name()?
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedIdentifier))?;
@@ -1106,136 +1107,149 @@ mod test {
         let parse = |text| Parser::for_source_code(text).parse_expression();
         assert_eq!(
             parse("1 + 1"),
-            Ok(Expression::Binary(BinaryExpression {
+            Ok(BinaryExpression {
                 operator: BinaryOperator::Plus,
                 lhs: boxed_expr(LiteralExpression::Number(1.0)),
                 rhs: boxed_expr(LiteralExpression::Number(1.0))
-            }))
+            }
+            .into())
         );
         assert_eq!(
             parse("1 with 1"),
-            Ok(Expression::Binary(BinaryExpression {
+            Ok(BinaryExpression {
                 operator: BinaryOperator::Plus,
                 lhs: boxed_expr(LiteralExpression::Number(1.0)),
                 rhs: boxed_expr(LiteralExpression::Number(1.0))
-            }))
+            }
+            .into())
         );
         assert_eq!(
             parse("1 - 1"),
-            Ok(Expression::Binary(BinaryExpression {
+            Ok(BinaryExpression {
                 operator: BinaryOperator::Minus,
                 lhs: boxed_expr(LiteralExpression::Number(1.0)),
                 rhs: boxed_expr(LiteralExpression::Number(1.0))
-            }))
+            }
+            .into())
         );
         assert_eq!(
             parse("1 without 1"),
-            Ok(Expression::Binary(BinaryExpression {
+            Ok(BinaryExpression {
                 operator: BinaryOperator::Minus,
                 lhs: boxed_expr(LiteralExpression::Number(1.0)),
                 rhs: boxed_expr(LiteralExpression::Number(1.0))
-            }))
+            }
+            .into())
         );
         assert_eq!(
             parse("1 - -1"),
-            Ok(Expression::Binary(BinaryExpression {
+            Ok(BinaryExpression {
                 operator: BinaryOperator::Minus,
                 lhs: boxed_expr(LiteralExpression::Number(1.0)),
                 rhs: boxed_expr(UnaryExpression {
                     operator: UnaryOperator::Minus,
                     operand: boxed_expr(LiteralExpression::Number(1.0))
                 })
-            }))
+            }
+            .into())
         );
         assert_eq!(
             parse("1 * 1"),
-            Ok(Expression::Binary(BinaryExpression {
+            Ok(BinaryExpression {
                 operator: BinaryOperator::Multiply,
                 lhs: boxed_expr(LiteralExpression::Number(1.0)),
                 rhs: boxed_expr(LiteralExpression::Number(1.0))
-            }))
+            }
+            .into())
         );
         assert_eq!(
             parse("1 / 1"),
-            Ok(Expression::Binary(BinaryExpression {
+            Ok(BinaryExpression {
                 operator: BinaryOperator::Divide,
                 lhs: boxed_expr(LiteralExpression::Number(1.0)),
                 rhs: boxed_expr(LiteralExpression::Number(1.0))
-            }))
+            }
+            .into())
         );
 
         // associativity
         assert_eq!(
             parse("1 + 1 + 1"),
-            Ok(Expression::Binary(BinaryExpression {
+            Ok(BinaryExpression {
                 operator: BinaryOperator::Plus,
-                lhs: boxed_expr(Expression::Binary(BinaryExpression {
+                lhs: boxed_expr(BinaryExpression {
                     operator: BinaryOperator::Plus,
                     lhs: boxed_expr(LiteralExpression::Number(1.0)),
                     rhs: boxed_expr(LiteralExpression::Number(1.0))
-                })),
+                }),
                 rhs: boxed_expr(LiteralExpression::Number(1.0))
-            }))
+            }
+            .into())
         );
         assert_eq!(
             parse("1 - 1 - 1"),
-            Ok(Expression::Binary(BinaryExpression {
+            Ok(BinaryExpression {
                 operator: BinaryOperator::Minus,
-                lhs: boxed_expr(Expression::Binary(BinaryExpression {
+                lhs: boxed_expr(BinaryExpression {
                     operator: BinaryOperator::Minus,
                     lhs: boxed_expr(LiteralExpression::Number(1.0)),
                     rhs: boxed_expr(LiteralExpression::Number(1.0))
-                })),
+                }),
                 rhs: boxed_expr(LiteralExpression::Number(1.0))
-            }))
+            }
+            .into())
         );
         assert_eq!(
             parse("1 * 1 + 1"),
-            Ok(Expression::Binary(BinaryExpression {
+            Ok(BinaryExpression {
                 operator: BinaryOperator::Plus,
-                lhs: boxed_expr(Expression::Binary(BinaryExpression {
+                lhs: boxed_expr(BinaryExpression {
                     operator: BinaryOperator::Multiply,
                     lhs: boxed_expr(LiteralExpression::Number(1.0)),
                     rhs: boxed_expr(LiteralExpression::Number(1.0))
-                })),
+                }),
                 rhs: boxed_expr(LiteralExpression::Number(1.0))
-            }))
+            }
+            .into())
         );
         assert_eq!(
             parse("1 / 1 + 1"),
-            Ok(Expression::Binary(BinaryExpression {
+            Ok(BinaryExpression {
                 operator: BinaryOperator::Plus,
-                lhs: boxed_expr(Expression::Binary(BinaryExpression {
+                lhs: boxed_expr(BinaryExpression {
                     operator: BinaryOperator::Divide,
                     lhs: boxed_expr(LiteralExpression::Number(1.0)),
                     rhs: boxed_expr(LiteralExpression::Number(1.0))
-                })),
+                }),
                 rhs: boxed_expr(LiteralExpression::Number(1.0))
-            }))
+            }
+            .into())
         );
         assert_eq!(
             parse("1 + 1 * 1"),
-            Ok(Expression::Binary(BinaryExpression {
+            Ok(BinaryExpression {
                 operator: BinaryOperator::Plus,
                 lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(Expression::Binary(BinaryExpression {
+                rhs: boxed_expr(BinaryExpression {
                     operator: BinaryOperator::Multiply,
                     lhs: boxed_expr(LiteralExpression::Number(1.0)),
                     rhs: boxed_expr(LiteralExpression::Number(1.0))
-                })),
-            }))
+                }),
+            }
+            .into())
         );
         assert_eq!(
             parse("1 + 1 / 1"),
-            Ok(Expression::Binary(BinaryExpression {
+            Ok(BinaryExpression {
                 operator: BinaryOperator::Plus,
                 lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(Expression::Binary(BinaryExpression {
+                rhs: boxed_expr(BinaryExpression {
                     operator: BinaryOperator::Divide,
                     lhs: boxed_expr(LiteralExpression::Number(1.0)),
                     rhs: boxed_expr(LiteralExpression::Number(1.0))
-                })),
-            }))
+                }),
+            }
+            .into())
         );
     }
 
