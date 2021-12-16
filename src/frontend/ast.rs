@@ -350,6 +350,10 @@ impl Block {
     pub fn empty() -> Self {
         Self(Vec::new())
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 /////////////// PoeticNumberLiteral::compute_value

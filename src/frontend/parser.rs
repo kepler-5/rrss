@@ -80,7 +80,11 @@ impl<'a> Parser<'a> {
     pub fn parse(mut self) -> Result<Program, ParseErrorWithLine<'a>> {
         let mut blocks = Vec::new();
         while self.current().is_some() {
-            blocks.push(self.parse_block().map_err(|e| self.add_line(e))?);
+            if let Some(block) =
+                Some(self.parse_block().map_err(|e| self.add_line(e))?).filter(|b| !b.is_empty())
+            {
+                blocks.push(block);
+            }
         }
         Ok(Program { code: blocks })
     }

@@ -2513,7 +2513,6 @@ fn parse() {
                     3
                 )])
                 .into(),
-                Block::empty(),
                 Block(vec![StatementWithLine(
                     Assignment {
                         dest: SimpleIdentifier("Z".into()).into(),
