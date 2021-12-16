@@ -1,5 +1,7 @@
 use std::{collections::HashMap, iter::repeat, slice::SliceIndex, str::CharIndices};
 
+use derive_more::Constructor;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ErrorMessage(&'static str);
 
@@ -95,16 +97,13 @@ pub enum TokenType<'a> {
     Error(ErrorMessage),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Constructor, Debug, PartialEq)]
 pub struct Token<'a> {
     pub id: TokenType<'a>,
     pub spelling: &'a str,
 }
 
 impl<'a> Token<'a> {
-    pub fn new(id: TokenType<'a>, spelling: &'a str) -> Self {
-        Token { id, spelling }
-    }
     pub fn is_comment(&self) -> bool {
         self.id.is_comment()
     }

@@ -1,3 +1,4 @@
+use derive_more::Constructor;
 use itertools::Itertools;
 
 use crate::{
@@ -59,16 +60,10 @@ pub enum ParseErrorCode<'a> {
     UnexpectedEndOfTokens,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Constructor, Debug, PartialEq)]
 pub struct ParseError<'a> {
     pub code: ParseErrorCode<'a>,
     pub token: Option<Token<'a>>,
-}
-
-impl<'a> ParseError<'a> {
-    pub fn new(code: ParseErrorCode<'a>, token: Option<Token<'a>>) -> Self {
-        Self { code, token }
-    }
 }
 
 pub struct Parser<'a> {
