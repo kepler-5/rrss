@@ -58,7 +58,7 @@ pub struct ParseError<'a> {
 }
 
 #[derive(Clone, Constructor, Debug, PartialEq)]
-pub struct ParseErrorWithLine<'a>(ParseError<'a>, usize);
+pub struct ParseErrorWithLine<'a>(pub ParseError<'a>, pub usize);
 
 pub struct Parser<'a> {
     lexer: CommentSkippingLexer<'a>,
