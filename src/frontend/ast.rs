@@ -457,11 +457,11 @@ impl PoeticNumberLiteral {
                     PoeticNumberLiteralIteratorItem::Dot => unreachable!(),
                     PoeticNumberLiteralIteratorItem::Word(s) => s.len(),
                     PoeticNumberLiteralIteratorItem::SuffixedWord(s0, s1) => {
-                        s0.len() + s1.iter().fold(0, |a, x| a + x.len())
+                        s1.iter().map(|x| x.len()).fold(s0.len(), |a, b| a + b)
                     }
                 };
                 (length % 10) as f64 * Self::ten_to_the(exponent - idx as i32)
             })
-            .fold(0.0, |a, b| a + b)
+            .sum()
     }
 }
