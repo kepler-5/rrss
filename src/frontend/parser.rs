@@ -686,28 +686,30 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn is_poetic_number_literal_token(tok: &Token) -> bool {
+        match (tok.id, tok.spelling) {
+            (
+                TokenType::Dot
+                | TokenType::Comma
+                | TokenType::ApostropheS
+                | TokenType::ApostropheRE,
+                _,
+            ) => true,
+            (TokenType::Minus, "-") => true,
+            (_, spelling) => is_word(spelling),
+        }
+    }
+
     fn parse_poetic_number_literal(&mut self) -> Result<PoeticNumberLiteral, ParseError<'a>> {
         let elems = self.match_and_consume_while(
-            |tok: &Token| {
-                matches!(
-                    tok.id,
-                    TokenType::Dot
-                        | TokenType::Comma
-                        | TokenType::ApostropheS
-                        | TokenType::ApostropheRE
-                ) || *tok == Token::new(TokenType::Minus, "-")
-                    || is_word(tok.spelling)
-            },
-            |tok, myself| match tok {
-                tok if tok.id == TokenType::Comma => Ok(None),
-                tok if tok.id == TokenType::Dot => Ok(Some(PoeticNumberLiteralElem::Dot)),
-                tok if matches!(tok.id, TokenType::ApostropheS | TokenType::ApostropheRE) => Ok(
-                    Some(PoeticNumberLiteralElem::WordSuffix(tok.spelling.into())),
-                ),
-                Token {
-                    id: TokenType::Minus,
-                    spelling: "-",
-                } => {
+            Self::is_poetic_number_literal_token,
+            |tok, myself| match (tok.id, tok.spelling) {
+                (TokenType::Comma, _) => Ok(None),
+                (TokenType::Dot, _) => Ok(Some(PoeticNumberLiteralElem::Dot)),
+                (TokenType::ApostropheS | TokenType::ApostropheRE, _) => Ok(Some(
+                    PoeticNumberLiteralElem::WordSuffix(tok.spelling.into()),
+                )),
+                (TokenType::Minus, "-") => {
                     let next_token = myself.lexer.next().ok_or_else(|| {
                         myself.new_parse_error(ParseErrorCode::UnexpectedEndOfTokens)
                     })?;
