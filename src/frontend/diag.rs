@@ -7,7 +7,7 @@ use crate::frontend::parser::ParseErrorWithLine;
 #[cfg(test)]
 mod tests;
 
-#[derive(Constructor, Clone, PartialEq, Eq)]
+#[derive(Constructor, Clone, Debug, PartialEq, Eq)]
 pub struct Diag {
     text: String,
 }

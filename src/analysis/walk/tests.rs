@@ -223,7 +223,7 @@ fn collect_all_number_literals_functional() {
         fn visit_literal_expression(&mut self, e: &LiteralExpression) -> walk::Result<Self> {
             match e {
                 LiteralExpression::Number(x) => Ok([x.to_string()].into_iter().collect()),
-                _ => Self::leaf(()),
+                _ => leaf(()),
             }
         }
         fn visit_poetic_number_literal(&mut self, p: &PoeticNumberLiteral) -> walk::Result<Self> {

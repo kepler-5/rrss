@@ -1,5 +1,6 @@
 pub mod analysis;
 pub mod frontend;
+pub mod linter;
 
 #[cfg(test)]
 #[macro_use]

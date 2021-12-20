@@ -3,7 +3,7 @@ use std::iter;
 use crate::frontend::ast::*;
 
 #[cfg(test)]
-pub mod tests;
+mod tests;
 
 pub trait Combine {
     fn combine(self, other: Self) -> Self;
@@ -15,7 +15,7 @@ impl Combine for () {
     }
 }
 
-fn combine_all<I, T, E>(mut iter: I) -> std::result::Result<T, E>
+pub fn combine_all<I, T, E>(mut iter: I) -> std::result::Result<T, E>
 where
     I: Iterator<Item = std::result::Result<T, E>>,
     T: Combine + Default,
@@ -23,13 +23,14 @@ where
     iter.try_fold(T::default(), |acc, x| x.map(|x| acc.combine(x)))
 }
 
+#[inline]
+pub fn leaf<T, U: Default, E>(_: T) -> std::result::Result<U, E> {
+    Ok(Default::default())
+}
+
 pub trait Visitor {
     type Output: Combine + Default;
     type Error;
-
-    fn leaf<T>(_: T) -> Result<Self> {
-        Ok(Default::default())
-    }
 
     fn visit_program(&mut self, p: &Program) -> Result<Self> {
         combine_all(p.code.iter().map(|b| self.visit_block(b)))
@@ -68,7 +69,7 @@ pub trait Visitor {
             .visit_assignment_lhs(&a.dest)?
             .combine(
                 a.operator
-                    .map_or_else(|| Self::leaf(()), |o| self.visit_binary_operator(o))?,
+                    .map_or_else(|| leaf(()), |o| self.visit_binary_operator(o))?,
             )
             .combine(self.visit_expression_list(&a.value)?))
     }
@@ -85,7 +86,7 @@ pub trait Visitor {
             .combine(
                 i.else_block
                     .as_ref()
-                    .map_or_else(|| Self::leaf(()), |b| self.visit_block(b))?,
+                    .map_or_else(|| leaf(()), |b| self.visit_block(b))?,
             ))
     }
     fn visit_while(&mut self, w: &While) -> Result<Self> {
@@ -107,7 +108,7 @@ pub trait Visitor {
     fn visit_input(&mut self, i: &Input) -> Result<Self> {
         i.dest
             .as_ref()
-            .map_or_else(|| Self::leaf(()), |lhs| self.visit_assignment_lhs(lhs))
+            .map_or_else(|| leaf(()), |lhs| self.visit_assignment_lhs(lhs))
     }
     fn visit_output(&mut self, o: &Output) -> Result<Self> {
         self.visit_expression(&o.value)
@@ -119,12 +120,12 @@ pub trait Visitor {
             .combine(
                 m.dest
                     .as_ref()
-                    .map_or_else(|| Self::leaf(()), |dest| self.visit_assignment_lhs(dest))?,
+                    .map_or_else(|| leaf(()), |dest| self.visit_assignment_lhs(dest))?,
             )
             .combine(
                 m.param
                     .as_ref()
-                    .map_or_else(|| Self::leaf(()), |param| self.visit_expression(param))?,
+                    .map_or_else(|| leaf(()), |param| self.visit_expression(param))?,
             ))
     }
     fn visit_rounding(&mut self, r: &Rounding) -> Result<Self> {
@@ -133,10 +134,10 @@ pub trait Visitor {
             .combine(self.visit_expression(&r.operand)?))
     }
     fn visit_continue(&mut self) -> Result<Self> {
-        Self::leaf(())
+        leaf(())
     }
     fn visit_break(&mut self) -> Result<Self> {
-        Self::leaf(())
+        leaf(())
     }
     fn visit_array_push(&mut self, a: &ArrayPush) -> Result<Self> {
         Ok(self
@@ -147,7 +148,7 @@ pub trait Visitor {
         Ok(self.visit_primary_expression(&a.array)?.combine(
             a.dest
                 .as_ref()
-                .map_or_else(|| Self::leaf(()), |dest| self.visit_assignment_lhs(dest))?,
+                .map_or_else(|| leaf(()), |dest| self.visit_assignment_lhs(dest))?,
         ))
     }
     fn visit_return(&mut self, r: &Return) -> Result<Self> {
@@ -201,7 +202,7 @@ pub trait Visitor {
         )
     }
     fn visit_poetic_number_literal_elem(&mut self, p: &PoeticNumberLiteralElem) -> Result<Self> {
-        Self::leaf(p)
+        leaf(p)
     }
     fn visit_array_push_rhs(&mut self, a: &ArrayPushRHS) -> Result<Self> {
         match a {
@@ -212,16 +213,16 @@ pub trait Visitor {
 
     // Operators
     fn visit_binary_operator(&mut self, o: BinaryOperator) -> Result<Self> {
-        Self::leaf(o)
+        leaf(o)
     }
     fn visit_mutation_operator(&mut self, o: MutationOperator) -> Result<Self> {
-        Self::leaf(o)
+        leaf(o)
     }
     fn visit_unary_operator(&mut self, o: UnaryOperator) -> Result<Self> {
-        Self::leaf(o)
+        leaf(o)
     }
     fn visit_rounding_direction(&mut self, r: RoundingDirection) -> Result<Self> {
-        Self::leaf(r)
+        leaf(r)
     }
 
     // Expressions
@@ -263,7 +264,7 @@ pub trait Visitor {
             .combine(self.visit_primary_expression(&a.subscript)?))
     }
     fn visit_literal_expression(&mut self, e: &LiteralExpression) -> Result<Self> {
-        Self::leaf(e)
+        leaf(e)
     }
 
     // Identifiers
@@ -274,7 +275,7 @@ pub trait Visitor {
         }
     }
     fn visit_pronoun(&mut self) -> Result<Self> {
-        Self::leaf(())
+        leaf(())
     }
     fn visit_variable_name(&mut self, n: &VariableName) -> Result<Self> {
         match n {
@@ -284,13 +285,13 @@ pub trait Visitor {
         }
     }
     fn visit_simple_identifier(&mut self, n: &SimpleIdentifier) -> Result<Self> {
-        Self::leaf(n)
+        leaf(n)
     }
     fn visit_common_identifier(&mut self, n: &CommonIdentifier) -> Result<Self> {
-        Self::leaf(n)
+        leaf(n)
     }
     fn visit_proper_identifier(&mut self, n: &ProperIdentifier) -> Result<Self> {
-        Self::leaf(n)
+        leaf(n)
     }
 }
 
