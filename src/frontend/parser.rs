@@ -3,6 +3,7 @@ use itertools::Itertools;
 
 use crate::frontend::{ast::*, lexer::*};
 
+mod display;
 #[cfg(test)]
 mod tests;
 

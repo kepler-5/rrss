@@ -2527,3 +2527,145 @@ fn parse() {
         })
     );
 }
+
+#[test]
+fn parse_error_to_string() {
+    let bogus = Some(Token::new(TokenType::ApostropheNApostrophe, "bloop"));
+    let bogus2 = Token::new(TokenType::Word, "worrrd");
+
+    macro_rules! check {
+        ($err_code:expr, $without_token:literal, $with_token:literal $(,)?) => {
+            assert_eq!(ParseError::new($err_code, None).to_string(), $without_token);
+            assert_eq!(ParseError::new($err_code, bogus).to_string(), $with_token);
+        };
+    }
+
+    check!(
+        ParseErrorCode::Generic("Something bad".into()),
+        "Something bad",
+        "Something bad at `bloop`"
+    );
+
+    check!(
+        ParseErrorCode::ExpectedSpaceAfterSays(bogus2),
+        "Expected space after `worrrd`",
+        "Expected space after `worrrd`, found `bloop`"
+    );
+
+    check!(
+        ParseErrorCode::MissingIDAfterCommonPrefix("my".into()),
+        "Missing identifier after `my`",
+        "Missing identifier after `my`, found `bloop`"
+    );
+
+    check!(
+        ParseErrorCode::UppercaseAfterCommonPrefix("my".into(), "heArt".into()),
+        "Unexpected uppercase after common variable prefix; `my heArt` is an invalid common variable name",
+        "Unexpected uppercase after common variable prefix; `my heArt` is an invalid common variable name"
+    );
+
+    check!(
+        ParseErrorCode::MutationOperandMustBeIdentifier(LiteralExpression::Number(0.0).into()),
+        "Mutation operand with no `into` destination must be identifier; found literal",
+        "Mutation operand with no `into` destination must be identifier; found literal"
+    );
+    check!(
+        ParseErrorCode::MutationOperandMustBeIdentifier(
+            ArraySubscript {
+                array: boxed_expr(Identifier::Pronoun),
+                subscript: boxed_expr(Identifier::Pronoun)
+            }
+            .into()
+        ),
+        "Mutation operand with no `into` destination must be identifier; found array subscript expression",
+        "Mutation operand with no `into` destination must be identifier; found array subscript expression"
+    );
+    check!(
+        ParseErrorCode::MutationOperandMustBeIdentifier(
+            FunctionCall {
+                name: SimpleIdentifier("foo".into()).into(),
+                args: vec![]
+            }
+            .into()
+        ),
+        "Mutation operand with no `into` destination must be identifier; found function call",
+        "Mutation operand with no `into` destination must be identifier; found function call"
+    );
+
+    check!(
+        ParseErrorCode::ExpectedPrimaryExpression,
+        "Expected primary expression",
+        "Expected primary expression, found `bloop`"
+    );
+
+    check!(
+        ParseErrorCode::ExpectedIdentifier,
+        "Expected identifier",
+        "Expected identifier, found `bloop`"
+    );
+
+    check!(
+        ParseErrorCode::ExpectedText("hello, world".into()),
+        "Expected `hello, world`",
+        "Expected `hello, world`, found `bloop`"
+    );
+
+    check!(
+        ParseErrorCode::ExpectedToken(TokenType::And),
+        "Expected `and`",
+        "Expected `and`, found `bloop`"
+    );
+    check!(
+        ParseErrorCode::ExpectedToken(TokenType::ApostropheS),
+        "Expected `'s`",
+        "Expected `'s`, found `bloop`"
+    );
+
+    check!(
+        ParseErrorCode::ExpectedOneOfTokens(vec![TokenType::And]),
+        "Expected `and`",
+        "Expected `and`, found `bloop`"
+    );
+    check!(
+        ParseErrorCode::ExpectedOneOfTokens(vec![TokenType::And, TokenType::Big]),
+        "Expected `and` or `big`",
+        "Expected `and` or `big`, found `bloop`"
+    );
+    check!(
+        ParseErrorCode::ExpectedOneOfTokens(vec![
+            TokenType::And,
+            TokenType::Big,
+            TokenType::Mysterious,
+        ]),
+        "Expected `and`, `big`, or `mysterious`",
+        "Expected `and`, `big`, or `mysterious`, found `bloop`"
+    );
+    check!(
+        ParseErrorCode::ExpectedOneOfTokens(vec![
+            TokenType::And,
+            TokenType::Big,
+            TokenType::Mysterious,
+            TokenType::Says,
+        ]),
+        "Expected `and`, `big`, `mysterious`, or `says`",
+        "Expected `and`, `big`, `mysterious`, or `says`, found `bloop`"
+    );
+
+    check!(
+        ParseErrorCode::ExpectedPoeticNumberLiteral,
+        "Expected poetic number literal",
+        "Expected poetic number literal, found `bloop`"
+    );
+
+    // UnexpectedToken always has a token
+    assert_eq!(
+        ParseError::new(ParseErrorCode::UnexpectedToken, bogus).to_string(),
+        "Unexpected token `bloop`"
+    );
+
+    check!(
+        ParseErrorCode::UnexpectedEndOfTokens,
+        "Unexpected end of tokens",
+        "Unexpected end of tokens"
+    );
+}
