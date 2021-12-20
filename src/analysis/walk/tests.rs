@@ -1,7 +1,7 @@
 use std::{collections::HashSet, hash::Hash};
 
 use super::*;
-use crate::frontend::parser::parse;
+use crate::{analysis::walk, frontend::parser::parse};
 use derive_more::From;
 
 #[test]
@@ -20,21 +20,22 @@ fn combine() {
     }
     struct IsEmpty;
     impl Visitor for IsEmpty {
-        type Result = IsEmptyResult;
-        fn visit_block(&mut self, b: &Block) -> Option<Self::Result> {
-            Some(b.is_empty().into())
+        type Output = IsEmptyResult;
+        type Error = ();
+        fn visit_block(&mut self, b: &Block) -> walk::Result<Self> {
+            Ok(b.is_empty().into())
         }
     }
 
     assert_eq!(
         IsEmpty.visit_program(&Program { code: vec![] }),
-        Some(true.into())
+        Ok(true.into())
     );
     assert_eq!(
         IsEmpty.visit_program(&Program {
             code: vec![Block::empty(), Block::empty(), Block::empty()]
         }),
-        Some(true.into())
+        Ok(true.into())
     );
     assert_eq!(
         IsEmpty.visit_program(&Program {
@@ -45,7 +46,7 @@ fn combine() {
                 Block::empty()
             ]
         }),
-        Some(false.into())
+        Ok(false.into())
     );
 }
 
@@ -60,36 +61,37 @@ fn short_circuit() {
         }
     }
     impl Visitor for ExplodeOnThird {
-        type Result = ();
-        fn visit_block(&mut self, _: &Block) -> Option<Self::Result> {
+        type Output = ();
+        type Error = ();
+        fn visit_block(&mut self, _: &Block) -> walk::Result<Self> {
             self.count += 1;
             match self.count {
-                2 => None,
+                2 => Err(()),
                 3 => panic!("explosion!"),
-                _ => Some(()),
+                _ => Ok(()),
             }
         }
     }
     type E = ExplodeOnThird;
 
-    assert_eq!(E::new().visit_program(&Program { code: vec![] }), Some(()));
+    assert_eq!(E::new().visit_program(&Program { code: vec![] }), Ok(()));
     assert_eq!(
         E::new().visit_program(&Program {
             code: vec![Block::empty()]
         }),
-        Some(())
+        Ok(())
     );
     assert_eq!(
         E::new().visit_program(&Program {
             code: vec![Block::empty(), Block::empty()]
         }),
-        None
+        Err(())
     );
     assert_eq!(
         E::new().visit_program(&Program {
             code: vec![Block::empty(), Block::empty(), Block::empty()]
         }),
-        None
+        Err(())
     );
 }
 
@@ -105,21 +107,22 @@ impl Combine for Counter {
 fn count_xs() {
     struct CountXs;
     impl Visitor for CountXs {
-        type Result = Counter;
-        fn visit_simple_identifier(&mut self, n: &SimpleIdentifier) -> Option<Self::Result> {
-            Some(((n.0 == "x") as i32).into())
+        type Output = Counter;
+        type Error = ();
+        fn visit_simple_identifier(&mut self, n: &SimpleIdentifier) -> walk::Result<Self> {
+            Ok(((n.0 == "x") as i32).into())
         }
     }
 
     assert_eq!(
         CountXs.visit_program(&Program { code: vec![] }),
-        Some(0.into())
+        Ok(0.into())
     );
     assert_eq!(
         CountXs.visit_program(&Program {
             code: vec![Block::empty(), Block::empty(), Block::empty()]
         }),
-        Some(0.into())
+        Ok(0.into())
     );
 
     assert_eq!(
@@ -141,7 +144,7 @@ fn count_xs() {
             )
             .unwrap()
         ),
-        Some(5.into())
+        Ok(5.into())
     );
 
     assert_eq!(
@@ -163,7 +166,7 @@ fn count_xs() {
             )
             .unwrap()
         ),
-        Some(0.into())
+        Ok(0.into())
     );
 }
 
@@ -171,12 +174,13 @@ fn count_xs() {
 fn count_xs_unless_there_are_continues() {
     struct CountXsUnlessThereAreContinues;
     impl Visitor for CountXsUnlessThereAreContinues {
-        type Result = Counter;
-        fn visit_simple_identifier(&mut self, n: &SimpleIdentifier) -> Option<Self::Result> {
-            Some(((n.0 == "x") as i32).into())
+        type Output = Counter;
+        type Error = &'static str;
+        fn visit_simple_identifier(&mut self, n: &SimpleIdentifier) -> walk::Result<Self> {
+            Ok(((n.0 == "x") as i32).into())
         }
-        fn visit_continue(&mut self) -> Option<Self::Result> {
-            None
+        fn visit_continue(&mut self) -> walk::Result<Self> {
+            Err("found continue!")
         }
     }
     assert_eq!(
@@ -198,7 +202,7 @@ fn count_xs_unless_there_are_continues() {
             )
             .unwrap()
         ),
-        None
+        Err("found continue!")
     );
 }
 
@@ -213,16 +217,17 @@ impl<T: Eq + Hash + Clone> Combine for HashSet<T> {
 fn collect_all_number_literals_functional() {
     struct CollectAllNumberLiterals;
     impl Visitor for CollectAllNumberLiterals {
-        type Result = HashSet<String>;
+        type Output = HashSet<String>;
+        type Error = ();
 
-        fn visit_literal_expression(&mut self, e: &LiteralExpression) -> Option<Self::Result> {
+        fn visit_literal_expression(&mut self, e: &LiteralExpression) -> walk::Result<Self> {
             match e {
-                LiteralExpression::Number(x) => Some([x.to_string()].into_iter().collect()),
+                LiteralExpression::Number(x) => Ok([x.to_string()].into_iter().collect()),
                 _ => Self::leaf(()),
             }
         }
-        fn visit_poetic_number_literal(&mut self, p: &PoeticNumberLiteral) -> Option<Self::Result> {
-            Some([p.compute_value().to_string()].into_iter().collect())
+        fn visit_poetic_number_literal(&mut self, p: &PoeticNumberLiteral) -> walk::Result<Self> {
+            Ok([p.compute_value().to_string()].into_iter().collect())
         }
     }
     assert_eq!(
@@ -245,12 +250,10 @@ fn collect_all_number_literals_functional() {
             )
             .unwrap()
         ),
-        Some(
-            ["5", "6", "34224", "13", "1"]
-                .into_iter()
-                .map(Into::into)
-                .collect()
-        )
+        Ok(["5", "6", "34224", "13", "1"]
+            .into_iter()
+            .map(Into::into)
+            .collect())
     );
 }
 
@@ -261,17 +264,18 @@ fn collect_all_number_literals_stateful() {
         pub literals: HashSet<String>,
     }
     impl Visitor for CollectAllNumberLiterals {
-        type Result = ();
+        type Output = ();
+        type Error = ();
 
-        fn visit_literal_expression(&mut self, e: &LiteralExpression) -> Option<Self::Result> {
+        fn visit_literal_expression(&mut self, e: &LiteralExpression) -> walk::Result<Self> {
             if let LiteralExpression::Number(x) = e {
                 self.literals.insert(x.to_string());
             }
-            Some(())
+            Ok(())
         }
-        fn visit_poetic_number_literal(&mut self, p: &PoeticNumberLiteral) -> Option<Self::Result> {
+        fn visit_poetic_number_literal(&mut self, p: &PoeticNumberLiteral) -> walk::Result<Self> {
             self.literals.insert(p.compute_value().to_string());
-            Some(())
+            Ok(())
         }
     }
     let literals = {
@@ -294,7 +298,8 @@ fn collect_all_number_literals_stateful() {
     ",
             )
             .unwrap(),
-        );
+        )
+        .unwrap();
         c.literals
     };
     assert_eq!(
