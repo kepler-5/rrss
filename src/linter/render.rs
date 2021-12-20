@@ -2,6 +2,9 @@ use crate::frontend::ast::{
     AssignmentLHS, CommonIdentifier, Identifier, ProperIdentifier, SimpleIdentifier, VariableName,
 };
 
+#[cfg(test)]
+mod tests;
+
 pub trait Render {
     fn render(&self) -> String;
 }
