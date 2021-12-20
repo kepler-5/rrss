@@ -64,8 +64,7 @@ impl Display for ParseError<'_> {
 
         macro_rules! if_token {
             ($fmt:literal) => {
-                tok.map(|tok| format!($fmt, tok))
-                    .unwrap_or_else(String::new)
+                tok.map_or_else(String::new, |tok| format!($fmt, tok))
             };
         }
         macro_rules! found_suffix {

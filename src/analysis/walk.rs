@@ -67,8 +67,7 @@ pub trait Visitor {
             self.visit_assignment_lhs(&a.dest)?
                 .combine(
                     a.operator
-                        .map(|o| self.visit_binary_operator(o))
-                        .unwrap_or_else(|| Self::leaf(()))?,
+                        .map_or_else(|| Self::leaf(()), |o| self.visit_binary_operator(o))?,
                 )
                 .combine(self.visit_expression_list(&a.value)?),
         )
@@ -86,8 +85,7 @@ pub trait Visitor {
                 .combine(
                     i.else_block
                         .as_ref()
-                        .map(|b| self.visit_block(b))
-                        .unwrap_or_else(|| Self::leaf(()))?,
+                        .map_or_else(|| Self::leaf(()), |b| self.visit_block(b))?,
                 ),
         )
     }
@@ -112,8 +110,7 @@ pub trait Visitor {
     fn visit_input(&mut self, i: &Input) -> Option<Self::Result> {
         i.dest
             .as_ref()
-            .map(|lhs| self.visit_assignment_lhs(lhs))
-            .unwrap_or_else(|| Self::leaf(()))
+            .map_or_else(|| Self::leaf(()), |lhs| self.visit_assignment_lhs(lhs))
     }
     fn visit_output(&mut self, o: &Output) -> Option<Self::Result> {
         self.visit_expression(&o.value)
@@ -125,14 +122,12 @@ pub trait Visitor {
                 .combine(
                     m.dest
                         .as_ref()
-                        .map(|dest| self.visit_assignment_lhs(dest))
-                        .unwrap_or_else(|| Self::leaf(()))?,
+                        .map_or_else(|| Self::leaf(()), |dest| self.visit_assignment_lhs(dest))?,
                 )
                 .combine(
                     m.param
                         .as_ref()
-                        .map(|param| self.visit_expression(param))
-                        .unwrap_or_else(|| Self::leaf(()))?,
+                        .map_or_else(|| Self::leaf(()), |param| self.visit_expression(param))?,
                 ),
         )
     }
@@ -159,8 +154,7 @@ pub trait Visitor {
             self.visit_primary_expression(&a.array)?.combine(
                 a.dest
                     .as_ref()
-                    .map(|dest| self.visit_assignment_lhs(dest))
-                    .unwrap_or_else(|| Some(Default::default()))?,
+                    .map_or_else(|| Self::leaf(()), |dest| self.visit_assignment_lhs(dest))?,
             ),
         )
     }

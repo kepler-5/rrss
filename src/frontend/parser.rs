@@ -895,12 +895,13 @@ impl<'a> Parser<'a> {
 
     fn parse_listen(&mut self) -> Result<Input, ParseError<'a>> {
         self.consume(TokenType::Listen);
-        self.match_and_consume(TokenType::To)
-            .map(|_| {
+        self.match_and_consume(TokenType::To).map_or_else(
+            || Ok(Input { dest: None }),
+            |_| {
                 self.parse_assignment_lhs()
                     .map(|dest| Input { dest: Some(dest) })
-            })
-            .unwrap_or_else(|| Ok(Input { dest: None }))
+            },
+        )
     }
 
     fn check_mutation_args(
