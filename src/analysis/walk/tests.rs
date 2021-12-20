@@ -245,12 +245,12 @@ fn collect_all_number_literals_functional() {
         break
         continue
         turn 13 up
-        give back 1 + 1
+        give back 1 + 2
         "
             )
             .unwrap()
         ),
-        Ok(["5", "6", "34224", "13", "1"]
+        Ok(["5", "6", "34224", "13", "1", "2"]
             .into_iter()
             .map(Into::into)
             .collect())
@@ -294,7 +294,7 @@ fn collect_all_number_literals_stateful() {
     break
     continue
     turn 13 up
-    give back 1 + 1
+    give back 1 + 2
     ",
             )
             .unwrap(),
@@ -304,7 +304,7 @@ fn collect_all_number_literals_stateful() {
     };
     assert_eq!(
         literals,
-        ["5", "6", "34224", "13", "1"]
+        ["5", "6", "34224", "13", "1", "2"]
             .into_iter()
             .map(Into::into)
             .collect()

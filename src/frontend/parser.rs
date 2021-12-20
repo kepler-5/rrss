@@ -262,7 +262,7 @@ impl<'a> Parser<'a> {
         self.parse_expression_list(|p| p.parse_expression())
     }
 
-    fn parse_expression(&mut self) -> Result<Expression, ParseError<'a>> {
+    pub fn parse_expression(&mut self) -> Result<Expression, ParseError<'a>> {
         self.parse_logical_expression()
     }
 

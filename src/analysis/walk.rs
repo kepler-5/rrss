@@ -294,4 +294,4 @@ pub trait Visitor {
     }
 }
 
-type Result<T> = std::result::Result<<T as Visitor>::Output, <T as Visitor>::Error>;
+pub type Result<T> = std::result::Result<<T as Visitor>::Output, <T as Visitor>::Error>;
