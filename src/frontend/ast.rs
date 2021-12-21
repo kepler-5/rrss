@@ -1,4 +1,4 @@
-use std::iter::Peekable;
+use std::{hint::unreachable_unchecked, iter::Peekable};
 
 use derive_more::From;
 
@@ -454,7 +454,7 @@ impl PoeticNumberLiteral {
             .enumerate()
             .map(|(idx, item)| {
                 let length = match item {
-                    PoeticNumberLiteralIteratorItem::Dot => unreachable!(),
+                    PoeticNumberLiteralIteratorItem::Dot => unsafe { unreachable_unchecked() },
                     PoeticNumberLiteralIteratorItem::Word(s) => s.len(),
                     PoeticNumberLiteralIteratorItem::SuffixedWord(s0, s1) => {
                         s1.iter().map(|x| x.len()).fold(s0.len(), |a, b| a + b)

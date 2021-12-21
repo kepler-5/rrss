@@ -1,3 +1,5 @@
+use std::hint::unreachable_unchecked;
+
 use derive_more::Constructor;
 use itertools::Itertools;
 
@@ -996,7 +998,7 @@ impl<'a> Parser<'a> {
             TokenType::With => self.parse_toplevel_expression_list().map(Into::into),
             TokenType::Like => self.parse_poetic_number_literal().map(Into::into),
 
-            _ => unreachable!(),
+            _ => unsafe { unreachable_unchecked() },
         }
     }
 

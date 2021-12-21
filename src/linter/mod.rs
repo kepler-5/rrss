@@ -1,3 +1,5 @@
+use std::hint::unreachable_unchecked;
+
 use derive_more::{Constructor, IsVariant};
 
 use crate::{
@@ -47,13 +49,16 @@ impl Combine for DiagsBuilder {
         if other.is_empty() {
             return self;
         }
+        if self.is_empty() {
+            return other;
+        }
         let mut ds = match self {
-            DiagsBuilder::Empty => return other,
+            DiagsBuilder::Empty => unsafe { unreachable_unchecked() },
             DiagsBuilder::One(d) => vec![d],
             DiagsBuilder::List(ds) => ds,
         };
         match other {
-            DiagsBuilder::Empty => unreachable!(),
+            DiagsBuilder::Empty => unsafe { unreachable_unchecked() },
             DiagsBuilder::One(od) => ds.push(od),
             DiagsBuilder::List(ods) => ds.extend(ods),
         };
