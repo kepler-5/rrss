@@ -19,32 +19,29 @@ pub struct Diag {
 }
 
 #[derive(Clone, Debug, IsVariant, PartialEq, Eq)]
-enum DiagsBuilder {
+enum ListBuilder<T> {
     Empty,
-    One(Diag),
-    List(Vec<Diag>),
+    One(T),
+    List(Vec<T>),
 }
 
-impl Default for DiagsBuilder {
+impl<T> Default for ListBuilder<T> {
     fn default() -> Self {
-        DiagsBuilder::Empty
+        ListBuilder::Empty
     }
 }
 
-impl DiagsBuilder {
-    fn into_diags(self) -> Diags {
+impl<T> ListBuilder<T> {
+    fn build(self) -> Vec<T> {
         match self {
-            DiagsBuilder::Empty => Diags(Vec::new()),
-            DiagsBuilder::One(d) => Diags(vec![d]),
-            DiagsBuilder::List(ds) => Diags(ds),
+            ListBuilder::Empty => Vec::new(),
+            ListBuilder::One(d) => vec![d],
+            ListBuilder::List(ds) => ds,
         }
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Diags(pub Vec<Diag>);
-
-impl Combine for DiagsBuilder {
+impl<T> Combine for ListBuilder<T> {
     fn combine(self, other: Self) -> Self {
         if other.is_empty() {
             return self;
@@ -53,18 +50,23 @@ impl Combine for DiagsBuilder {
             return other;
         }
         let mut ds = match self {
-            DiagsBuilder::Empty => unsafe { unreachable_unchecked() },
-            DiagsBuilder::One(d) => vec![d],
-            DiagsBuilder::List(ds) => ds,
+            ListBuilder::Empty => unsafe { unreachable_unchecked() },
+            ListBuilder::One(d) => vec![d],
+            ListBuilder::List(ds) => ds,
         };
         match other {
-            DiagsBuilder::Empty => unsafe { unreachable_unchecked() },
-            DiagsBuilder::One(od) => ds.push(od),
-            DiagsBuilder::List(ods) => ds.extend(ods),
+            ListBuilder::Empty => unsafe { unreachable_unchecked() },
+            ListBuilder::One(od) => ds.push(od),
+            ListBuilder::List(ods) => ds.extend(ods),
         };
-        DiagsBuilder::List(ds)
+        ListBuilder::List(ds)
     }
 }
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Diags(pub Vec<Diag>);
+
+type DiagsBuilder = ListBuilder<Diag>;
 
 trait Pass: Visitor<Output = DiagsBuilder, Error = ()> {}
 
@@ -73,9 +75,9 @@ pub struct Linter {
 }
 
 impl Linter {
-    pub fn run(&mut self, program: &Program) -> Diags {
+    pub fn run(&mut self, program: &Program) -> Vec<Diag> {
         combine_all(self.passes.iter_mut().map(|p| p.visit_program(&program)))
             .unwrap_or_default()
-            .into_diags()
+            .build()
     }
 }

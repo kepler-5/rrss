@@ -1,8 +1,5 @@
 use super::*;
-use crate::{
-    frontend::parser::parse,
-    linter::{Diag, Diags},
-};
+use crate::{frontend::parser::parse, linter::Diag};
 use more_asserts::{assert_ge, assert_le};
 
 #[test]
@@ -11,8 +8,8 @@ fn find_nothing() {
         BoringAssignmentPass
             .visit_program(&parse("").unwrap())
             .unwrap()
-            .into_diags(),
-        Diags(vec![])
+            .build(),
+        []
     );
     assert_eq!(
         BoringAssignmentPass
@@ -25,8 +22,8 @@ fn find_nothing() {
                 .unwrap()
             )
             .unwrap()
-            .into_diags(),
-        Diags(vec![])
+            .build(),
+        []
     );
 }
 
@@ -46,8 +43,8 @@ fn find_boring_assignments() {
                 .unwrap()
             )
             .unwrap()
-            .into_diags(),
-        Diags(vec![
+            .build(),
+        [
             Diag {
                 issue: "Assignment of literal value `35` into `z` isn't very rock'n'roll".into(),
                 suggestions: vec![
@@ -60,7 +57,7 @@ fn find_boring_assignments() {
                     "Consider using a poetic literal such as: `pi is ***. * ****`".into()
                 ],
             },
-        ])
+        ]
     );
 }
 
@@ -80,8 +77,8 @@ fn find_boring_poetic_assignments() {
                 .unwrap()
             )
             .unwrap()
-            .into_diags(),
-        Diags(vec![
+            .build(),
+        [
             Diag {
                 issue: "Assignment of literal value `23` into `x` isn't very rock'n'roll".into(),
                 suggestions: vec!["Consider using a poetic literal such as: `x is ** ***`".into()],
@@ -93,7 +90,7 @@ fn find_boring_poetic_assignments() {
                     "Consider using a poetic literal such as: `counter is **********`".into()
                 ],
             }
-        ])
+        ]
     );
 }
 
@@ -115,8 +112,8 @@ fn find_boring_array_pushes() {
                 .unwrap()
             )
             .unwrap()
-            .into_diags(),
-        Diags(vec![
+            .build(),
+        [
             Diag {
                 issue: "Assignment of literal value `45` into `the array` isn't very rock'n'roll"
                     .into(),
@@ -133,7 +130,7 @@ fn find_boring_array_pushes() {
                         .into()
                 ],
             }
-        ])
+        ]
     );
 }
 
@@ -154,8 +151,8 @@ fn find_boring_string_assignments() {
                 .unwrap()
             )
             .unwrap()
-            .into_diags(),
-        Diags(vec![
+            .build(),
+        [
             Diag {
                 issue: r#"Assignment of literal value `"hey"` into `x` isn't very rock'n'roll"#.into(),
                 suggestions: vec!["Consider using a poetic literal such as: `x says hey`".into()],
@@ -181,7 +178,7 @@ fn find_boring_string_assignments() {
                         .into()
                 ],
             }
-        ])
+        ]
     );
 }
 

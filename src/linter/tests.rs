@@ -1,35 +1,33 @@
 use super::*;
 
 #[test]
-fn diags_builder_combine() {
-    let bogus = |text| Diag::new(String::from(text), Vec::new());
+fn list_builder_combine() {
     assert_eq!(
-        DiagsBuilder::Empty.combine(DiagsBuilder::Empty),
-        DiagsBuilder::Empty
+        ListBuilder::<()>::Empty.combine(ListBuilder::Empty),
+        ListBuilder::Empty
     );
     assert_eq!(
-        DiagsBuilder::One(bogus("a")).combine(DiagsBuilder::Empty),
-        DiagsBuilder::One(bogus("a"))
+        ListBuilder::One("a").combine(ListBuilder::Empty),
+        ListBuilder::One("a")
     );
     assert_eq!(
-        DiagsBuilder::Empty.combine(DiagsBuilder::One(bogus("a"))),
-        DiagsBuilder::One(bogus("a"))
+        ListBuilder::Empty.combine(ListBuilder::One("a")),
+        ListBuilder::One("a")
     );
     assert_eq!(
-        DiagsBuilder::One(bogus("a")).combine(DiagsBuilder::One(bogus("b"))),
-        DiagsBuilder::List(vec![bogus("a"), bogus("b")])
+        ListBuilder::One("a").combine(ListBuilder::One("b")),
+        ListBuilder::List(vec!["a", "b"])
     );
     assert_eq!(
-        DiagsBuilder::List(vec![bogus("a"), bogus("b")]).combine(DiagsBuilder::Empty),
-        DiagsBuilder::List(vec![bogus("a"), bogus("b")])
+        ListBuilder::List(vec!["a", "b"]).combine(ListBuilder::Empty),
+        ListBuilder::List(vec!["a", "b"])
     );
     assert_eq!(
-        DiagsBuilder::Empty.combine(DiagsBuilder::List(vec![bogus("a"), bogus("b")])),
-        DiagsBuilder::List(vec![bogus("a"), bogus("b")])
+        ListBuilder::Empty.combine(ListBuilder::List(vec!["a", "b"])),
+        ListBuilder::List(vec!["a", "b"])
     );
     assert_eq!(
-        DiagsBuilder::List(vec![bogus("a"), bogus("b")])
-            .combine(DiagsBuilder::List(vec![bogus("c"),])),
-        DiagsBuilder::List(vec![bogus("a"), bogus("b"), bogus("c")])
+        ListBuilder::List(vec!["a", "b"]).combine(ListBuilder::List(vec!["c",])),
+        ListBuilder::List(vec!["a", "b", "c"])
     );
 }
