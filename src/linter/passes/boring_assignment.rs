@@ -86,14 +86,36 @@ fn suggestion_text(payload: &str) -> String {
     format!("Consider using a poetic literal such as: `{}`", payload)
 }
 
-fn build_numeric_diag(var: &impl Render, val: Option<NumericConstant>) -> DiagsBuilder {
-    val.map(|val| {
+fn build_diag(var: &impl Render, data: Option<(NumericConstant, String)>) -> DiagsBuilder {
+    data.map(|(val, payload)| {
         DiagsBuilder::One(Diag {
             issue: issue_text(var, &val.value),
-            suggestions: vec![suggestion_text(&numeric_suggestion_payload(var, val.value))],
+            suggestions: vec![suggestion_text(&payload)],
         })
     })
     .unwrap_or(DiagsBuilder::Empty)
+}
+
+fn build_numeric_diag(var: &impl Render, val: Option<NumericConstant>) -> DiagsBuilder {
+    build_diag(
+        var,
+        val.map(|val| (val, numeric_suggestion_payload(var, val.value))),
+    )
+}
+
+fn array_push_suggestion_payload(var: &impl Render, val: f64) -> String {
+    format!(
+        "Rock {} like {}",
+        var.render(),
+        PoeticNumberLiteralTemplate::from_value(val).as_text()
+    )
+}
+
+fn build_numeric_array_push_diag(var: &impl Render, val: Option<NumericConstant>) -> DiagsBuilder {
+    build_diag(
+        var,
+        val.map(|val| (val, array_push_suggestion_payload(var, val.value))),
+    )
 }
 
 #[cfg(test)]
@@ -110,6 +132,15 @@ impl BoringAssignmentPass {
                 NumericConstantFolder.visit_expression(e).ok()
             }
             PoeticNumberAssignmentRHS::PoeticNumberLiteral(_) => None,
+        }
+    }
+
+    fn find_boring_array_push_rhs(a: &ArrayPushRHS) -> Option<NumericConstant> {
+        match a {
+            ArrayPushRHS::ExpressionList(el) => {
+                NumericConstantFolder.visit_expression_list(el).ok()
+            }
+            ArrayPushRHS::PoeticNumberLiteral(_) => None,
         }
     }
 }
@@ -132,6 +163,12 @@ impl Visitor for BoringAssignmentPass {
         Ok(build_numeric_diag(
             &a.dest,
             Self::find_boring_poetic_number_assignment_rhs(&a.rhs),
+        ))
+    }
+    fn visit_array_push(&mut self, a: &ArrayPush) -> walk::Result<Self> {
+        Ok(build_numeric_array_push_diag(
+            &a.array,
+            Self::find_boring_array_push_rhs(&a.value),
         ))
     }
 }

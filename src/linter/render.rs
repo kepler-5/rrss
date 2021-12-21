@@ -1,5 +1,6 @@
 use crate::frontend::ast::{
-    AssignmentLHS, CommonIdentifier, Identifier, ProperIdentifier, SimpleIdentifier, VariableName,
+    AssignmentLHS, CommonIdentifier, Identifier, PrimaryExpression, ProperIdentifier,
+    SimpleIdentifier, VariableName,
 };
 
 #[cfg(test)]
@@ -51,6 +52,17 @@ impl Render for AssignmentLHS {
         match self {
             AssignmentLHS::Identifier(i) => i.render(),
             AssignmentLHS::ArraySubscript(_) => "<expression>".into(),
+        }
+    }
+}
+
+impl Render for PrimaryExpression {
+    fn render(&self) -> String {
+        match self {
+            PrimaryExpression::Identifier(i) => i.render(),
+            PrimaryExpression::Literal(_) => "<literal>".into(),
+            PrimaryExpression::ArraySubscript(_) => "<expression>".into(),
+            PrimaryExpression::FunctionCall(_) => "<expression>".into(),
         }
     }
 }

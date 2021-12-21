@@ -94,3 +94,43 @@ fn find_boring_poetic_assignments() {
         ])
     );
 }
+
+#[test]
+fn find_boring_array_pushes() {
+    assert_eq!(
+        BoringAssignmentPass
+            .visit_program(
+                &parse(
+                    "\
+        if x isn't 6
+        shout x
+        rock the array with 45
+        counter is tenletters
+        rock the array with 1, 2, 3
+        rock the array with 0
+        rock you like a hurricane"
+                )
+                .unwrap()
+            )
+            .unwrap()
+            .into_diags(),
+        Diags(vec![
+            Diag {
+                issue: "Assignment of literal value `45` into `the array` isn't very rock'n'roll"
+                    .into(),
+                suggestions: vec![
+                    "Consider using a poetic literal such as: `Rock the array like **** *****`"
+                        .into()
+                ],
+            },
+            Diag {
+                issue: "Assignment of literal value `0` into `the array` isn't very rock'n'roll"
+                    .into(),
+                suggestions: vec![
+                    "Consider using a poetic literal such as: `Rock the array like **********`"
+                        .into()
+                ],
+            }
+        ])
+    );
+}
