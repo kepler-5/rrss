@@ -1,4 +1,7 @@
-use std::iter;
+use std::{
+    fmt::{Display, Write},
+    iter,
+};
 
 use derive_more::{Add, From, Neg, Sub};
 
@@ -11,6 +14,12 @@ mod tests;
 #[derive(Add, Sub, Neg, Copy, Clone, Debug, Default, From, PartialEq, PartialOrd)]
 pub struct NumericConstant {
     pub value: f64,
+}
+
+impl Display for NumericConstant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.value.fmt(f)
+    }
 }
 
 // would like to derive_more these but the generated impls seem to have issues
@@ -185,6 +194,14 @@ impl Visitor for NumericConstantFolder {
 #[derive(Clone, Debug, Default, From, PartialEq, PartialOrd)]
 pub struct StringConstant {
     pub value: String,
+}
+
+impl Display for StringConstant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_char('"')?;
+        f.write_str(&self.value)?;
+        f.write_char('"')
+    }
 }
 
 impl std::ops::Add for StringConstant {

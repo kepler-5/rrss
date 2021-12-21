@@ -4,7 +4,10 @@ use itertools::repeat_n;
 
 use crate::{
     analysis::{
-        tools::{NumericConstant, NumericConstantFolder},
+        tools::{
+            ConstantFoldingError, NumericConstant, NumericConstantFolder,
+            SimpleStringConstantFolder, StringConstant,
+        },
         walk::{self, Visitor},
     },
     frontend::ast::*,
@@ -27,7 +30,7 @@ enum PoeticNumberLiteralTemplateItem {
 struct PoeticNumberLiteralTemplate(Vec<PoeticNumberLiteralTemplateItem>);
 
 impl PoeticNumberLiteralTemplate {
-    fn from_value(val: f64) -> Self {
+    fn from_value(val: NumericConstant) -> Self {
         Self(
             val.to_string()
                 .chars()
@@ -74,7 +77,7 @@ impl PoeticNumberLiteralTemplate {
     }
 }
 
-fn numeric_suggestion_payload(var: &impl Render, val: f64) -> String {
+fn numeric_suggestion_payload(var: &impl Render, val: NumericConstant) -> String {
     format!(
         "{} is {}",
         var.render(),
@@ -82,28 +85,35 @@ fn numeric_suggestion_payload(var: &impl Render, val: f64) -> String {
     )
 }
 
+fn string_suggestion_payload(var: &impl Render, val: &StringConstant) -> String {
+    format!("{} says {}", var.render(), val.value)
+}
+
 fn suggestion_text(payload: &str) -> String {
     format!("Consider using a poetic literal such as: `{}`", payload)
 }
 
-fn build_diag(var: &impl Render, data: Option<(NumericConstant, String)>) -> DiagsBuilder {
-    data.map(|(val, payload)| {
-        DiagsBuilder::One(Diag {
-            issue: issue_text(var, &val.value),
-            suggestions: vec![suggestion_text(&payload)],
-        })
+fn build_diag<Constant: Display>(
+    var: &impl Render,
+    suggestion: &str,
+    val: Constant,
+) -> DiagsBuilder {
+    DiagsBuilder::One(Diag {
+        issue: issue_text(var, &val),
+        suggestions: vec![suggestion_text(suggestion)],
     })
-    .unwrap_or(DiagsBuilder::Empty)
 }
 
-fn build_numeric_diag(var: &impl Render, val: Option<NumericConstant>) -> DiagsBuilder {
-    build_diag(
-        var,
-        val.map(|val| (val, numeric_suggestion_payload(var, val.value))),
-    )
+fn build_numeric_diag(var: &impl Render, val: NumericConstant) -> DiagsBuilder {
+    build_diag(var, &numeric_suggestion_payload(var, val), val)
 }
 
-fn array_push_suggestion_payload(var: &impl Render, val: f64) -> String {
+fn maybe_build_string_diag(var: &impl Render, val: Option<StringConstant>) -> DiagsBuilder {
+    val.map(|val| build_diag(var, &string_suggestion_payload(var, &val), val))
+        .unwrap_or_default()
+}
+
+fn array_push_suggestion_payload(var: &impl Render, val: NumericConstant) -> String {
     format!(
         "Rock {} like {}",
         var.render(),
@@ -111,11 +121,12 @@ fn array_push_suggestion_payload(var: &impl Render, val: f64) -> String {
     )
 }
 
-fn build_numeric_array_push_diag(var: &impl Render, val: Option<NumericConstant>) -> DiagsBuilder {
-    build_diag(
-        var,
-        val.map(|val| (val, array_push_suggestion_payload(var, val.value))),
-    )
+fn maybe_build_numeric_array_push_diag(
+    var: &impl Render,
+    val: Option<NumericConstant>,
+) -> DiagsBuilder {
+    val.map(|val| build_diag(var, &array_push_suggestion_payload(var, val), val))
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -124,17 +135,6 @@ mod tests;
 struct BoringAssignmentPass;
 
 impl BoringAssignmentPass {
-    fn find_boring_poetic_number_assignment_rhs(
-        p: &PoeticNumberAssignmentRHS,
-    ) -> Option<NumericConstant> {
-        match p {
-            PoeticNumberAssignmentRHS::Expression(e) => {
-                NumericConstantFolder.visit_expression(e).ok()
-            }
-            PoeticNumberAssignmentRHS::PoeticNumberLiteral(_) => None,
-        }
-    }
-
     fn find_boring_array_push_rhs(a: &ArrayPushRHS) -> Option<NumericConstant> {
         match a {
             ArrayPushRHS::ExpressionList(el) => {
@@ -153,20 +153,35 @@ impl Visitor for BoringAssignmentPass {
         Ok(if a.operator.is_some() {
             Self::Output::Empty
         } else {
-            build_numeric_diag(
-                &a.dest,
-                NumericConstantFolder.visit_expression_list(&a.value).ok(),
-            )
+            match NumericConstantFolder.visit_expression_list(&a.value) {
+                Ok(x) => build_numeric_diag(&a.dest, x),
+                Err(ConstantFoldingError::WrongType) => maybe_build_string_diag(
+                    &a.dest,
+                    SimpleStringConstantFolder
+                        .visit_expression_list(&a.value)
+                        .ok(),
+                ),
+                _ => Self::Output::Empty,
+            }
         })
     }
     fn visit_poetic_number_assignment(&mut self, a: &PoeticNumberAssignment) -> walk::Result<Self> {
-        Ok(build_numeric_diag(
-            &a.dest,
-            Self::find_boring_poetic_number_assignment_rhs(&a.rhs),
-        ))
+        Ok(match &a.rhs {
+            PoeticNumberAssignmentRHS::Expression(e) => {
+                match NumericConstantFolder.visit_expression(e) {
+                    Ok(x) => build_numeric_diag(&a.dest, x),
+                    Err(ConstantFoldingError::WrongType) => maybe_build_string_diag(
+                        &a.dest,
+                        SimpleStringConstantFolder.visit_expression(e).ok(),
+                    ),
+                    Err(_) => Self::Output::Empty,
+                }
+            }
+            PoeticNumberAssignmentRHS::PoeticNumberLiteral(_) => Self::Output::Empty,
+        })
     }
     fn visit_array_push(&mut self, a: &ArrayPush) -> walk::Result<Self> {
-        Ok(build_numeric_array_push_diag(
+        Ok(maybe_build_numeric_array_push_diag(
             &a.array,
             Self::find_boring_array_push_rhs(&a.value),
         ))

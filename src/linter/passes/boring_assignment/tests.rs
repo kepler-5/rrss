@@ -134,3 +134,51 @@ fn find_boring_array_pushes() {
         ])
     );
 }
+
+#[test]
+fn find_boring_string_assignments() {
+    assert_eq!(
+        BoringAssignmentPass
+            .visit_program(
+                &parse(
+                    r#"\
+        x is "hey"
+        x is "  hey "
+        if x isn't 6
+        shout x
+        put "Rock the house" into z
+        let r be "let's search the sky""#
+                )
+                .unwrap()
+            )
+            .unwrap()
+            .into_diags(),
+        Diags(vec![
+            Diag {
+                issue: r#"Assignment of literal value `"hey"` into `x` isn't very rock'n'roll"#.into(),
+                suggestions: vec!["Consider using a poetic literal such as: `x says hey`".into()],
+            },
+            Diag {
+                issue: r#"Assignment of literal value `"  hey "` into `x` isn't very rock'n'roll"#
+                    .into(),
+                suggestions: vec!["Consider using a poetic literal such as: `x says   hey `".into()],
+            },
+            Diag {
+                issue: r#"Assignment of literal value `"Rock the house"` into `z` isn't very rock'n'roll"#
+                    .into(),
+                suggestions: vec![
+                    "Consider using a poetic literal such as: `z says Rock the house`"
+                        .into()
+                ],
+            },
+            Diag {
+                issue: r#"Assignment of literal value `"let's search the sky"` into `r` isn't very rock'n'roll"#
+                    .into(),
+                suggestions: vec![
+                    "Consider using a poetic literal such as: `r says let's search the sky`"
+                        .into()
+                ],
+            }
+        ])
+    );
+}
