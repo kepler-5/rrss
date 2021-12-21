@@ -86,3 +86,84 @@ fn find_all_constant_assignments() {
             .collect())
     );
 }
+
+#[test]
+fn simple_string_constant_folding_expression() {
+    let val = |text| {
+        SimpleStringConstantFolder
+            .visit_expression(&Parser::for_source_code(text).parse_expression().unwrap())
+    };
+    let s = |text| StringConstant::from(String::from(text));
+
+    assert_eq!(val("\"\""), Ok(s("")));
+    assert_eq!(val("\"hello, world\""), Ok(s("hello, world")));
+
+    // intentionally not supported (for *Simple*StringConstantFolder)
+    assert_eq!(val("\"foo\" + \"bar\""), Err(PossibleValueIgnored));
+    assert_eq!(val("2 * \"bar\""), Err(PossibleValueIgnored));
+    assert_eq!(val("\"foo\" times 2, 2, 2"), Err(PossibleValueIgnored));
+
+    assert_eq!(val("2"), Err(WrongType));
+    assert_eq!(val("2 + 2"), Err(PossibleValueIgnored));
+    assert_eq!(val("foo"), Err(UnknownValue));
+}
+
+#[test]
+fn find_all_constant_string_assignments() {
+    struct ConstantStringAssignmentFinder;
+    impl ConstantStringAssignmentFinder {
+        fn capture(s: Option<String>) -> walk::Result<Self> {
+            Ok(s.map(|s| [s].into_iter().collect())
+                .unwrap_or_else(<Self as Visitor>::Output::new))
+        }
+    }
+    impl Visitor for ConstantStringAssignmentFinder {
+        type Output = HashSet<String>;
+        type Error = ();
+
+        fn visit_assignment(&mut self, a: &Assignment) -> walk::Result<Self> {
+            Self::capture(
+                SimpleStringConstantFolder
+                    .visit_expression_list(&a.value)
+                    .ok()
+                    .map(|c| c.value),
+            )
+        }
+        fn visit_poetic_string_assignment(
+            &mut self,
+            p: &PoeticStringAssignment,
+        ) -> walk::Result<Self> {
+            Self::capture(Some(p.rhs.clone()))
+        }
+    }
+
+    assert_eq!(
+        ConstantStringAssignmentFinder.visit_program(&parse("").unwrap()),
+        Ok(HashSet::new())
+    );
+
+    assert_eq!(
+        ConstantStringAssignmentFinder.visit_program(
+            &parse(
+                r#"\
+        let x be "hello"
+        put "world" into y
+        z is 10 with 20, 30, 40
+        amber says the color of your energy
+        amber said ice. A life unfulfilled; wakin' everybody up, taking booze and pills
+        foo taking "blah" (not an assignment)
+        "#
+            )
+            .unwrap()
+        ),
+        Ok([
+            "hello",
+            "world",
+            "the color of your energy",
+            "ice. A life unfulfilled; wakin' everybody up, taking booze and pills"
+        ]
+        .into_iter()
+        .map(Into::into)
+        .collect())
+    );
+}
