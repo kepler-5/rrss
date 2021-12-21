@@ -8,7 +8,7 @@ use crate::{
             ConstantFoldingError, NumericConstant, NumericConstantFolder,
             SimpleStringConstantFolder, StringConstant,
         },
-        walk::{self, Visitor},
+        visit::{self, Visit},
     },
     frontend::ast::*,
     linter::{render::Render, Diag, DiagsBuilder, Pass},
@@ -145,11 +145,11 @@ impl BoringAssignmentPass {
     }
 }
 
-impl Visitor for BoringAssignmentPass {
+impl Visit for BoringAssignmentPass {
     type Output = DiagsBuilder;
     type Error = ();
 
-    fn visit_assignment(&mut self, a: &Assignment) -> walk::Result<Self> {
+    fn visit_assignment(&mut self, a: &Assignment) -> visit::Result<Self> {
         Ok(if a.operator.is_some() {
             Self::Output::Empty
         } else {
@@ -165,7 +165,10 @@ impl Visitor for BoringAssignmentPass {
             }
         })
     }
-    fn visit_poetic_number_assignment(&mut self, a: &PoeticNumberAssignment) -> walk::Result<Self> {
+    fn visit_poetic_number_assignment(
+        &mut self,
+        a: &PoeticNumberAssignment,
+    ) -> visit::Result<Self> {
         Ok(match &a.rhs {
             PoeticNumberAssignmentRHS::Expression(e) => {
                 match NumericConstantFolder.visit_expression(e) {
@@ -180,7 +183,7 @@ impl Visitor for BoringAssignmentPass {
             PoeticNumberAssignmentRHS::PoeticNumberLiteral(_) => Self::Output::Empty,
         })
     }
-    fn visit_array_push(&mut self, a: &ArrayPush) -> walk::Result<Self> {
+    fn visit_array_push(&mut self, a: &ArrayPush) -> visit::Result<Self> {
         Ok(maybe_build_numeric_array_push_diag(
             &a.array,
             Self::find_boring_array_push_rhs(&a.value),

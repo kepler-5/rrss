@@ -1,7 +1,7 @@
 use std::{collections::HashSet, hash::Hash};
 
 use super::*;
-use crate::{analysis::walk, frontend::parser::parse};
+use crate::{analysis::visit, frontend::parser::parse};
 use derive_more::From;
 
 #[test]
@@ -19,10 +19,10 @@ fn combine() {
         }
     }
     struct IsEmpty;
-    impl Visitor for IsEmpty {
+    impl Visit for IsEmpty {
         type Output = IsEmptyResult;
         type Error = ();
-        fn visit_block(&mut self, b: &Block) -> walk::Result<Self> {
+        fn visit_block(&mut self, b: &Block) -> visit::Result<Self> {
             Ok(b.is_empty().into())
         }
     }
@@ -60,10 +60,10 @@ fn short_circuit() {
             ExplodeOnThird { count: 0 }
         }
     }
-    impl Visitor for ExplodeOnThird {
+    impl Visit for ExplodeOnThird {
         type Output = ();
         type Error = ();
-        fn visit_block(&mut self, _: &Block) -> walk::Result<Self> {
+        fn visit_block(&mut self, _: &Block) -> visit::Result<Self> {
             self.count += 1;
             match self.count {
                 2 => Err(()),
@@ -106,10 +106,10 @@ impl Combine for Counter {
 #[test]
 fn count_xs() {
     struct CountXs;
-    impl Visitor for CountXs {
+    impl Visit for CountXs {
         type Output = Counter;
         type Error = ();
-        fn visit_simple_identifier(&mut self, n: &SimpleIdentifier) -> walk::Result<Self> {
+        fn visit_simple_identifier(&mut self, n: &SimpleIdentifier) -> visit::Result<Self> {
             Ok(((n.0 == "x") as i32).into())
         }
     }
@@ -173,13 +173,13 @@ fn count_xs() {
 #[test]
 fn count_xs_unless_there_are_continues() {
     struct CountXsUnlessThereAreContinues;
-    impl Visitor for CountXsUnlessThereAreContinues {
+    impl Visit for CountXsUnlessThereAreContinues {
         type Output = Counter;
         type Error = &'static str;
-        fn visit_simple_identifier(&mut self, n: &SimpleIdentifier) -> walk::Result<Self> {
+        fn visit_simple_identifier(&mut self, n: &SimpleIdentifier) -> visit::Result<Self> {
             Ok(((n.0 == "x") as i32).into())
         }
-        fn visit_continue(&mut self) -> walk::Result<Self> {
+        fn visit_continue(&mut self) -> visit::Result<Self> {
             Err("found continue!")
         }
     }
@@ -216,17 +216,17 @@ impl<T: Eq + Hash + Clone> Combine for HashSet<T> {
 #[test]
 fn collect_all_number_literals_functional() {
     struct CollectAllNumberLiterals;
-    impl Visitor for CollectAllNumberLiterals {
+    impl Visit for CollectAllNumberLiterals {
         type Output = HashSet<String>;
         type Error = ();
 
-        fn visit_literal_expression(&mut self, e: &LiteralExpression) -> walk::Result<Self> {
+        fn visit_literal_expression(&mut self, e: &LiteralExpression) -> visit::Result<Self> {
             match e {
                 LiteralExpression::Number(x) => Ok([x.to_string()].into_iter().collect()),
                 _ => leaf(()),
             }
         }
-        fn visit_poetic_number_literal(&mut self, p: &PoeticNumberLiteral) -> walk::Result<Self> {
+        fn visit_poetic_number_literal(&mut self, p: &PoeticNumberLiteral) -> visit::Result<Self> {
             Ok([p.compute_value().to_string()].into_iter().collect())
         }
     }
@@ -263,17 +263,17 @@ fn collect_all_number_literals_stateful() {
     struct CollectAllNumberLiterals {
         pub literals: HashSet<String>,
     }
-    impl Visitor for CollectAllNumberLiterals {
+    impl Visit for CollectAllNumberLiterals {
         type Output = ();
         type Error = ();
 
-        fn visit_literal_expression(&mut self, e: &LiteralExpression) -> walk::Result<Self> {
+        fn visit_literal_expression(&mut self, e: &LiteralExpression) -> visit::Result<Self> {
             if let LiteralExpression::Number(x) = e {
                 self.literals.insert(x.to_string());
             }
             Ok(())
         }
-        fn visit_poetic_number_literal(&mut self, p: &PoeticNumberLiteral) -> walk::Result<Self> {
+        fn visit_poetic_number_literal(&mut self, p: &PoeticNumberLiteral) -> visit::Result<Self> {
             self.literals.insert(p.compute_value().to_string());
             Ok(())
         }

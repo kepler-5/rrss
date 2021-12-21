@@ -28,7 +28,7 @@ pub fn leaf<T, U: Default, E>(_: T) -> std::result::Result<U, E> {
     Ok(Default::default())
 }
 
-pub trait Visitor {
+pub trait Visit {
     type Output: Combine + Default;
     type Error;
 
@@ -295,4 +295,4 @@ pub trait Visitor {
     }
 }
 
-pub type Result<T> = std::result::Result<<T as Visitor>::Output, <T as Visitor>::Error>;
+pub type Result<T> = std::result::Result<<T as Visit>::Output, <T as Visit>::Error>;

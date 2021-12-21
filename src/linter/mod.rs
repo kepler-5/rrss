@@ -3,7 +3,7 @@ use std::hint::unreachable_unchecked;
 use derive_more::{Constructor, IsVariant};
 
 use crate::{
-    analysis::walk::{combine_all, Combine, Visitor},
+    analysis::visit::{combine_all, Combine, Visit},
     frontend::ast::Program,
 };
 
@@ -68,7 +68,7 @@ pub struct Diags(pub Vec<Diag>);
 
 type DiagsBuilder = ListBuilder<Diag>;
 
-trait Pass: Visitor<Output = DiagsBuilder, Error = ()> {}
+trait Pass: Visit<Output = DiagsBuilder, Error = ()> {}
 
 pub struct Linter {
     passes: Vec<Box<dyn Pass>>,

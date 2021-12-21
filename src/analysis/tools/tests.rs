@@ -39,24 +39,24 @@ fn numeric_constant_folding_program() {
 fn find_all_constant_assignments() {
     struct ConstantAssignmentFinder;
     impl ConstantAssignmentFinder {
-        fn capture(x: walk::Result<NumericConstantFolder>) -> walk::Result<Self> {
+        fn capture(x: visit::Result<NumericConstantFolder>) -> visit::Result<Self> {
             Ok(match x {
                 Ok(c) => [c.value.to_string()].into_iter().collect(),
-                Err(_) => <Self as Visitor>::Output::new(),
+                Err(_) => <Self as Visit>::Output::new(),
             })
         }
     }
-    impl Visitor for ConstantAssignmentFinder {
+    impl Visit for ConstantAssignmentFinder {
         type Output = HashSet<String>;
         type Error = ();
 
-        fn visit_assignment(&mut self, a: &Assignment) -> walk::Result<Self> {
+        fn visit_assignment(&mut self, a: &Assignment) -> visit::Result<Self> {
             Self::capture(NumericConstantFolder.visit_expression_list(&a.value))
         }
         fn visit_poetic_number_assignment(
             &mut self,
             p: &PoeticNumberAssignment,
-        ) -> walk::Result<Self> {
+        ) -> visit::Result<Self> {
             Self::capture(NumericConstantFolder.visit_poetic_number_assignment_rhs(&p.rhs))
         }
     }
@@ -112,16 +112,16 @@ fn simple_string_constant_folding_expression() {
 fn find_all_constant_string_assignments() {
     struct ConstantStringAssignmentFinder;
     impl ConstantStringAssignmentFinder {
-        fn capture(s: Option<String>) -> walk::Result<Self> {
+        fn capture(s: Option<String>) -> visit::Result<Self> {
             Ok(s.map(|s| [s].into_iter().collect())
-                .unwrap_or_else(<Self as Visitor>::Output::new))
+                .unwrap_or_else(<Self as Visit>::Output::new))
         }
     }
-    impl Visitor for ConstantStringAssignmentFinder {
+    impl Visit for ConstantStringAssignmentFinder {
         type Output = HashSet<String>;
         type Error = ();
 
-        fn visit_assignment(&mut self, a: &Assignment) -> walk::Result<Self> {
+        fn visit_assignment(&mut self, a: &Assignment) -> visit::Result<Self> {
             Self::capture(
                 SimpleStringConstantFolder
                     .visit_expression_list(&a.value)
@@ -132,7 +132,7 @@ fn find_all_constant_string_assignments() {
         fn visit_poetic_string_assignment(
             &mut self,
             p: &PoeticStringAssignment,
-        ) -> walk::Result<Self> {
+        ) -> visit::Result<Self> {
             Self::capture(Some(p.rhs.clone()))
         }
     }
