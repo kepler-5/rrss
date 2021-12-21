@@ -32,10 +32,13 @@ fn find_boring_assignments() {
             .visit_program(
                 &parse(
                     "\
-        x is 5
+        x is 23
         if x isn't 6
         shout x
-        put 1 + 1 into z"
+        put 26 + 9 into z
+        let pi be 3.14
+        counter is 0
+        my heart is in your hands"
                 )
                 .unwrap()
             )
@@ -43,12 +46,27 @@ fn find_boring_assignments() {
             .into_diags(),
         Diags(vec![
             Diag {
-                issue: "Assignment of literal value `5` into `x` isn't very rock'n'roll".into(),
-                suggestions: vec![],
+                issue: "Assignment of literal value `23` into `x` isn't very rock'n'roll".into(),
+                suggestions: vec!["Consider using a poetic literal such as: `x is ** ***`".into()],
             },
             Diag {
-                issue: "Assignment of literal value `2` into `z` isn't very rock'n'roll".into(),
-                suggestions: vec![],
+                issue: "Assignment of literal value `35` into `z` isn't very rock'n'roll".into(),
+                suggestions: vec![
+                    "Consider using a poetic literal such as: `z is *** *****`".into()
+                ],
+            },
+            Diag {
+                issue: "Assignment of literal value `3.14` into `pi` isn't very rock'n'roll".into(),
+                suggestions: vec![
+                    "Consider using a poetic literal such as: `pi is ***. * ****`".into()
+                ],
+            },
+            Diag {
+                issue: "Assignment of literal value `0` into `counter` isn't very rock'n'roll"
+                    .into(),
+                suggestions: vec![
+                    "Consider using a poetic literal such as: `counter is **********`".into()
+                ],
             }
         ])
     );
