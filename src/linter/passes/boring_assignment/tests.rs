@@ -3,6 +3,7 @@ use crate::{
     frontend::parser::parse,
     linter::{Diag, Diags},
 };
+use more_asserts::{assert_ge, assert_le};
 
 #[test]
 fn find_nothing() {
@@ -39,7 +40,8 @@ fn find_boring_assignments() {
         if x isn't 6
         shout x
         put 26 + 9 into z
-        let pi be 3.14"
+        let pi be 3.14
+        let pi be times 2"
                 )
                 .unwrap()
             )
@@ -180,5 +182,25 @@ fn find_boring_string_assignments() {
                 ],
             }
         ])
+    );
+}
+
+#[test]
+fn estimate_text_size() {
+    macro_rules! check {
+        ($estimate:expr, $actual:expr) => {
+            assert_ge!($estimate, $actual.len()); // big enough
+            assert_le!($estimate, ($actual.len() as f32 * 1.5) as usize); // not too big
+        };
+    }
+
+    let estimate = |x: f64| PoeticNumberLiteralTemplate::from_value(x.into()).estimate_text_size();
+
+    check!(estimate(0.0), "**********");
+    check!(estimate(12.0), "* **");
+    check!(estimate(3.14159), "***. * **** * ***** *********");
+    check!(
+        estimate(12345678.0),
+        "* ** *** **** ***** ****** ******* ********"
     );
 }
