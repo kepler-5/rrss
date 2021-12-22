@@ -1,5 +1,7 @@
 use super::*;
 
+use inner::inner;
+
 #[test]
 fn parse_literal_expression() {
     let parse = |text| Parser::for_source_code(text).parse_literal_expression();

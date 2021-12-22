@@ -1,6 +1,7 @@
 use std::{collections::HashMap, iter::repeat, slice::SliceIndex, str::CharIndices};
 
 use derive_more::Constructor;
+use lazy_static::lazy_static;
 
 #[cfg(test)]
 mod tests;
