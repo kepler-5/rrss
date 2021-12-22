@@ -132,7 +132,7 @@ fn maybe_build_numeric_array_push_diag(
 #[cfg(test)]
 mod tests;
 
-struct BoringAssignmentPass;
+pub struct BoringAssignmentPass;
 
 impl BoringAssignmentPass {
     fn find_boring_array_push_rhs(a: &ArrayPushRHS) -> Option<NumericConstant> {

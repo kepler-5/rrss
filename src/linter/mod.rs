@@ -5,8 +5,10 @@ use derive_more::{Constructor, IsVariant};
 use crate::{
     analysis::visit::{combine_all, Combine, Visit},
     frontend::ast::Program,
+    linter::passes::boring_assignment::BoringAssignmentPass,
 };
 
+pub mod display;
 pub mod passes;
 pub mod render;
 #[cfg(test)]
@@ -19,7 +21,7 @@ pub struct Diag {
 }
 
 #[derive(Clone, Debug, IsVariant, PartialEq, Eq)]
-enum ListBuilder<T> {
+pub enum ListBuilder<T> {
     Empty,
     One(T),
     List(Vec<T>),
@@ -63,21 +65,36 @@ impl<T> Combine for ListBuilder<T> {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Diags(pub Vec<Diag>);
-
 type DiagsBuilder = ListBuilder<Diag>;
 
-trait Pass: Visit<Output = DiagsBuilder, Error = ()> {}
+pub trait Pass: Visit<Output = DiagsBuilder, Error = ()> {}
 
+pub type Passes = Vec<Box<dyn Pass>>;
+
+#[derive(Constructor)]
 pub struct Linter {
-    passes: Vec<Box<dyn Pass>>,
+    passes: Passes,
+}
+
+#[derive(Constructor)]
+pub struct LinterResult {
+    diags: Vec<Diag>,
 }
 
 impl Linter {
-    pub fn run(&mut self, program: &Program) -> Vec<Diag> {
-        combine_all(self.passes.iter_mut().map(|p| p.visit_program(&program)))
-            .unwrap_or_default()
-            .build()
+    pub fn run(&mut self, program: &Program) -> LinterResult {
+        LinterResult::new(
+            combine_all(self.passes.iter_mut().map(|p| p.visit_program(&program)))
+                .unwrap_or_default()
+                .build(),
+        )
     }
+}
+
+pub fn standard_passes() -> Passes {
+    vec![Box::new(BoringAssignmentPass)]
+}
+
+pub fn standard_linter() -> Linter {
+    Linter::new(standard_passes())
 }

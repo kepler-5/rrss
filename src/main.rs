@@ -1,4 +1,5 @@
 pub mod analysis;
+pub mod driver;
 pub mod frontend;
 pub mod linter;
 
