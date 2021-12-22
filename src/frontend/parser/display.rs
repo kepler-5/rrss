@@ -126,3 +126,5 @@ impl Display for ParseError<'_> {
         }
     }
 }
+
+impl std::error::Error for ParseError<'_> {}

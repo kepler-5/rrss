@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{ffi::OsString, fmt::Display, fs::read_to_string};
 
 use derive_more::Constructor;
 
@@ -22,6 +22,8 @@ impl Display for Error {
         self.payload.fmt(f)
     }
 }
+
+impl std::error::Error for Error {}
 
 impl From<ParseError<'_>> for Error {
     fn from(p: ParseError) -> Self {
@@ -66,4 +68,33 @@ pub fn run_from_command_line(command: Command, source_code: &str) {
         Command::Parse => dump!(run_parser(source_code).map(prettify)),
         Command::Lint => dump!(run_linter(source_code)),
     }
+}
+
+pub fn load_and_run_from_command_line(
+    command: Command,
+    file_path: &str,
+) -> Result<(), std::io::Error> {
+    read_to_string(file_path).map(|source_code| run_from_command_line(command, &source_code))
+}
+
+pub fn cli<I, T>(args: I) -> Result<(), Box<dyn std::error::Error>>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<OsString> + Clone,
+{
+    let matches = clap::App::new("rrss")
+        .about("Rockstar programming language tools")
+        .subcommands([clap::SubCommand::with_name("lint").arg(
+            clap::Arg::with_name("file")
+                .required(true)
+                .takes_value(false),
+        )])
+        .get_matches_from_safe(args)?;
+    match matches.subcommand() {
+        ("lint", Some(matches)) => {
+            load_and_run_from_command_line(Command::Lint, matches.value_of("file").unwrap())?
+        }
+        _ => {}
+    }
+    Ok(())
 }

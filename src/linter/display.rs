@@ -22,11 +22,12 @@ fn write_list<T: fmt::Display>(
 
 impl fmt::Display for Diag {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Lint issue: {}", self.issue)?;
-        if !self.suggestions.is_empty() {
-            f.write_str("\n")?;
+        write!(f, "Linter issue: {}", self.issue)?;
+        for elem in self.suggestions.iter() {
+            f.write_str("\n\t")?;
+            f.write_str(elem)?;
         }
-        write_list(f, &self.suggestions, "\n\t")
+        Ok(())
     }
 }
 

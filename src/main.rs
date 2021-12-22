@@ -1,3 +1,5 @@
+use std::{env, process};
+
 pub mod analysis;
 pub mod driver;
 pub mod frontend;
@@ -10,5 +12,12 @@ extern crate inner;
 extern crate lazy_static;
 
 fn main() {
-    println!("Hello, world!");
+    let exit_code = match driver::cli(env::args()) {
+        Ok(()) => 0,
+        Err(e) => {
+            eprintln!("{}", e);
+            1
+        }
+    };
+    process::exit(exit_code)
 }
