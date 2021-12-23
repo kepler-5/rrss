@@ -3,6 +3,8 @@ use std::{collections::HashMap, iter::repeat, slice::SliceIndex, str::CharIndice
 use derive_more::Constructor;
 use lazy_static::lazy_static;
 
+use crate::frontend::source_range::SourceLocation;
+
 #[cfg(test)]
 mod tests;
 
@@ -262,7 +264,8 @@ fn find_word_start<'a>(
 struct LexResult<'a> {
     token: Token<'a>,
     end: usize,
-    newlines: usize,
+    newlines: u32,
+    new_line_start: Option<u32>,
 }
 
 #[derive(Clone, Debug)]
@@ -270,7 +273,8 @@ pub struct Lexer<'a> {
     buf: &'a str,
     char_indices: CharIndices<'a>,
     staged: Option<Token<'a>>,
-    line: usize,
+    line: u32,
+    line_start: u32,
 }
 
 impl<'a> Lexer<'a> {
@@ -280,6 +284,7 @@ impl<'a> Lexer<'a> {
             char_indices: buf.char_indices(),
             staged: None,
             line: 1,
+            line_start: 0,
         }
     }
 
@@ -308,7 +313,19 @@ impl<'a> Lexer<'a> {
     }
 
     pub fn current_line(&self) -> usize {
-        self.line
+        self.line as usize
+    }
+
+    pub fn current_loc(&self) -> SourceLocation {
+        SourceLocation::new(self.line, self.current_idx() as u32 - self.line_start)
+    }
+
+    fn current_idx(&self) -> usize {
+        self.char_indices
+            .clone()
+            .next()
+            .map(|(i, _)| i)
+            .unwrap_or_else(|| self.buf.len())
     }
 
     fn substr<I: SliceIndex<str>>(&self, slice: I) -> &'a <I as SliceIndex<str>>::Output {
@@ -336,6 +353,7 @@ impl<'a> Lexer<'a> {
             token: Token::new(TokenType::Number(n), text),
             end,
             newlines: 0,
+            new_line_start: None,
         })
     }
 
@@ -378,6 +396,7 @@ impl<'a> Lexer<'a> {
             token,
             end,
             newlines: 0,
+            new_line_start: None,
         }
     }
 
@@ -396,6 +415,7 @@ impl<'a> Lexer<'a> {
                 ),
                 end,
                 newlines: 0,
+                new_line_start: None,
             })
     }
 
@@ -405,6 +425,7 @@ impl<'a> Lexer<'a> {
             token,
             end,
             newlines: 0,
+            new_line_start: None,
         })
     }
 
@@ -415,13 +436,15 @@ impl<'a> Lexer<'a> {
         factory: F,
         error: ErrorMessage,
     ) -> LexResult<'a> {
-        let mut newlines = 0usize;
+        let mut newlines = 0u32;
+        let mut new_line_start = None;
         if let Some((close, _)) = self
             .char_indices
             .clone()
-            .inspect(|&(_, c)| {
+            .inspect(|&(i, c)| {
                 if c == '\n' {
-                    newlines += 1
+                    newlines += 1;
+                    new_line_start = Some((i + 1) as u32);
                 }
             })
             .find(|&(_, c)| c == close_char)
@@ -432,12 +455,14 @@ impl<'a> Lexer<'a> {
                 token: Token::new(factory(self.substr((open + 1)..close)), text),
                 end,
                 newlines,
+                new_line_start,
             }
         } else {
             LexResult {
                 token: Token::new(TokenType::Error(error), self.substr(open..)),
                 end: self.buf.len(),
                 newlines,
+                new_line_start,
             }
         }
     }
@@ -465,6 +490,7 @@ impl<'a> Lexer<'a> {
             token: Token::new(TokenType::ApostropheNApostrophe, "'n'"),
             end: start + 3,
             newlines: 0,
+            new_line_start: None,
         })
     }
 
@@ -474,6 +500,7 @@ impl<'a> Lexer<'a> {
             token: Token::new(TokenType::Error(error), self.substr(start..end)),
             end,
             newlines: 0,
+            new_line_start: None,
         }
     }
 
@@ -489,10 +516,21 @@ impl<'a> Lexer<'a> {
     }
 
     fn char_token(&self, token_type: TokenType<'a>, start: usize) -> LexResult<'a> {
-        LexResult {
-            token: Token::new(token_type, self.substr(start..(start + 1))),
-            end: start + 1,
-            newlines: (token_type == TokenType::Newline) as usize,
+        let token = Token::new(token_type, self.substr(start..(start + 1)));
+        let end = start + 1;
+        match token_type {
+            TokenType::Newline => LexResult {
+                token,
+                end,
+                newlines: 1,
+                new_line_start: Some(end as u32),
+            },
+            _ => LexResult {
+                token,
+                end,
+                newlines: 0,
+                new_line_start: None,
+            },
         }
     }
     fn two_char_token(&self, token_type: TokenType<'a>, start: usize) -> LexResult<'a> {
@@ -500,6 +538,7 @@ impl<'a> Lexer<'a> {
             token: Token::new(token_type, self.substr(start..(start + 2))),
             end: start + 2,
             newlines: 0,
+            new_line_start: None,
         }
     }
 
@@ -510,6 +549,7 @@ impl<'a> Lexer<'a> {
                     token,
                     end,
                     newlines,
+                    new_line_start,
                 } = match start_char {
                     '\n' => self.char_token(TokenType::Newline, start),
 
@@ -570,6 +610,9 @@ impl<'a> Lexer<'a> {
                 };
                 self.advance_to(end, start);
                 self.line += newlines;
+                if let Some(new) = new_line_start {
+                    self.line_start = new;
+                }
                 return Some(token);
             } else {
                 return None;

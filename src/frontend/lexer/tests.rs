@@ -728,17 +728,17 @@ fn get_literal_text() {
 }
 
 #[test]
-fn current_line() {
-    let line_at = |buf, idx| {
+fn current_loc() {
+    let loc_at = |buf, idx| {
         let mut lexer = Lexer::new(buf);
         lexer.by_ref().take(idx).for_each(drop);
-        lexer.current_line()
+        lexer.current_loc()
     };
 
-    assert_eq!(line_at("hello", 0), 1);
-    assert_eq!(line_at("hello", 1), 1);
-    assert_eq!(line_at("hello\n", 1), 1);
-    assert_eq!(line_at("hello\n", 2), 2);
-    assert_eq!(line_at("(hello, \nworld)hi", 1), 2);
-    assert_eq!(line_at("\n\n\n\n\n(hello, \nworld)hi", 999), 7);
+    assert_eq!(loc_at("hello", 0), (1, 0).into());
+    assert_eq!(loc_at("hello", 1), (1, 5).into());
+    assert_eq!(loc_at("hello\n", 1), (1, 5).into());
+    assert_eq!(loc_at("hello\n", 2), (2, 0).into());
+    assert_eq!(loc_at("(hello, \nworld)hi", 1), (2, 6).into());
+    assert_eq!(loc_at("\n\n\n\n\n(hello, \nworld)hi", 999), (7, 8).into());
 }
