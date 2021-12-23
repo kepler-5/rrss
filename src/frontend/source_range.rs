@@ -17,10 +17,14 @@ fn minmax<T: Ord>(a: T, b: T) -> (T, T) {
     }
 }
 
-#[derive(Constructor, Clone, Debug, From, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SourceRange {
-    pub start: SourceLocation,
-    pub end: SourceLocation,
+    start: SourceLocation,
+    end: SourceLocation,
+}
+
+pub trait Range {
+    fn range(&self) -> SourceRange;
 }
 
 impl From<((u32, u32), (u32, u32))> for SourceRange {
@@ -29,19 +33,40 @@ impl From<((u32, u32), (u32, u32))> for SourceRange {
     }
 }
 
+impl From<(SourceLocation, SourceLocation)> for SourceRange {
+    fn from((start, end): (SourceLocation, SourceLocation)) -> Self {
+        SourceRange::new(start, end)
+    }
+}
+
 impl SourceRange {
-    pub fn normalized(self) -> Self {
+    fn new(start: SourceLocation, end: SourceLocation) -> Self {
+        SourceRange { start, end }.normalized()
+    }
+
+    pub fn concat(self, other: Self) -> Self {
+        let (low, high) = minmax(self, other);
+        Self {
+            start: low.start,
+            end: high.end,
+        }
+    }
+
+    pub fn to(self, other: SourceLocation) -> Self {
+        self.concat(Self::new(other, other))
+    }
+
+    fn normalized(self) -> Self {
         if self.end < self.start {
             Self::new(self.end, self.start)
         } else {
             self
         }
     }
-    pub fn concat(self, other: Self) -> Self {
-        let (low, high) = minmax(self.normalized(), other.normalized());
-        Self {
-            start: low.start,
-            end: high.end,
-        }
+}
+
+impl SourceLocation {
+    pub fn to(self, other: Self) -> SourceRange {
+        SourceRange::new(self, other).normalized()
     }
 }
