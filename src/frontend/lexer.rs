@@ -103,7 +103,7 @@ pub enum TokenType<'a> {
     Error(ErrorMessage),
 }
 
-#[derive(Clone, Copy, Constructor, Debug, PartialEq)]
+#[derive(Clone, Constructor, Debug, PartialEq)]
 pub struct Token<'a> {
     pub id: TokenType<'a>,
     pub spelling: &'a str,

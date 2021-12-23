@@ -64,7 +64,7 @@ impl Display for ParseError<'_> {
 
         macro_rules! if_token {
             ($fmt:literal) => {
-                tok.map_or_else(String::new, |tok| format!($fmt, tok))
+                tok.as_ref().map_or_else(String::new, |tok| format!($fmt, tok))
             };
         }
         macro_rules! found_suffix {
@@ -107,8 +107,7 @@ impl Display for ParseError<'_> {
             ParseErrorCode::ExpectedOneOfTokens(tokens) => {
                 f.write_str("Expected ")?;
                 let result = write_list(f, tokens.iter());
-                tok.map(|tok| write!(f, ", found `{}`", tok))
-                    .unwrap_or(result)
+                tok.as_ref().map(|tok| write!(f, ", found `{}`", tok)).unwrap_or(result)
             }
             ParseErrorCode::ExpectedPoeticNumberLiteral => {
                 write!(f, "Expected poetic number literal{}", found_suffix!())
@@ -120,7 +119,7 @@ impl Display for ParseError<'_> {
                 found_suffix!()
             ),
             ParseErrorCode::UnexpectedToken => {
-                write!(f, "Unexpected token `{}`", tok.unwrap())
+                write!(f, "Unexpected token `{}`", tok.as_ref().unwrap())
             }
             ParseErrorCode::UnexpectedEndOfTokens => f.write_str("Unexpected end of tokens"),
         }

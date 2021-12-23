@@ -226,7 +226,7 @@ impl<'a> Parser<'a> {
     // step past a token we *know* satisfies the predicate
     fn consume<M: MatchesToken>(&mut self, m: M) -> Token<'a> {
         let tok = self.lexer.next();
-        assert!(tok.filter(|tok| m.matches_token(tok)).is_some());
+        debug_assert!(tok.as_ref().filter(|tok| m.matches_token(tok)).is_some());
         tok.unwrap()
     }
 
@@ -716,16 +716,16 @@ impl<'a> Parser<'a> {
                     let next_token = myself.lexer.next().ok_or_else(|| {
                         myself.new_parse_error(ParseErrorCode::UnexpectedEndOfTokens)
                     })?;
-                    is_word(next_token.spelling)
-                        .then(|| next_token)
-                        .ok_or_else(|| {
-                            ParseError::new(ParseErrorCode::UnexpectedToken, Some(next_token))
-                        })
-                        .map(|word| {
-                            Some(PoeticNumberLiteralElem::WordSuffix(
-                                "-".to_owned() + word.spelling,
-                            ))
-                        })
+                    if is_word(next_token.spelling) {
+                        Ok(Some(PoeticNumberLiteralElem::WordSuffix(
+                            "-".to_owned() + next_token.spelling,
+                        )))
+                    } else {
+                        Err(ParseError::new(
+                            ParseErrorCode::UnexpectedToken,
+                            Some(next_token),
+                        ))
+                    }
                 }
                 _ => Ok(Some(PoeticNumberLiteralElem::Word(tok.spelling.into()))),
             },
@@ -745,23 +745,21 @@ impl<'a> Parser<'a> {
 
     fn parse_poetic_string_assignment_rhs(
         &mut self,
-        says_token: &Token<'a>,
+        says_token: Token<'a>,
     ) -> Result<String, ParseError<'a>> {
         let text = self
             .match_until_next(TokenType::Newline)
             .map(|end| {
                 self.lexer
                     .underlying()
-                    .get_literal_text_between(says_token, &end)
+                    .get_literal_text_between(&says_token, &end)
             })
-            .unwrap_or_else(|| self.lexer.underlying().get_literal_text_after(says_token))
+            .unwrap_or_else(|| self.lexer.underlying().get_literal_text_after(&says_token))
             .unwrap();
         text.strip_prefix(says_token.spelling)
             .unwrap()
             .strip_prefix(" ")
-            .ok_or_else(|| {
-                self.new_parse_error(ParseErrorCode::ExpectedSpaceAfterSays(*says_token))
-            })
+            .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedSpaceAfterSays(says_token)))
             .map(Into::into)
     }
 
@@ -779,7 +777,7 @@ impl<'a> Parser<'a> {
             TokenType::Say,
         ])? {
             token if token.id == TokenType::Says || token.id == TokenType::Say => self
-                .parse_poetic_string_assignment_rhs(&token)
+                .parse_poetic_string_assignment_rhs(token)
                 .map(|rhs| PoeticStringAssignment { dest, rhs }.into()),
             _ => self
                 .parse_poetic_number_assignment_rhs()

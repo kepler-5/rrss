@@ -2532,13 +2532,13 @@ fn parse() {
 
 #[test]
 fn parse_error_to_string() {
-    let bogus = Some(Token::new(TokenType::ApostropheNApostrophe, "bloop"));
-    let bogus2 = Token::new(TokenType::Word, "worrrd");
+    let bogus = || Some(Token::new(TokenType::ApostropheNApostrophe, "bloop"));
+    let bogus2 = || Token::new(TokenType::Word, "worrrd");
 
     macro_rules! check {
         ($err_code:expr, $without_token:literal, $with_token:literal $(,)?) => {
             assert_eq!(ParseError::new($err_code, None).to_string(), $without_token);
-            assert_eq!(ParseError::new($err_code, bogus).to_string(), $with_token);
+            assert_eq!(ParseError::new($err_code, bogus()).to_string(), $with_token);
         };
     }
 
@@ -2549,7 +2549,7 @@ fn parse_error_to_string() {
     );
 
     check!(
-        ParseErrorCode::ExpectedSpaceAfterSays(bogus2),
+        ParseErrorCode::ExpectedSpaceAfterSays(bogus2()),
         "Expected space after `worrrd`",
         "Expected space after `worrrd`, found `bloop`"
     );
@@ -2661,7 +2661,7 @@ fn parse_error_to_string() {
 
     // UnexpectedToken always has a token
     assert_eq!(
-        ParseError::new(ParseErrorCode::UnexpectedToken, bogus).to_string(),
+        ParseError::new(ParseErrorCode::UnexpectedToken, bogus()).to_string(),
         "Unexpected token `bloop`"
     );
 
