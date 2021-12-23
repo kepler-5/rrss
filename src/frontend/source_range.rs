@@ -56,6 +56,13 @@ impl SourceRange {
         self.concat(Self::new(other, other))
     }
 
+    pub fn start(&self) -> SourceLocation {
+        self.start
+    }
+    pub fn end(&self) -> SourceLocation {
+        self.end
+    }
+
     fn normalized(self) -> Self {
         if self.end < self.start {
             Self::new(self.end, self.start)

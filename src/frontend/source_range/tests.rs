@@ -116,3 +116,32 @@ fn source_location_to() {
         SourceRange::from(((1, 0), (10, 10)))
     );
 }
+
+// there could be BUGS in the getters, okay?
+#[test]
+fn accessors() {
+    assert_eq!(
+        SourceLocation::new(1, 0)
+            .to(SourceLocation::new(10, 10))
+            .start(),
+        SourceLocation::new(1, 0)
+    );
+    assert_eq!(
+        SourceLocation::new(1, 0)
+            .to(SourceLocation::new(10, 10))
+            .end(),
+        SourceLocation::new(10, 10)
+    );
+    assert_eq!(
+        SourceLocation::new(10, 10)
+            .to(SourceLocation::new(20, 15))
+            .start(),
+        SourceLocation::new(10, 10)
+    );
+    assert_eq!(
+        SourceLocation::new(10, 10)
+            .to(SourceLocation::new(20, 15))
+            .end(),
+        SourceLocation::new(20, 15)
+    );
+}
