@@ -2028,7 +2028,7 @@ fn parse_io() {
         parse("listen to it"),
         Ok(Some(
             Input {
-                dest: Some(WithRange(Identifier::Pronoun, line_range(10, 12)).into())
+                dest: InputDest::Some(WithRange(Identifier::Pronoun, line_range(10, 12)).into())
             }
             .into()
         ))
@@ -2037,7 +2037,7 @@ fn parse_io() {
         parse("listen to it at night"),
         Ok(Some(
             Input {
-                dest: Some(
+                dest: InputDest::Some(
                     ArraySubscript {
                         array: boxed_expr(WithRange(Identifier::Pronoun, line_range(10, 12))),
                         subscript: boxed_expr(WithRange(
@@ -2051,7 +2051,15 @@ fn parse_io() {
             .into()
         ))
     );
-    assert_eq!(parse("listen"), Ok(Some(Input { dest: None }.into())));
+    assert_eq!(
+        parse("listen"),
+        Ok(Some(
+            Input {
+                dest: InputDest::None((1, 6).into())
+            }
+            .into()
+        ))
+    );
 }
 
 #[test]
@@ -2300,12 +2308,27 @@ fn parse_rounding() {
 fn parse_break_continue() {
     let parse = |text| Parser::for_source_code(text).parse_statement();
 
-    assert_eq!(parse("break"), Ok(Some(Statement::Break)));
-    assert_eq!(parse("break it down"), Ok(Some(Statement::Break)));
-    assert_eq!(parse("BREAK IT DOWN"), Ok(Some(Statement::Break)));
-    assert_eq!(parse("continue"), Ok(Some(Statement::Continue)));
-    assert_eq!(parse("take it to the top"), Ok(Some(Statement::Continue)));
-    assert_eq!(parse("TAKE IT TO THE TOP"), Ok(Some(Statement::Continue)));
+    assert_eq!(parse("break"), Ok(Some(Break(line_range(0, 5)).into())));
+    assert_eq!(
+        parse("break it down"),
+        Ok(Some(Break(line_range(0, 13)).into()))
+    );
+    assert_eq!(
+        parse(" BREAK IT DOWN "),
+        Ok(Some(Break(line_range(1, 14)).into()))
+    );
+    assert_eq!(
+        parse("continue "),
+        Ok(Some(Continue(line_range(0, 8)).into()))
+    );
+    assert_eq!(
+        parse("take it to the top"),
+        Ok(Some(Continue(line_range(0, 18)).into()))
+    );
+    assert_eq!(
+        parse(" TAKE IT TO THE TOP "),
+        Ok(Some(Continue(line_range(1, 19)).into()))
+    );
 
     assert_eq!(
         parse("break it"),

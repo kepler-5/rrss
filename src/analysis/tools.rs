@@ -105,10 +105,10 @@ impl Visit for NumericConstantFolder {
     fn visit_rounding(&mut self, _: &Rounding) -> visit::Result<Self> {
         Err(NoType)
     }
-    fn visit_continue(&mut self) -> visit::Result<Self> {
+    fn visit_continue(&mut self, _: &Continue) -> visit::Result<Self> {
         Err(NoType)
     }
-    fn visit_break(&mut self) -> visit::Result<Self> {
+    fn visit_break(&mut self, _: &Break) -> visit::Result<Self> {
         Err(NoType)
     }
     fn visit_array_push(&mut self, _: &ArrayPush) -> visit::Result<Self> {
@@ -278,10 +278,10 @@ impl Visit for SimpleStringConstantFolder {
     fn visit_rounding(&mut self, _: &Rounding) -> visit::Result<Self> {
         Err(NoType)
     }
-    fn visit_continue(&mut self) -> visit::Result<Self> {
+    fn visit_continue(&mut self, _: &Continue) -> visit::Result<Self> {
         Err(NoType)
     }
-    fn visit_break(&mut self) -> visit::Result<Self> {
+    fn visit_break(&mut self, _: &Break) -> visit::Result<Self> {
         Err(NoType)
     }
     fn visit_array_push(&mut self, _: &ArrayPush) -> visit::Result<Self> {

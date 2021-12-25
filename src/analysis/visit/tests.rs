@@ -11,6 +11,10 @@ fn bogus_loc() -> SourceLocation {
     (0, 0).into()
 }
 
+fn bogus_range() -> SourceRange {
+    bogus_loc().to(bogus_loc())
+}
+
 #[test]
 fn combine() {
     #[derive(Debug, From, PartialEq, Eq)]
@@ -53,7 +57,7 @@ fn combine() {
             code: vec![
                 Block::Empty(bogus_loc()),
                 Block::Empty(bogus_loc()),
-                Block::NonEmpty(vec![Statement::Continue]),
+                Block::NonEmpty(vec![Continue(bogus_range()).into()]),
                 Block::Empty(bogus_loc()),
             ]
         }),
@@ -204,7 +208,7 @@ fn count_xs_unless_there_are_continues() {
         ) -> visit::Result<Self> {
             Ok(((n.0 .0 == "x") as i32).into())
         }
-        fn visit_continue(&mut self) -> visit::Result<Self> {
+        fn visit_continue(&mut self, _: &Continue) -> visit::Result<Self> {
             Err("found continue!")
         }
     }

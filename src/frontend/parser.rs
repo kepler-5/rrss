@@ -604,9 +604,9 @@ impl<'a> Parser<'a> {
                     }
                     TokenType::Turn => Some(self.parse_rounding().map(Into::into)),
 
-                    TokenType::Break => Some(self.parse_break()),
-                    TokenType::Continue => Some(self.parse_simple_continue()),
-                    TokenType::Take => Some(self.parse_take_it_to_the_top()),
+                    TokenType::Break => Some(self.parse_break().map(Into::into)),
+                    TokenType::Continue => Some(self.parse_simple_continue().map(Into::into)),
+                    TokenType::Take => Some(self.parse_take_it_to_the_top().map(Into::into)),
 
                     TokenType::Rock => Some(self.parse_array_push().map(Into::into)),
                     TokenType::Roll => Some(self.parse_array_pop().map(Into::into)),
@@ -928,13 +928,16 @@ impl<'a> Parser<'a> {
 
     fn parse_listen(&mut self) -> Result<Input, ParseError<'a>> {
         self.consume(TokenType::Listen);
-        self.match_and_consume(TokenType::To).map_or_else(
-            || Ok(Input { dest: None }),
-            |_| {
-                self.parse_assignment_lhs()
-                    .map(|dest| Input { dest: Some(dest) })
-            },
-        )
+
+        if self.match_and_consume(TokenType::To).is_some() {
+            self.parse_assignment_lhs().map(|dest| Input {
+                dest: InputDest::Some(dest),
+            })
+        } else {
+            Ok(Input {
+                dest: InputDest::None(self.current_loc()),
+            })
+        }
     }
 
     fn check_mutation_args(
@@ -1003,25 +1006,28 @@ impl<'a> Parser<'a> {
         Ok(Rounding { direction, operand })
     }
 
-    fn parse_break(&mut self) -> Result<Statement, ParseError<'a>> {
+    fn parse_break(&mut self) -> Result<Break, ParseError<'a>> {
+        let start_loc = self.start_loc();
         self.consume(TokenType::Break);
         self.match_and_consume(|tok: &Token| tok.is_ispelled("it"))
             .map(|_| self.expect_token(TokenType::Down))
             .transpose()
-            .map(|_| Statement::Break)
+            .map(|_| Break(start_loc.to(self.current_loc())))
     }
 
-    fn parse_simple_continue(&mut self) -> Result<Statement, ParseError<'a>> {
+    fn parse_simple_continue(&mut self) -> Result<Continue, ParseError<'a>> {
+        let start_loc = self.start_loc();
         self.consume(TokenType::Continue);
-        Ok(Statement::Continue)
+        Ok(Continue(start_loc.to(self.current_loc())))
     }
-    fn parse_take_it_to_the_top(&mut self) -> Result<Statement, ParseError<'a>> {
+    fn parse_take_it_to_the_top(&mut self) -> Result<Continue, ParseError<'a>> {
+        let start_loc = self.start_loc();
         self.consume(TokenType::Take);
         self.expect_token_ispelled("it")?;
         self.expect_token(TokenType::To)?;
         self.expect_token_ispelled("the")?;
         self.expect_token(TokenType::Top)?;
-        Ok(Statement::Continue)
+        Ok(Continue(start_loc.to(self.current_loc())))
     }
 
     fn parse_array_push_rhs(&mut self) -> Result<ArrayPushRHS, ParseError<'a>> {

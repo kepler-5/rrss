@@ -4,7 +4,7 @@ use crate::frontend::source_range::SourceRange;
 
 use derive_more::{From, IsVariant};
 
-use super::source_range::{Range, SourceLocation};
+use super::source_range::{Line, Range, SourceLocation};
 
 #[cfg(test)]
 mod tests;
@@ -307,9 +307,24 @@ pub struct Dec {
     pub amount: usize,
 }
 
+#[derive(Debug, From, PartialEq)]
+pub enum InputDest {
+    Some(AssignmentLHS),
+    None(SourceLocation),
+}
+
+impl InputDest {
+    pub fn opt(&self) -> Option<&AssignmentLHS> {
+        match self {
+            InputDest::Some(x) => Some(&x),
+            InputDest::None(_) => None,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Input {
-    pub dest: Option<AssignmentLHS>,
+    pub dest: InputDest,
 }
 
 #[derive(Debug, PartialEq)]
@@ -378,6 +393,12 @@ pub struct Function {
     pub body: Block,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct Continue(pub SourceRange);
+
+#[derive(Debug, PartialEq)]
+pub struct Break(pub SourceRange);
+
 #[derive(Debug, From, PartialEq)]
 pub enum Statement {
     Assignment(Assignment),
@@ -392,8 +413,8 @@ pub enum Statement {
     Output(Output),
     Mutation(Mutation),
     Rounding(Rounding),
-    Continue,
-    Break,
+    Continue(Continue),
+    Break(Break),
     ArrayPush(ArrayPush),
     ArrayPop(ArrayPop),
     Return(Return),
@@ -588,5 +609,170 @@ impl Range for UnaryExpression {
 impl Range for ExpressionList {
     fn range(&self) -> SourceRange {
         head_tail_range(&self.first, &self.rest)
+    }
+}
+
+impl Range for AssignmentLHS {
+    fn range(&self) -> SourceRange {
+        match self {
+            AssignmentLHS::Identifier(x) => x.range(),
+            AssignmentLHS::ArraySubscript(x) => x.range(),
+        }
+    }
+}
+
+/////////////// impl Line
+
+impl Line for Statement {
+    fn line(&self) -> u32 {
+        match self {
+            Statement::Assignment(x) => x.line(),
+            Statement::PoeticAssignment(x) => x.line(),
+            Statement::If(x) => x.line(),
+            Statement::While(x) => x.line(),
+            Statement::Until(x) => x.line(),
+            Statement::Inc(x) => x.line(),
+            Statement::Dec(x) => x.line(),
+            Statement::Input(x) => x.line(),
+            Statement::Output(x) => x.line(),
+            Statement::Mutation(x) => x.line(),
+            Statement::Rounding(x) => x.line(),
+            Statement::Continue(x) => x.line(),
+            Statement::Break(x) => x.line(),
+            Statement::ArrayPush(x) => x.line(),
+            Statement::ArrayPop(x) => x.line(),
+            Statement::Return(x) => x.line(),
+            Statement::Function(x) => x.line(),
+            Statement::FunctionCall(x) => x.line(),
+        }
+    }
+}
+
+impl Line for Assignment {
+    fn line(&self) -> u32 {
+        self.value.line()
+    }
+}
+
+impl Line for PoeticAssignment {
+    fn line(&self) -> u32 {
+        match self {
+            PoeticAssignment::Number(x) => x.line(),
+            PoeticAssignment::String(x) => x.line(),
+        }
+    }
+}
+
+impl Line for PoeticNumberAssignment {
+    fn line(&self) -> u32 {
+        self.dest.line()
+    }
+}
+
+impl Line for PoeticStringAssignment {
+    fn line(&self) -> u32 {
+        self.dest.line()
+    }
+}
+
+impl Line for If {
+    fn line(&self) -> u32 {
+        self.condition.line()
+    }
+}
+
+impl Line for While {
+    fn line(&self) -> u32 {
+        self.condition.line()
+    }
+}
+
+impl Line for Until {
+    fn line(&self) -> u32 {
+        self.condition.line()
+    }
+}
+
+impl Line for Inc {
+    fn line(&self) -> u32 {
+        self.dest.line()
+    }
+}
+
+impl Line for Dec {
+    fn line(&self) -> u32 {
+        self.dest.line()
+    }
+}
+
+impl Line for Input {
+    fn line(&self) -> u32 {
+        match &self.dest {
+            InputDest::Some(dest) => dest.line(),
+            InputDest::None(loc) => loc.line,
+        }
+    }
+}
+
+impl Line for Output {
+    fn line(&self) -> u32 {
+        self.value.line()
+    }
+}
+
+impl Line for Mutation {
+    fn line(&self) -> u32 {
+        self.operand.line()
+    }
+}
+
+impl Line for Rounding {
+    fn line(&self) -> u32 {
+        self.operand.line()
+    }
+}
+
+impl Line for Continue {
+    fn line(&self) -> u32 {
+        self.0.line()
+    }
+}
+
+impl Line for Break {
+    fn line(&self) -> u32 {
+        self.0.line()
+    }
+}
+
+impl Line for ArrayPush {
+    fn line(&self) -> u32 {
+        self.array.line()
+    }
+}
+
+impl Line for ArrayPop {
+    fn line(&self) -> u32 {
+        self.array.line()
+    }
+}
+
+impl Line for Return {
+    fn line(&self) -> u32 {
+        self.value.line()
+    }
+}
+
+impl Line for Function {
+    fn line(&self) -> u32 {
+        self.name.line()
+    }
+}
+
+impl Line for Block {
+    fn line(&self) -> u32 {
+        match self {
+            Block::Empty(loc) => loc.line,
+            Block::NonEmpty(s) => s.first().unwrap().line(),
+        }
     }
 }

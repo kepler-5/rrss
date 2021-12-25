@@ -58,8 +58,8 @@ pub trait Visit {
             Statement::Output(o) => self.visit_output(o),
             Statement::Mutation(m) => self.visit_mutation(m),
             Statement::Rounding(r) => self.visit_rounding(r),
-            Statement::Continue => self.visit_continue(),
-            Statement::Break => self.visit_break(),
+            Statement::Continue(c) => self.visit_continue(c),
+            Statement::Break(b) => self.visit_break(b),
             Statement::ArrayPush(a) => self.visit_array_push(a),
             Statement::ArrayPop(a) => self.visit_array_pop(a),
             Statement::Return(r) => self.visit_return(r),
@@ -112,7 +112,7 @@ pub trait Visit {
     }
     fn visit_input(&mut self, i: &Input) -> Result<Self> {
         i.dest
-            .as_ref()
+            .opt()
             .map_or_else(|| leaf(()), |lhs| self.visit_assignment_lhs(lhs))
     }
     fn visit_output(&mut self, o: &Output) -> Result<Self> {
@@ -138,11 +138,11 @@ pub trait Visit {
             .visit_rounding_direction(r.direction)?
             .combine(self.visit_expression(&r.operand)?))
     }
-    fn visit_continue(&mut self) -> Result<Self> {
-        leaf(())
+    fn visit_continue(&mut self, c: &Continue) -> Result<Self> {
+        leaf(c)
     }
-    fn visit_break(&mut self) -> Result<Self> {
-        leaf(())
+    fn visit_break(&mut self, b: &Break) -> Result<Self> {
+        leaf(b)
     }
     fn visit_array_push(&mut self, a: &ArrayPush) -> Result<Self> {
         Ok(self

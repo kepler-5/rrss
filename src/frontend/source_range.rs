@@ -31,6 +31,18 @@ pub trait Line {
     fn line(&self) -> u32;
 }
 
+impl Line for SourceRange {
+    fn line(&self) -> u32 {
+        self.start().line
+    }
+}
+
+impl<T: Range> Line for T {
+    fn line(&self) -> u32 {
+        self.range().line()
+    }
+}
+
 impl From<((u32, u32), (u32, u32))> for SourceRange {
     fn from(x: ((u32, u32), (u32, u32))) -> Self {
         SourceRange::from((SourceLocation::from(x.0), SourceLocation::from(x.1)))
