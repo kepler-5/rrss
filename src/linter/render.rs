@@ -50,7 +50,7 @@ impl Render for Identifier {
 impl Render for AssignmentLHS {
     fn render(&self) -> String {
         match self {
-            AssignmentLHS::Identifier(i) => i.render(),
+            AssignmentLHS::Identifier(i) => i.0.render(),
             AssignmentLHS::ArraySubscript(_) => "<expression>".into(),
         }
     }
@@ -59,7 +59,7 @@ impl Render for AssignmentLHS {
 impl Render for PrimaryExpression {
     fn render(&self) -> String {
         match self {
-            PrimaryExpression::Identifier(i) => i.render(),
+            PrimaryExpression::Identifier(i) => i.0.render(),
             PrimaryExpression::Literal(_) => "<literal>".into(),
             PrimaryExpression::ArraySubscript(_) => "<expression>".into(),
             PrimaryExpression::FunctionCall(_) => "<expression>".into(),

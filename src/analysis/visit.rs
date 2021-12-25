@@ -1,6 +1,6 @@
 use std::iter;
 
-use crate::frontend::ast::*;
+use crate::frontend::{ast::*, source_range::SourceRange};
 
 #[cfg(test)]
 mod tests;
@@ -156,14 +156,17 @@ pub trait Visit {
     }
     fn visit_function(&mut self, f: &Function) -> Result<Self> {
         Ok(combine_all(
-            iter::once(self.visit_variable_name(&f.name))
-                .chain(f.params.iter().map(|p| self.visit_variable_name(p))),
+            iter::once(self.visit_variable_name(f.name.as_ref())).chain(
+                f.params
+                    .iter()
+                    .map(|p| self.visit_variable_name(p.as_ref())),
+            ),
         )?
         .combine(self.visit_block(&f.body)?))
     }
     fn visit_function_call(&mut self, f: &FunctionCall) -> Result<Self> {
         combine_all(
-            iter::once(self.visit_variable_name(&f.name))
+            iter::once(self.visit_variable_name(f.name.as_ref()))
                 .chain(f.args.iter().map(|e| self.visit_primary_expression(e))),
         )
     }
@@ -263,34 +266,34 @@ pub trait Visit {
             .visit_primary_expression(&a.array)?
             .combine(self.visit_primary_expression(&a.subscript)?))
     }
-    fn visit_literal_expression(&mut self, e: &LiteralExpression) -> Result<Self> {
+    fn visit_literal_expression(&mut self, e: &WithRange<LiteralExpression>) -> Result<Self> {
         leaf(e)
     }
 
     // Identifiers
-    fn visit_identifier(&mut self, i: &Identifier) -> Result<Self> {
-        match i {
-            Identifier::VariableName(n) => self.visit_variable_name(n),
-            Identifier::Pronoun => self.visit_pronoun(),
+    fn visit_identifier(&mut self, i: &WithRange<Identifier>) -> Result<Self> {
+        match &i.0 {
+            Identifier::VariableName(n) => self.visit_variable_name(WithRange(&n, i.1.clone())),
+            Identifier::Pronoun => self.visit_pronoun(i.1.clone()),
         }
     }
-    fn visit_pronoun(&mut self) -> Result<Self> {
-        leaf(())
+    fn visit_pronoun(&mut self, range: SourceRange) -> Result<Self> {
+        leaf(range)
     }
-    fn visit_variable_name(&mut self, n: &VariableName) -> Result<Self> {
-        match n {
-            VariableName::Simple(n) => self.visit_simple_identifier(n),
-            VariableName::Common(n) => self.visit_common_identifier(n),
-            VariableName::Proper(n) => self.visit_proper_identifier(n),
+    fn visit_variable_name(&mut self, n: WithRange<&VariableName>) -> Result<Self> {
+        match n.0 {
+            VariableName::Simple(x) => self.visit_simple_identifier(WithRange(&x, n.1.clone())),
+            VariableName::Common(x) => self.visit_common_identifier(WithRange(&x, n.1.clone())),
+            VariableName::Proper(x) => self.visit_proper_identifier(WithRange(&x, n.1.clone())),
         }
     }
-    fn visit_simple_identifier(&mut self, n: &SimpleIdentifier) -> Result<Self> {
+    fn visit_simple_identifier(&mut self, n: WithRange<&SimpleIdentifier>) -> Result<Self> {
         leaf(n)
     }
-    fn visit_common_identifier(&mut self, n: &CommonIdentifier) -> Result<Self> {
+    fn visit_common_identifier(&mut self, n: WithRange<&CommonIdentifier>) -> Result<Self> {
         leaf(n)
     }
-    fn visit_proper_identifier(&mut self, n: &ProperIdentifier) -> Result<Self> {
+    fn visit_proper_identifier(&mut self, n: WithRange<&ProperIdentifier>) -> Result<Self> {
         leaf(n)
     }
 }

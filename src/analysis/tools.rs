@@ -6,7 +6,7 @@ use std::{
 use derive_more::{Add, From, Neg, Sub};
 
 use super::visit::{self, Combine, Visit};
-use crate::frontend::ast::*;
+use crate::frontend::{ast::*, source_range::SourceRange};
 
 #[cfg(test)]
 mod tests;
@@ -175,24 +175,27 @@ impl Visit for NumericConstantFolder {
     fn visit_array_subsript(&mut self, _: &ArraySubscript) -> visit::Result<Self> {
         Err(UnknownValue)
     }
-    fn visit_literal_expression(&mut self, e: &LiteralExpression) -> visit::Result<Self> {
-        match e {
-            LiteralExpression::Number(x) => Ok(NumericConstant::from(*x)),
+    fn visit_literal_expression(
+        &mut self,
+        e: &WithRange<LiteralExpression>,
+    ) -> visit::Result<Self> {
+        match e.0 {
+            LiteralExpression::Number(x) => Ok(NumericConstant::from(x)),
             _ => Err(WrongType),
         }
     }
 
     // Identifiers
-    fn visit_pronoun(&mut self) -> visit::Result<Self> {
+    fn visit_pronoun(&mut self, _: SourceRange) -> visit::Result<Self> {
         Err(UnknownValue)
     }
-    fn visit_simple_identifier(&mut self, _: &SimpleIdentifier) -> visit::Result<Self> {
+    fn visit_simple_identifier(&mut self, _: WithRange<&SimpleIdentifier>) -> visit::Result<Self> {
         Err(UnknownValue)
     }
-    fn visit_common_identifier(&mut self, _: &CommonIdentifier) -> visit::Result<Self> {
+    fn visit_common_identifier(&mut self, _: WithRange<&CommonIdentifier>) -> visit::Result<Self> {
         Err(UnknownValue)
     }
-    fn visit_proper_identifier(&mut self, _: &ProperIdentifier) -> visit::Result<Self> {
+    fn visit_proper_identifier(&mut self, _: WithRange<&ProperIdentifier>) -> visit::Result<Self> {
         Err(UnknownValue)
     }
 }
@@ -330,24 +333,27 @@ impl Visit for SimpleStringConstantFolder {
     fn visit_array_subsript(&mut self, _: &ArraySubscript) -> visit::Result<Self> {
         Err(UnknownValue)
     }
-    fn visit_literal_expression(&mut self, e: &LiteralExpression) -> visit::Result<Self> {
-        match e {
+    fn visit_literal_expression(
+        &mut self,
+        e: &WithRange<LiteralExpression>,
+    ) -> visit::Result<Self> {
+        match &e.0 {
             LiteralExpression::String(x) => Ok(x.clone().into()),
             _ => Err(WrongType),
         }
     }
 
     // Identifiers
-    fn visit_pronoun(&mut self) -> visit::Result<Self> {
+    fn visit_pronoun(&mut self, _: SourceRange) -> visit::Result<Self> {
         Err(UnknownValue)
     }
-    fn visit_simple_identifier(&mut self, _: &SimpleIdentifier) -> visit::Result<Self> {
+    fn visit_simple_identifier(&mut self, _: WithRange<&SimpleIdentifier>) -> visit::Result<Self> {
         Err(UnknownValue)
     }
-    fn visit_common_identifier(&mut self, _: &CommonIdentifier) -> visit::Result<Self> {
+    fn visit_common_identifier(&mut self, _: WithRange<&CommonIdentifier>) -> visit::Result<Self> {
         Err(UnknownValue)
     }
-    fn visit_proper_identifier(&mut self, _: &ProperIdentifier) -> visit::Result<Self> {
+    fn visit_proper_identifier(&mut self, _: WithRange<&ProperIdentifier>) -> visit::Result<Self> {
         Err(UnknownValue)
     }
 }

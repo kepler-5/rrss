@@ -5,6 +5,8 @@ use itertools::Itertools;
 
 use crate::frontend::{ast::*, lexer::*};
 
+use super::source_range::SourceLocation;
+
 mod display;
 #[cfg(test)]
 mod tests;
@@ -178,6 +180,14 @@ impl<'a> Parser<'a> {
 
     fn current_line(&self) -> usize {
         self.lexer.underlying().current_line()
+    }
+
+    fn start_loc(&self) -> SourceLocation {
+        self.lexer.underlying().start_loc()
+    }
+
+    fn current_loc(&self) -> SourceLocation {
+        self.lexer.underlying().current_loc()
     }
 
     fn new_parse_error(&self, code: ParseErrorCode<'a>) -> ParseError<'a> {
@@ -425,7 +435,7 @@ impl<'a> Parser<'a> {
 
     fn parse_assignment_lhs_with(
         &mut self,
-        ident: Identifier,
+        ident: WithRange<Identifier>,
     ) -> Result<AssignmentLHS, ParseError<'a>> {
         self.parse_array_subscript_after(ident)
     }
@@ -434,12 +444,14 @@ impl<'a> Parser<'a> {
         self.parse_assignment_lhs_with(ident)
     }
 
-    fn parse_pronoun(&mut self) -> Option<Identifier> {
+    fn parse_pronoun(&mut self) -> Option<WithRange<Identifier>> {
+        let start = self.start_loc();
         self.match_and_consume(TokenType::Pronoun)
-            .map(|_| Identifier::Pronoun)
+            .map(|_| WithRange(Identifier::Pronoun, start.to(self.current_loc())))
     }
 
-    fn parse_literal_expression(&mut self) -> Option<LiteralExpression> {
+    fn parse_literal_expression(&mut self) -> Option<WithRange<LiteralExpression>> {
+        let start = self.start_loc();
         self.current()
             .and_then(|token| match token.id {
                 TokenType::Null => Some(LiteralExpression::Null),
@@ -450,13 +462,16 @@ impl<'a> Parser<'a> {
                 TokenType::False => Some(LiteralExpression::Boolean(false)),
                 _ => None,
             })
-            .map(|tok| {
+            .map(|expr| {
                 self.lexer.next();
-                tok
+                WithRange(expr, start.to(self.current_loc()))
             })
     }
 
-    fn parse_common_identifier(&mut self) -> Result<Option<CommonIdentifier>, ParseError<'a>> {
+    fn parse_common_identifier(
+        &mut self,
+    ) -> Result<Option<WithRange<CommonIdentifier>>, ParseError<'a>> {
+        let start = self.start_loc();
         if let Some(prefix) = self
             .match_and_consume(TokenType::CommonVariablePrefix)
             .map(|tok| tok.spelling)
@@ -477,18 +492,28 @@ impl<'a> Parser<'a> {
                         next_word.into(),
                     ))
                 })?;
-            Ok(Some(CommonIdentifier(prefix.into(), identifier.into())))
+            Ok(Some(WithRange(
+                CommonIdentifier(prefix.into(), identifier.into()),
+                start.to(self.current_loc()),
+            )))
         } else {
             Ok(None)
         }
     }
 
-    fn parse_simple_identifier(&mut self) -> Option<SimpleIdentifier> {
+    fn parse_simple_identifier(&mut self) -> Option<WithRange<SimpleIdentifier>> {
+        let start = self.start_loc();
         self.match_and_consume([TokenType::Word, TokenType::CapitalizedWord].as_ref())
-            .map(|tok| SimpleIdentifier(tok.spelling.into()))
+            .map(|tok| {
+                WithRange(
+                    SimpleIdentifier(tok.spelling.into()),
+                    start.to(self.current_loc()),
+                )
+            })
     }
 
-    fn parse_capitalized_identifier(&mut self) -> Option<VariableName> {
+    fn parse_capitalized_identifier(&mut self) -> Option<WithRange<VariableName>> {
+        let start = self.start_loc();
         let names = self
             .match_and_consume_while(
                 |tok: &Token| tok.id == TokenType::CapitalizedWord,
@@ -500,9 +525,10 @@ impl<'a> Parser<'a> {
             1 => Some(SimpleIdentifier(take_first(names)).into()),
             _ => Some(ProperIdentifier(names).into()),
         }
+        .map(|n| WithRange(n, start.to(self.current_loc())))
     }
 
-    fn parse_variable_name(&mut self) -> Result<Option<VariableName>, ParseError<'a>> {
+    fn parse_variable_name(&mut self) -> Result<Option<WithRange<VariableName>>, ParseError<'a>> {
         Ok(self
             .parse_common_identifier()?
             .map(Into::into)
@@ -510,18 +536,21 @@ impl<'a> Parser<'a> {
             .or_else(|| self.parse_simple_identifier().map(Into::into)))
     }
 
-    fn parse_identifier(&mut self) -> Result<Option<Identifier>, ParseError<'a>> {
+    fn parse_identifier(&mut self) -> Result<Option<WithRange<Identifier>>, ParseError<'a>> {
         Ok(self
             .parse_variable_name()?
             .map(Into::into)
-            .or_else(|| self.parse_pronoun()))
+            .or_else(|| self.parse_pronoun().map(Into::into)))
     }
 
     fn parse_rest_of_function_call(&mut self) -> Result<Vec<PrimaryExpression>, ParseError<'a>> {
         self.parse_parameter_list(|p| p.parse_primary_expression())
     }
 
-    fn parse_function_call(&mut self, name: VariableName) -> Result<FunctionCall, ParseError<'a>> {
+    fn parse_function_call(
+        &mut self,
+        name: WithRange<VariableName>,
+    ) -> Result<FunctionCall, ParseError<'a>> {
         self.consume(TokenType::Taking);
         self.parse_rest_of_function_call()
             .map(|args| FunctionCall { name, args })
@@ -644,12 +673,12 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn expect_identifier(&mut self) -> Result<Identifier, ParseError<'a>> {
+    fn expect_identifier(&mut self) -> Result<WithRange<Identifier>, ParseError<'a>> {
         self.parse_identifier()?
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedIdentifier))
     }
 
-    fn expect_variable_name(&mut self) -> Result<VariableName, ParseError<'a>> {
+    fn expect_variable_name(&mut self) -> Result<WithRange<VariableName>, ParseError<'a>> {
         self.parse_variable_name()?
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedIdentifier))
     }
@@ -765,7 +794,7 @@ impl<'a> Parser<'a> {
 
     fn parse_poetic_assignment(
         &mut self,
-        name: VariableName,
+        name: WithRange<VariableName>,
     ) -> Result<PoeticAssignment, ParseError<'a>> {
         let dest = self.parse_assignment_lhs_with(name.into())?;
 
@@ -806,7 +835,10 @@ impl<'a> Parser<'a> {
         Ok(params)
     }
 
-    fn parse_function(&mut self, name: VariableName) -> Result<Function, ParseError<'a>> {
+    fn parse_function(
+        &mut self,
+        name: WithRange<VariableName>,
+    ) -> Result<Function, ParseError<'a>> {
         self.consume(TokenType::Takes);
         let params = self.parse_parameter_list(|p| p.expect_variable_name())?;
         self.expect_eol()?;
@@ -862,7 +894,7 @@ impl<'a> Parser<'a> {
         &mut self,
         begin: TokenType,
         suffix: TokenType<'a>,
-    ) -> Result<(Identifier, usize), ParseError<'a>> {
+    ) -> Result<(WithRange<Identifier>, usize), ParseError<'a>> {
         self.consume(begin);
         let dest = self.expect_identifier()?;
         self.expect_token(suffix)?;

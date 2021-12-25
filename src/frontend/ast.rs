@@ -1,6 +1,10 @@
 use std::{hint::unreachable_unchecked, iter::Peekable};
 
+use crate::frontend::source_range::SourceRange;
+
 use derive_more::From;
+
+use super::source_range::{Range, SourceLocation};
 
 #[cfg(test)]
 mod tests;
@@ -13,6 +17,36 @@ macro_rules! bridging_from {
             }
         })+
     };
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WithLoc<T>(pub T, pub SourceLocation);
+
+impl<T> WithLoc<T> {
+    pub fn map<U, F: FnOnce(T) -> U>(self, f: F) -> WithLoc<U> {
+        WithLoc(f(self.0), self.1)
+    }
+    pub fn as_ref(&self) -> WithLoc<&T> {
+        WithLoc(&self.0, self.1)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WithRange<T>(pub T, pub SourceRange);
+
+impl<T> WithRange<T> {
+    pub fn map<U, F: FnOnce(T) -> U>(self, f: F) -> WithRange<U> {
+        WithRange(f(self.0), self.1)
+    }
+    pub fn as_ref(&self) -> WithRange<&T> {
+        WithRange(&self.0, self.1.clone())
+    }
+}
+
+impl<T> Range for WithRange<T> {
+    fn range(&self) -> SourceRange {
+        self.1.clone()
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -47,16 +81,31 @@ impl From<SimpleIdentifier> for VariableName {
         VariableName::Simple(expr)
     }
 }
+impl From<WithRange<SimpleIdentifier>> for WithRange<VariableName> {
+    fn from(expr: WithRange<SimpleIdentifier>) -> Self {
+        expr.map(Into::into)
+    }
+}
 
 impl From<CommonIdentifier> for VariableName {
     fn from(expr: CommonIdentifier) -> Self {
         VariableName::Common(expr)
     }
 }
+impl From<WithRange<CommonIdentifier>> for WithRange<VariableName> {
+    fn from(expr: WithRange<CommonIdentifier>) -> Self {
+        expr.map(Into::into)
+    }
+}
 
 impl From<ProperIdentifier> for VariableName {
     fn from(expr: ProperIdentifier) -> Self {
         VariableName::Proper(expr)
+    }
+}
+impl From<WithRange<ProperIdentifier>> for WithRange<VariableName> {
+    fn from(expr: WithRange<ProperIdentifier>) -> Self {
+        expr.map(Into::into)
     }
 }
 
@@ -68,6 +117,12 @@ pub enum Identifier {
 
 bridging_from!(for Identifier: VariableName);
 
+impl<T: Into<VariableName>> From<WithRange<T>> for WithRange<Identifier> {
+    fn from(x: WithRange<T>) -> Self {
+        x.map(|x| Identifier::VariableName(x.into()))
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct ArraySubscript {
     pub array: Box<PrimaryExpression>,
@@ -76,20 +131,24 @@ pub struct ArraySubscript {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FunctionCall {
-    pub name: VariableName,
+    pub name: WithRange<VariableName>,
     pub args: Vec<PrimaryExpression>,
 }
 
 #[derive(Clone, Debug, From, PartialEq)]
 pub enum PrimaryExpression {
-    Literal(LiteralExpression),
+    Literal(WithRange<LiteralExpression>),
     #[from(ignore)]
-    Identifier(Identifier),
+    Identifier(WithRange<Identifier>),
     ArraySubscript(ArraySubscript),
     FunctionCall(FunctionCall),
 }
 
-bridging_from!(for PrimaryExpression: Identifier);
+impl<T: Into<Identifier>> From<WithRange<T>> for PrimaryExpression {
+    fn from(x: WithRange<T>) -> Self {
+        PrimaryExpression::Identifier(x.map(Into::into))
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum UnaryOperator {
@@ -161,11 +220,15 @@ impl<E: Into<Expression>> From<E> for ExpressionList {
 #[derive(Clone, Debug, From, PartialEq)]
 pub enum AssignmentLHS {
     #[from(ignore)]
-    Identifier(Identifier),
+    Identifier(WithRange<Identifier>),
     ArraySubscript(ArraySubscript),
 }
 
-bridging_from!(for AssignmentLHS: Identifier);
+impl<T: Into<Identifier>> From<WithRange<T>> for AssignmentLHS {
+    fn from(x: WithRange<T>) -> Self {
+        AssignmentLHS::Identifier(x.map(Into::into))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Assignment {
@@ -234,13 +297,13 @@ pub struct Until {
 
 #[derive(Debug, PartialEq)]
 pub struct Inc {
-    pub dest: Identifier,
+    pub dest: WithRange<Identifier>,
     pub amount: usize,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Dec {
-    pub dest: Identifier,
+    pub dest: WithRange<Identifier>,
     pub amount: usize,
 }
 
@@ -310,8 +373,8 @@ pub struct Return {
 
 #[derive(Debug, PartialEq)]
 pub struct Function {
-    pub name: VariableName,
-    pub params: Vec<VariableName>,
+    pub name: WithRange<VariableName>,
+    pub params: Vec<WithRange<VariableName>>,
     pub body: Block,
 }
 

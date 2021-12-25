@@ -1,22 +1,56 @@
+use crate::frontend::source_range::SourceRange;
+
 use super::*;
 
 use inner::inner;
 
+fn bogus_range() -> SourceRange {
+    ((0, 0), (0, 0)).into()
+}
+
+fn line_range(start: u32, end: u32) -> SourceRange {
+    ((1, start), (1, end)).into()
+}
+
 #[test]
 fn parse_literal_expression() {
     let parse = |text| Parser::for_source_code(text).parse_literal_expression();
-    assert_eq!(parse("null"), Some(LiteralExpression::Null));
-    assert_eq!(parse("true"), Some(LiteralExpression::Boolean(true)));
-    assert_eq!(parse("false"), Some(LiteralExpression::Boolean(false)));
+    assert_eq!(
+        parse("null"),
+        Some(WithRange(LiteralExpression::Null, line_range(0, 4)))
+    );
+    assert_eq!(
+        parse("true"),
+        Some(WithRange(
+            LiteralExpression::Boolean(true),
+            line_range(0, 4)
+        ))
+    );
+    assert_eq!(
+        parse("false"),
+        Some(WithRange(
+            LiteralExpression::Boolean(false),
+            line_range(0, 5)
+        ))
+    );
     assert_eq!(
         parse("empty"),
-        Some(LiteralExpression::String(String::new()))
+        Some(WithRange(
+            LiteralExpression::String(String::new()),
+            line_range(0, 5)
+        ))
     );
     assert_eq!(
         parse("\"\""),
-        Some(LiteralExpression::String("".to_owned()))
+        Some(WithRange(
+            LiteralExpression::String("".to_owned()),
+            line_range(0, 2)
+        ))
     );
-    assert_eq!(parse("5"), Some(LiteralExpression::Number(5.0)));
+    assert_eq!(
+        parse("5"),
+        Some(WithRange(LiteralExpression::Number(5.0), line_range(0, 1)))
+    );
 
     assert_eq!(parse(""), None);
     assert_eq!(parse("foo"), None);
@@ -31,7 +65,7 @@ fn parse_unary_expression() {
         parse("-1"),
         Ok(UnaryExpression {
             operator: UnaryOperator::Minus,
-            operand: boxed_expr(LiteralExpression::Number(1.0))
+            operand: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(1, 2)))
         }
         .into())
     );
@@ -41,7 +75,7 @@ fn parse_unary_expression() {
             operator: UnaryOperator::Minus,
             operand: boxed_expr(UnaryExpression {
                 operator: UnaryOperator::Minus,
-                operand: boxed_expr(LiteralExpression::Number(1.0))
+                operand: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(2, 3)))
             })
         }
         .into())
@@ -51,7 +85,7 @@ fn parse_unary_expression() {
         parse("not cool"),
         Ok(UnaryExpression {
             operator: UnaryOperator::Not,
-            operand: boxed_expr(SimpleIdentifier("cool".into()))
+            operand: boxed_expr(WithRange(SimpleIdentifier("cool".into()), line_range(4, 8)))
         }
         .into())
     );
@@ -61,7 +95,10 @@ fn parse_unary_expression() {
             operator: UnaryOperator::Not,
             operand: boxed_expr(UnaryExpression {
                 operator: UnaryOperator::Not,
-                operand: boxed_expr(SimpleIdentifier("cool".into()))
+                operand: boxed_expr(WithRange(
+                    SimpleIdentifier("cool".into()),
+                    line_range(8, 12)
+                ))
             })
         }
         .into())
@@ -72,7 +109,7 @@ fn parse_unary_expression() {
             operator: UnaryOperator::Not,
             operand: boxed_expr(UnaryExpression {
                 operator: UnaryOperator::Minus,
-                operand: boxed_expr(LiteralExpression::Number(1.0))
+                operand: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(5, 6)))
             })
         }
         .into())
@@ -86,8 +123,8 @@ fn parse_binary_expression() {
         parse("1 + 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Plus,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(4, 5)))
         }
         .into())
     );
@@ -95,8 +132,8 @@ fn parse_binary_expression() {
         parse("1 with 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Plus,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(7, 8)))
         }
         .into())
     );
@@ -104,8 +141,8 @@ fn parse_binary_expression() {
         parse("1 - 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Minus,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(4, 5)))
         }
         .into())
     );
@@ -113,8 +150,11 @@ fn parse_binary_expression() {
         parse("1 without 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Minus,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(
+                LiteralExpression::Number(1.0),
+                line_range(10, 11)
+            ))
         }
         .into())
     );
@@ -122,10 +162,10 @@ fn parse_binary_expression() {
         parse("1 - -1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Minus,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
             rhs: boxed_expr(UnaryExpression {
                 operator: UnaryOperator::Minus,
-                operand: boxed_expr(LiteralExpression::Number(1.0))
+                operand: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(5, 6)))
             })
         }
         .into())
@@ -134,8 +174,8 @@ fn parse_binary_expression() {
         parse("1 * 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Multiply,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(4, 5)))
         }
         .into())
     );
@@ -143,8 +183,8 @@ fn parse_binary_expression() {
         parse("1 / 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Divide,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(4, 5)))
         }
         .into())
     );
@@ -156,10 +196,10 @@ fn parse_binary_expression() {
             operator: BinaryOperator::Plus,
             lhs: boxed_expr(BinaryExpression {
                 operator: BinaryOperator::Plus,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
+                lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+                rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(4, 5)))
             }),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(8, 9)))
         }
         .into())
     );
@@ -169,10 +209,10 @@ fn parse_binary_expression() {
             operator: BinaryOperator::Minus,
             lhs: boxed_expr(BinaryExpression {
                 operator: BinaryOperator::Minus,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
+                lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+                rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(4, 5)))
             }),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(8, 9)))
         }
         .into())
     );
@@ -182,10 +222,10 @@ fn parse_binary_expression() {
             operator: BinaryOperator::Plus,
             lhs: boxed_expr(BinaryExpression {
                 operator: BinaryOperator::Multiply,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
+                lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+                rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(4, 5)))
             }),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(8, 9)))
         }
         .into())
     );
@@ -195,10 +235,10 @@ fn parse_binary_expression() {
             operator: BinaryOperator::Plus,
             lhs: boxed_expr(BinaryExpression {
                 operator: BinaryOperator::Divide,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
+                lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+                rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(4, 5)))
             }),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(8, 9)))
         }
         .into())
     );
@@ -206,11 +246,11 @@ fn parse_binary_expression() {
         parse("1 + 1 * 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Plus,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
             rhs: boxed_expr(BinaryExpression {
                 operator: BinaryOperator::Multiply,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
+                lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(4, 5))),
+                rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(8, 9)))
             }),
         }
         .into())
@@ -219,11 +259,11 @@ fn parse_binary_expression() {
         parse("1 + 1 / 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Plus,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
             rhs: boxed_expr(BinaryExpression {
                 operator: BinaryOperator::Divide,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
+                lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(4, 5))),
+                rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(8, 9)))
             }),
         }
         .into())
@@ -238,8 +278,8 @@ fn parse_comparison_expression() {
         parse("1 < 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Less,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(4, 5)))
         }
         .into())
     );
@@ -247,8 +287,8 @@ fn parse_comparison_expression() {
         parse("1 <= 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::LessEq,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(5, 6)))
         }
         .into())
     );
@@ -256,8 +296,8 @@ fn parse_comparison_expression() {
         parse("1 > 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Greater,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(4, 5)))
         }
         .into())
     );
@@ -265,8 +305,8 @@ fn parse_comparison_expression() {
         parse("1 >= 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::GreaterEq,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(5, 6)))
         }
         .into())
     );
@@ -276,10 +316,10 @@ fn parse_comparison_expression() {
             operator: BinaryOperator::Less,
             lhs: boxed_expr(BinaryExpression {
                 operator: BinaryOperator::Greater,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
+                lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+                rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(4, 5)))
             }),
-            rhs: boxed_expr(LiteralExpression::Number(1.0)),
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(8, 9))),
         }
         .into())
     );
@@ -287,11 +327,11 @@ fn parse_comparison_expression() {
         parse("1 > 1 + 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Greater,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
             rhs: boxed_expr(BinaryExpression {
                 operator: BinaryOperator::Plus,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
+                lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(4, 5))),
+                rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(8, 9)))
             }),
         }
         .into())
@@ -306,8 +346,8 @@ fn parse_fancy_comparison_expression() {
         parse("1 is 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Eq,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(5, 6)))
         }
         .into())
     );
@@ -315,8 +355,8 @@ fn parse_fancy_comparison_expression() {
         parse("1 is not 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::NotEq,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(9, 10)))
         }
         .into())
     );
@@ -324,8 +364,11 @@ fn parse_fancy_comparison_expression() {
         parse("Tommy's 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Eq,
-            lhs: boxed_expr(SimpleIdentifier("Tommy".into())),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(
+                SimpleIdentifier("Tommy".into()),
+                line_range(0, 5)
+            )),
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(8, 9)))
         }
         .into())
     );
@@ -333,8 +376,8 @@ fn parse_fancy_comparison_expression() {
         parse("1 ain't 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::NotEq,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(8, 9)))
         }
         .into())
     );
@@ -344,13 +387,19 @@ fn parse_fancy_comparison_expression() {
             operator: BinaryOperator::NotEq,
             lhs: boxed_expr(BinaryExpression {
                 operator: BinaryOperator::Plus,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
+                lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+                rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(4, 5)))
             }),
             rhs: boxed_expr(BinaryExpression {
                 operator: BinaryOperator::Multiply,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
+                lhs: boxed_expr(WithRange(
+                    LiteralExpression::Number(1.0),
+                    line_range(13, 14)
+                )),
+                rhs: boxed_expr(WithRange(
+                    LiteralExpression::Number(1.0),
+                    line_range(17, 18)
+                ))
             })
         }
         .into())
@@ -360,8 +409,11 @@ fn parse_fancy_comparison_expression() {
         parse("1 is bigger than 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Greater,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(
+                LiteralExpression::Number(1.0),
+                line_range(17, 18)
+            ))
         }
         .into())
     );
@@ -369,8 +421,11 @@ fn parse_fancy_comparison_expression() {
         parse("1 is as big as 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::GreaterEq,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(
+                LiteralExpression::Number(1.0),
+                line_range(15, 16)
+            ))
         }
         .into())
     );
@@ -378,8 +433,11 @@ fn parse_fancy_comparison_expression() {
         parse("1 is smaller than 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Less,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(
+                LiteralExpression::Number(1.0),
+                line_range(18, 19)
+            ))
         }
         .into())
     );
@@ -387,8 +445,11 @@ fn parse_fancy_comparison_expression() {
         parse("1 is as small as 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::LessEq,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(
+                LiteralExpression::Number(1.0),
+                line_range(17, 18)
+            ))
         }
         .into())
     );
@@ -398,10 +459,13 @@ fn parse_fancy_comparison_expression() {
             operator: BinaryOperator::Eq,
             lhs: boxed_expr(BinaryExpression {
                 operator: BinaryOperator::Eq,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
+                lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+                rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(5, 6)))
             }),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            rhs: boxed_expr(WithRange(
+                LiteralExpression::Number(1.0),
+                line_range(10, 11)
+            ))
         }
         .into())
     );
@@ -411,10 +475,16 @@ fn parse_fancy_comparison_expression() {
             operator: BinaryOperator::Greater,
             lhs: boxed_expr(BinaryExpression {
                 operator: BinaryOperator::LessEq,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
+                lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+                rhs: boxed_expr(WithRange(
+                    LiteralExpression::Number(1.0),
+                    line_range(17, 18)
+                ))
             }),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            rhs: boxed_expr(WithRange(
+                LiteralExpression::Number(1.0),
+                line_range(34, 35)
+            ))
         }
         .into())
     );
@@ -428,8 +498,8 @@ fn parse_logical_expression() {
         parse("1 and 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::And,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(6, 7)))
         }
         .into())
     );
@@ -437,8 +507,8 @@ fn parse_logical_expression() {
         parse("1 or 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Or,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(5, 6)))
         }
         .into())
     );
@@ -446,8 +516,8 @@ fn parse_logical_expression() {
         parse("1 nor 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Nor,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
-            rhs: boxed_expr(LiteralExpression::Number(1.0))
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+            rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(6, 7)))
         }
         .into())
     );
@@ -457,10 +527,13 @@ fn parse_logical_expression() {
             operator: BinaryOperator::Or,
             lhs: boxed_expr(BinaryExpression {
                 operator: BinaryOperator::And,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
+                lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
+                rhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(6, 7)))
             }),
-            rhs: boxed_expr(LiteralExpression::Number(1.0)),
+            rhs: boxed_expr(WithRange(
+                LiteralExpression::Number(1.0),
+                line_range(11, 12)
+            )),
         }
         .into())
     );
@@ -468,11 +541,14 @@ fn parse_logical_expression() {
         parse("1 and 1 < 1"),
         Ok(BinaryExpression {
             operator: BinaryOperator::And,
-            lhs: boxed_expr(LiteralExpression::Number(1.0)),
+            lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(0, 1))),
             rhs: boxed_expr(BinaryExpression {
                 operator: BinaryOperator::Less,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
-                rhs: boxed_expr(LiteralExpression::Number(1.0))
+                lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(6, 7))),
+                rhs: boxed_expr(WithRange(
+                    LiteralExpression::Number(1.0),
+                    line_range(10, 11)
+                ))
             }),
         }
         .into())
@@ -487,25 +563,63 @@ fn parse_identifier() {
 
     assert_eq!(
         parse("my heart"),
-        Ok(Some(CommonIdentifier("my".into(), "heart".into()).into()))
+        Ok(Some(
+            WithRange(
+                CommonIdentifier("my".into(), "heart".into()),
+                line_range(0, 8)
+            )
+            .into()
+        ))
+    );
+    assert_eq!(
+        parse("my  heart"),
+        Ok(Some(
+            WithRange(
+                CommonIdentifier("my".into(), "heart".into()),
+                line_range(0, 9)
+            )
+            .into()
+        ))
     );
     assert_eq!(
         parse("your heart"),
-        Ok(Some(CommonIdentifier("your".into(), "heart".into()).into()))
+        Ok(Some(
+            WithRange(
+                CommonIdentifier("your".into(), "heart".into()),
+                line_range(0, 10)
+            )
+            .into()
+        ))
     );
     assert_eq!(
         parse("My heart"),
-        Ok(Some(CommonIdentifier("My".into(), "heart".into()).into()))
+        Ok(Some(
+            WithRange(
+                CommonIdentifier("My".into(), "heart".into()),
+                line_range(0, 8)
+            )
+            .into()
+        ))
     );
     assert_eq!(
         parse("Your heart"),
-        Ok(Some(CommonIdentifier("Your".into(), "heart".into()).into()))
+        Ok(Some(
+            WithRange(
+                CommonIdentifier("Your".into(), "heart".into()),
+                line_range(0, 10)
+            )
+            .into()
+        ))
     );
 
     assert_eq!(
         parse("Billie Jean"),
         Ok(Some(
-            ProperIdentifier(vec!["Billie".into(), "Jean".into()]).into()
+            WithRange(
+                ProperIdentifier(vec!["Billie".into(), "Jean".into()]),
+                line_range(0, 11)
+            )
+            .into()
         ))
     );
     assert_eq!(
@@ -513,25 +627,41 @@ fn parse_identifier() {
         parse("Distance Out KM"),
         Ok(Some(
             // ProperIdentifier(vec!["Distance".into(), "In".into(), "KM".into()]).into()
-            ProperIdentifier(vec!["Distance".into(), "Out".into(), "KM".into()]).into()
+            WithRange(
+                ProperIdentifier(vec!["Distance".into(), "Out".into(), "KM".into()]),
+                line_range(0, 15)
+            )
+            .into()
         ))
     );
     assert_eq!(
         parse("Tom Sawyer"),
         Ok(Some(
-            ProperIdentifier(vec!["Tom".into(), "Sawyer".into()]).into()
+            WithRange(
+                ProperIdentifier(vec!["Tom".into(), "Sawyer".into()]),
+                line_range(0, 10)
+            )
+            .into()
         ))
     );
     assert_eq!(
         parse("TOM SAWYER"),
         Ok(Some(
-            ProperIdentifier(vec!["TOM".into(), "SAWYER".into()]).into()
+            WithRange(
+                ProperIdentifier(vec!["TOM".into(), "SAWYER".into()]),
+                line_range(0, 10)
+            )
+            .into()
         ))
     );
     assert_eq!(
         parse("TOm SAWyer"),
         Ok(Some(
-            ProperIdentifier(vec!["TOm".into(), "SAWyer".into()]).into()
+            WithRange(
+                ProperIdentifier(vec!["TOm".into(), "SAWyer".into()]),
+                line_range(0, 10)
+            )
+            .into()
         ))
     );
 }
@@ -541,7 +671,9 @@ fn parse_identifier_errors() {
     let parse = |text| Parser::for_source_code(text).parse_identifier();
     assert_eq!(
         parse("DOCTOR feelgood"),
-        Ok(Some(SimpleIdentifier("DOCTOR".into()).into())) // TODO ParseError here?
+        Ok(Some(
+            WithRange(SimpleIdentifier("DOCTOR".into()), line_range(0, 6)).into()
+        )) // TODO ParseError here?
     );
 
     assert_eq!(
@@ -604,7 +736,7 @@ fn parse_pronoun() {
     ] {
         assert_eq!(
             Parser::for_source_code(p).parse_pronoun(),
-            Some(Identifier::Pronoun.into())
+            Some(WithRange(Identifier::Pronoun, line_range(0, p.len() as u32)).into())
         );
     }
 }
@@ -617,14 +749,14 @@ fn parse_expression() {
         parse("my heart * your heart"),
         Ok(BinaryExpression {
             operator: BinaryOperator::Multiply,
-            lhs: boxed_expr(PrimaryExpression::from(CommonIdentifier(
-                "my".into(),
-                "heart".into()
-            ))),
-            rhs: boxed_expr(PrimaryExpression::from(CommonIdentifier(
-                "your".into(),
-                "heart".into()
-            )))
+            lhs: boxed_expr(WithRange(
+                CommonIdentifier("my".into(), "heart".into()),
+                line_range(0, 8)
+            )),
+            rhs: boxed_expr(WithRange(
+                CommonIdentifier("your".into(), "heart".into()),
+                line_range(11, 21)
+            ))
         }
         .into())
     );
@@ -640,11 +772,11 @@ fn parse_assignment() {
     assert_eq!(
         parse("Put x plus y into result"),
         Ok(Assignment {
-            dest: SimpleIdentifier("result".into()).into(),
+            dest: WithRange(SimpleIdentifier("result".into()), line_range(18, 24)).into(),
             value: BinaryExpression {
                 operator: BinaryOperator::Plus,
-                lhs: boxed_expr(SimpleIdentifier("x".into())),
-                rhs: boxed_expr(SimpleIdentifier("y".into()))
+                lhs: boxed_expr(WithRange(SimpleIdentifier("x".into()), line_range(4, 5))),
+                rhs: boxed_expr(WithRange(SimpleIdentifier("y".into()), line_range(11, 12)))
             }
             .into(),
             operator: None
@@ -655,8 +787,8 @@ fn parse_assignment() {
     assert_eq!(
         parse("Put 123 into X"),
         Ok(Assignment {
-            dest: SimpleIdentifier("X".into()).into(),
-            value: LiteralExpression::Number(123.0).into(),
+            dest: WithRange(SimpleIdentifier("X".into()), line_range(13, 14)).into(),
+            value: WithRange(LiteralExpression::Number(123.0), line_range(4, 7)).into(),
             operator: None
         }
         .into())
@@ -664,8 +796,16 @@ fn parse_assignment() {
     assert_eq!(
         parse("Put \"Hello San Francisco\" into the message"),
         Ok(Assignment {
-            dest: CommonIdentifier("the".into(), "message".into()).into(),
-            value: LiteralExpression::String("Hello San Francisco".into()).into(),
+            dest: WithRange(
+                CommonIdentifier("the".into(), "message".into()),
+                line_range(31, 42)
+            )
+            .into(),
+            value: WithRange(
+                LiteralExpression::String("Hello San Francisco".into()),
+                line_range(4, 25) // includes quotes
+            )
+            .into(),
             operator: None
         }
         .into())
@@ -673,8 +813,12 @@ fn parse_assignment() {
     assert_eq!(
         parse("Let my balance be 1000000"),
         Ok(Assignment {
-            dest: CommonIdentifier("my".into(), "balance".into()).into(),
-            value: LiteralExpression::Number(1000000.0).into(),
+            dest: WithRange(
+                CommonIdentifier("my".into(), "balance".into()),
+                line_range(4, 14)
+            )
+            .into(),
+            value: WithRange(LiteralExpression::Number(1000000.0), line_range(18, 25)).into(),
             operator: None
         }
         .into())
@@ -682,11 +826,21 @@ fn parse_assignment() {
     assert_eq!(
         parse("Let the survivors be the brave without the fallen"),
         Ok(Assignment {
-            dest: CommonIdentifier("the".into(), "survivors".into()).into(),
+            dest: WithRange(
+                CommonIdentifier("the".into(), "survivors".into()),
+                line_range(4, 17)
+            )
+            .into(),
             value: BinaryExpression {
                 operator: BinaryOperator::Minus,
-                lhs: boxed_expr(CommonIdentifier("the".into(), "brave".into())),
-                rhs: boxed_expr(CommonIdentifier("the".into(), "fallen".into()))
+                lhs: boxed_expr(WithRange(
+                    CommonIdentifier("the".into(), "brave".into()),
+                    line_range(21, 30)
+                )),
+                rhs: boxed_expr(WithRange(
+                    CommonIdentifier("the".into(), "fallen".into()),
+                    line_range(39, 49)
+                ))
             }
             .into(),
             operator: None
@@ -697,8 +851,8 @@ fn parse_assignment() {
     assert_eq!(
         parse("Let X be with 10"),
         Ok(Assignment {
-            dest: SimpleIdentifier("X".into()).into(),
-            value: LiteralExpression::Number(10.0).into(),
+            dest: WithRange(SimpleIdentifier("X".into()), line_range(4, 5)).into(),
+            value: WithRange(LiteralExpression::Number(10.0), line_range(14, 16)).into(),
             operator: Some(BinaryOperator::Plus),
         }
         .into())
@@ -706,8 +860,12 @@ fn parse_assignment() {
     assert_eq!(
         parse("Let the children be without fear"),
         Ok(Assignment {
-            dest: CommonIdentifier("the".into(), "children".into()).into(),
-            value: SimpleIdentifier("fear".into()).into(),
+            dest: WithRange(
+                CommonIdentifier("the".into(), "children".into()),
+                line_range(4, 16)
+            )
+            .into(),
+            value: WithRange(SimpleIdentifier("fear".into()), line_range(28, 32)).into(),
             operator: Some(BinaryOperator::Minus),
         }
         .into())
@@ -715,8 +873,16 @@ fn parse_assignment() {
     assert_eq!(
         parse("Let my heart be over the moon"),
         Ok(Assignment {
-            dest: CommonIdentifier("my".into(), "heart".into()).into(),
-            value: CommonIdentifier("the".into(), "moon".into()).into(),
+            dest: WithRange(
+                CommonIdentifier("my".into(), "heart".into()),
+                line_range(4, 12)
+            )
+            .into(),
+            value: WithRange(
+                CommonIdentifier("the".into(), "moon".into()),
+                line_range(21, 29)
+            )
+            .into(),
             operator: Some(BinaryOperator::Divide),
         }
         .into())
@@ -725,11 +891,21 @@ fn parse_assignment() {
     assert_eq!(
         parse("Put the whole of your heart into my hands"),
         Ok(Assignment {
-            dest: CommonIdentifier("my".into(), "hands".into()).into(),
+            dest: WithRange(
+                CommonIdentifier("my".into(), "hands".into()),
+                line_range(33, 41)
+            )
+            .into(),
             value: BinaryExpression {
                 operator: BinaryOperator::Multiply,
-                lhs: boxed_expr(CommonIdentifier("the".into(), "whole".into())),
-                rhs: boxed_expr(CommonIdentifier("your".into(), "heart".into()))
+                lhs: boxed_expr(WithRange(
+                    CommonIdentifier("the".into(), "whole".into()),
+                    line_range(4, 13)
+                )),
+                rhs: boxed_expr(WithRange(
+                    CommonIdentifier("your".into(), "heart".into()),
+                    line_range(17, 27)
+                ))
             }
             .into(),
             operator: None
@@ -740,15 +916,15 @@ fn parse_assignment() {
     assert_eq!(
         parse("Let X be 1 with 2, 3, 4"),
         Ok(Assignment {
-            dest: SimpleIdentifier("X".into()).into(),
+            dest: WithRange(SimpleIdentifier("X".into()), line_range(4, 5)).into(),
             value: BinaryExpression {
                 operator: BinaryOperator::Plus,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(9, 10))),
                 rhs: boxed_expr(ExpressionList {
-                    first: LiteralExpression::Number(2.0).into(),
+                    first: WithRange(LiteralExpression::Number(2.0), line_range(16, 17)).into(),
                     rest: vec![
-                        LiteralExpression::Number(3.0).into(),
-                        LiteralExpression::Number(4.0).into()
+                        WithRange(LiteralExpression::Number(3.0), line_range(19, 20)).into(),
+                        WithRange(LiteralExpression::Number(4.0), line_range(22, 23)).into()
                     ]
                 })
             }
@@ -760,15 +936,15 @@ fn parse_assignment() {
     assert_eq!(
         parse("Let X be 1 with 2, 3, and 4"),
         Ok(Assignment {
-            dest: SimpleIdentifier("X".into()).into(),
+            dest: WithRange(SimpleIdentifier("X".into()), line_range(4, 5)).into(),
             value: BinaryExpression {
                 operator: BinaryOperator::Plus,
-                lhs: boxed_expr(LiteralExpression::Number(1.0)),
+                lhs: boxed_expr(WithRange(LiteralExpression::Number(1.0), line_range(9, 10))),
                 rhs: boxed_expr(ExpressionList {
-                    first: LiteralExpression::Number(2.0).into(),
+                    first: WithRange(LiteralExpression::Number(2.0), line_range(16, 17)).into(),
                     rest: vec![
-                        LiteralExpression::Number(3.0).into(),
-                        LiteralExpression::Number(4.0).into()
+                        WithRange(LiteralExpression::Number(3.0), line_range(19, 20)).into(),
+                        WithRange(LiteralExpression::Number(4.0), line_range(26, 27)).into()
                     ]
                 })
             }
@@ -780,12 +956,12 @@ fn parse_assignment() {
     assert_eq!(
         parse("Let X be with 2, 3, 4"),
         Ok(Assignment {
-            dest: SimpleIdentifier("X".into()).into(),
+            dest: WithRange(SimpleIdentifier("X".into()), line_range(4, 5)).into(),
             value: ExpressionList {
-                first: LiteralExpression::Number(2.0).into(),
+                first: WithRange(LiteralExpression::Number(2.0), line_range(14, 15)).into(),
                 rest: vec![
-                    LiteralExpression::Number(3.0).into(),
-                    LiteralExpression::Number(4.0).into()
+                    WithRange(LiteralExpression::Number(3.0), line_range(17, 18)).into(),
+                    WithRange(LiteralExpression::Number(4.0), line_range(20, 21)).into()
                 ]
             }
             .into(),
@@ -798,11 +974,21 @@ fn parse_assignment() {
         parse("Let my array at 255 be \"some value\""),
         Ok(Assignment {
             dest: ArraySubscript {
-                array: boxed_expr(CommonIdentifier("my".into(), "array".into())),
-                subscript: boxed_expr(LiteralExpression::Number(255.0))
+                array: boxed_expr(WithRange(
+                    CommonIdentifier("my".into(), "array".into()),
+                    line_range(4, 12)
+                )),
+                subscript: boxed_expr(WithRange(
+                    LiteralExpression::Number(255.0),
+                    line_range(16, 19)
+                ))
             }
             .into(),
-            value: LiteralExpression::String("some value".into()).into(),
+            value: WithRange(
+                LiteralExpression::String("some value".into()),
+                line_range(23, 35)
+            )
+            .into(),
             operator: None,
         }
         .into())
@@ -811,13 +997,25 @@ fn parse_assignment() {
         parse("Let my array at 255 be my array at 255"),
         Ok(Assignment {
             dest: ArraySubscript {
-                array: boxed_expr(CommonIdentifier("my".into(), "array".into())),
-                subscript: boxed_expr(LiteralExpression::Number(255.0))
+                array: boxed_expr(WithRange(
+                    CommonIdentifier("my".into(), "array".into()),
+                    line_range(4, 12)
+                )),
+                subscript: boxed_expr(WithRange(
+                    LiteralExpression::Number(255.0),
+                    line_range(16, 19)
+                ))
             }
             .into(),
             value: ArraySubscript {
-                array: boxed_expr(CommonIdentifier("my".into(), "array".into())),
-                subscript: boxed_expr(LiteralExpression::Number(255.0))
+                array: boxed_expr(WithRange(
+                    CommonIdentifier("my".into(), "array".into()),
+                    line_range(23, 31)
+                )),
+                subscript: boxed_expr(WithRange(
+                    LiteralExpression::Number(255.0),
+                    line_range(35, 38)
+                ))
             }
             .into(),
             operator: None,
@@ -896,8 +1094,8 @@ fn parse_poetic_assignment() {
     assert_eq!(
         parse("Variable is 1"),
         Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Variable".into()).into(),
-            rhs: LiteralExpression::Number(1.0).into(),
+            dest: WithRange(SimpleIdentifier("Variable".into()), line_range(0, 8)).into(),
+            rhs: WithRange(LiteralExpression::Number(1.0), line_range(12, 13)).into(),
         }
         .into())
     );
@@ -905,18 +1103,24 @@ fn parse_poetic_assignment() {
         parse("Variable at 1 is 1"),
         Ok(PoeticNumberAssignment {
             dest: ArraySubscript {
-                array: boxed_expr(SimpleIdentifier("Variable".into())),
-                subscript: boxed_expr(LiteralExpression::Number(1.0)),
+                array: boxed_expr(WithRange(
+                    SimpleIdentifier("Variable".into()),
+                    line_range(0, 8)
+                )),
+                subscript: boxed_expr(WithRange(
+                    LiteralExpression::Number(1.0),
+                    line_range(12, 13)
+                )),
             }
             .into(),
-            rhs: LiteralExpression::Number(1.0).into(),
+            rhs: WithRange(LiteralExpression::Number(1.0), line_range(17, 18)).into(),
         }
         .into())
     );
     assert_eq!(
         parse("Tommy is a rockstar"),
         Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Tommy".into()).into(),
+            dest: WithRange(SimpleIdentifier("Tommy".into()), line_range(0, 5)).into(),
             rhs: PoeticNumberLiteral {
                 elems: vec![
                     PoeticNumberLiteralElem::Word("a".into()),
@@ -930,7 +1134,7 @@ fn parse_poetic_assignment() {
     assert_eq!(
         parse("Tommy is a rockstar's rockstar"),
         Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Tommy".into()).into(),
+            dest: WithRange(SimpleIdentifier("Tommy".into()), line_range(0, 5)).into(),
             rhs: PoeticNumberLiteral {
                 elems: vec![
                     PoeticNumberLiteralElem::Word("a".into()),
@@ -946,7 +1150,11 @@ fn parse_poetic_assignment() {
     assert_eq!(
         parse("Sweet Lucy was a dancer"),
         Ok(PoeticNumberAssignment {
-            dest: ProperIdentifier(vec!["Sweet".into(), "Lucy".into()]).into(),
+            dest: WithRange(
+                ProperIdentifier(vec!["Sweet".into(), "Lucy".into()]),
+                line_range(0, 10)
+            )
+            .into(),
             rhs: PoeticNumberLiteral {
                 elems: vec![
                     PoeticNumberLiteralElem::Word("a".into()),
@@ -960,7 +1168,7 @@ fn parse_poetic_assignment() {
     assert_eq!(
         parse("Tommy was without"),
         Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Tommy".into()).into(),
+            dest: WithRange(SimpleIdentifier("Tommy".into()), line_range(0, 5)).into(),
             rhs: PoeticNumberLiteral {
                 elems: vec![PoeticNumberLiteralElem::Word("without".into())]
             }
@@ -971,7 +1179,7 @@ fn parse_poetic_assignment() {
     assert_eq!(
         parse("Tommy was hunky-dory"),
         Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Tommy".into()).into(),
+            dest: WithRange(SimpleIdentifier("Tommy".into()), line_range(0, 5)).into(),
             rhs: PoeticNumberLiteral {
                 elems: vec![
                     PoeticNumberLiteralElem::Word("hunky".into()),
@@ -986,7 +1194,7 @@ fn parse_poetic_assignment() {
     assert_eq!(
         parse("Tommy was hunky - dory"),
         Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Tommy".into()).into(),
+            dest: WithRange(SimpleIdentifier("Tommy".into()), line_range(0, 5)).into(),
             rhs: PoeticNumberLiteral {
                 elems: vec![
                     PoeticNumberLiteralElem::Word("hunky".into()),
@@ -1000,7 +1208,7 @@ fn parse_poetic_assignment() {
     assert_eq!(
         parse("Tommy was hunky-dory-dory"),
         Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Tommy".into()).into(),
+            dest: WithRange(SimpleIdentifier("Tommy".into()), line_range(0, 5)).into(),
             rhs: PoeticNumberLiteral {
                 elems: vec![
                     PoeticNumberLiteralElem::Word("hunky".into()),
@@ -1015,7 +1223,7 @@ fn parse_poetic_assignment() {
     assert_eq!(
         parse("Tommy was a mommy's-boy"),
         Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Tommy".into()).into(),
+            dest: WithRange(SimpleIdentifier("Tommy".into()), line_range(0, 5)).into(),
             rhs: PoeticNumberLiteral {
                 elems: vec![
                     PoeticNumberLiteralElem::Word("a".into()),
@@ -1031,7 +1239,7 @@ fn parse_poetic_assignment() {
     assert_eq!(
         parse("Tommy was Obi-Wan's pal"),
         Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Tommy".into()).into(),
+            dest: WithRange(SimpleIdentifier("Tommy".into()), line_range(0, 5)).into(),
             rhs: PoeticNumberLiteral {
                 elems: vec![
                     PoeticNumberLiteralElem::Word("Obi".into()),
@@ -1047,24 +1255,24 @@ fn parse_poetic_assignment() {
     assert_eq!(
         parse("X is 2"),
         Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("X".into()).into(),
-            rhs: LiteralExpression::Number(2.0).into(),
+            dest: WithRange(SimpleIdentifier("X".into()), line_range(0, 1)).into(),
+            rhs: WithRange(LiteralExpression::Number(2.0), line_range(5, 6)).into(),
         }
         .into())
     );
     assert_eq!(
         parse("Y is 3"),
         Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Y".into()).into(),
-            rhs: LiteralExpression::Number(3.0).into(),
+            dest: WithRange(SimpleIdentifier("Y".into()), line_range(0, 1)).into(),
+            rhs: WithRange(LiteralExpression::Number(3.0), line_range(5, 6)).into(),
         }
         .into())
     );
     assert_eq!(
         parse("noise is silence"),
         Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("noise".into()).into(),
-            rhs: LiteralExpression::String(String::new()).into(),
+            dest: WithRange(SimpleIdentifier("noise".into()), line_range(0, 5)).into(),
+            rhs: WithRange(LiteralExpression::String(String::new()), line_range(9, 16)).into(),
         }
         .into())
     );
@@ -1072,35 +1280,42 @@ fn parse_poetic_assignment() {
     assert_eq!(
         parse("Variable's 1"),
         Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Variable".into()).into(),
-            rhs: LiteralExpression::Number(1.0).into(),
+            dest: WithRange(SimpleIdentifier("Variable".into()), line_range(0, 8)).into(),
+            rhs: WithRange(LiteralExpression::Number(1.0), line_range(11, 12)).into(),
         }
         .into())
     );
     assert_eq!(
         parse("Variables are 1"),
         Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("Variables".into()).into(),
-            rhs: LiteralExpression::Number(1.0).into(),
+            dest: WithRange(SimpleIdentifier("Variables".into()), line_range(0, 9)).into(),
+            rhs: WithRange(LiteralExpression::Number(1.0), line_range(14, 15)).into(),
         }
         .into())
     );
     assert_eq!(
         parse("We're 1"),
         Ok(PoeticNumberAssignment {
-            dest: SimpleIdentifier("We".into()).into(),
-            rhs: LiteralExpression::Number(1.0).into(),
+            dest: WithRange(SimpleIdentifier("We".into()), line_range(0, 2)).into(),
+            rhs: WithRange(LiteralExpression::Number(1.0), line_range(6, 7)).into(),
         }
         .into())
     );
     assert_eq!(
         parse("My world is nothing without your love"),
         Ok(PoeticNumberAssignment {
-            dest: CommonIdentifier("My".into(), "world".into()).into(),
+            dest: WithRange(
+                CommonIdentifier("My".into(), "world".into()),
+                line_range(0, 8)
+            )
+            .into(),
             rhs: BinaryExpression {
                 operator: BinaryOperator::Minus,
-                lhs: boxed_expr(LiteralExpression::Null),
-                rhs: boxed_expr(CommonIdentifier("your".into(), "love".into()))
+                lhs: boxed_expr(WithRange(LiteralExpression::Null, line_range(12, 19))),
+                rhs: boxed_expr(WithRange(
+                    CommonIdentifier("your".into(), "love".into()),
+                    line_range(28, 37)
+                ))
             }
             .into(),
         }
@@ -1119,7 +1334,7 @@ fn parse_poetic_string_assignment() {
     assert_eq!(
         parse("Peter says Hello San Francisco!\n"),
         Ok(PoeticStringAssignment {
-            dest: SimpleIdentifier("Peter".into()).into(),
+            dest: WithRange(SimpleIdentifier("Peter".into()), line_range(0, 5)).into(),
             rhs: "Hello San Francisco!".into(),
         }
         .into())
@@ -1127,7 +1342,7 @@ fn parse_poetic_string_assignment() {
     assert_eq!(
         parse("Peter says Hello San Francisco!"),
         Ok(PoeticStringAssignment {
-            dest: SimpleIdentifier("Peter".into()).into(),
+            dest: WithRange(SimpleIdentifier("Peter".into()), line_range(0, 5)).into(),
             rhs: "Hello San Francisco!".into(),
         }
         .into())
@@ -1135,7 +1350,7 @@ fn parse_poetic_string_assignment() {
     assert_eq!(
         parse("Peter says    Hello    San    Francisco!    \n"),
         Ok(PoeticStringAssignment {
-            dest: SimpleIdentifier("Peter".into()).into(),
+            dest: WithRange(SimpleIdentifier("Peter".into()), line_range(0, 5)).into(),
             rhs: "   Hello    San    Francisco!    ".into(),
         }
         .into())
@@ -1143,7 +1358,7 @@ fn parse_poetic_string_assignment() {
     assert_eq!(
         parse("Peter says    Hello    San    Francisco!    "),
         Ok(PoeticStringAssignment {
-            dest: SimpleIdentifier("Peter".into()).into(),
+            dest: WithRange(SimpleIdentifier("Peter".into()), line_range(0, 5)).into(),
             rhs: "   Hello    San    Francisco!    ".into(),
         }
         .into())
@@ -1152,7 +1367,7 @@ fn parse_poetic_string_assignment() {
     assert_eq!(
         parse("Peter say Hello San Francisco!\n"),
         Ok(PoeticStringAssignment {
-            dest: SimpleIdentifier("Peter".into()).into(),
+            dest: WithRange(SimpleIdentifier("Peter".into()), line_range(0, 5)).into(),
             rhs: "Hello San Francisco!".into(),
         }
         .into())
@@ -1160,7 +1375,7 @@ fn parse_poetic_string_assignment() {
     assert_eq!(
         parse("Peter say Hello San Francisco!"),
         Ok(PoeticStringAssignment {
-            dest: SimpleIdentifier("Peter".into()).into(),
+            dest: WithRange(SimpleIdentifier("Peter".into()), line_range(0, 5)).into(),
             rhs: "Hello San Francisco!".into(),
         }
         .into())
@@ -1168,7 +1383,7 @@ fn parse_poetic_string_assignment() {
     assert_eq!(
         parse("Peter say    Hello    San    Francisco!    \n"),
         Ok(PoeticStringAssignment {
-            dest: SimpleIdentifier("Peter".into()).into(),
+            dest: WithRange(SimpleIdentifier("Peter".into()), line_range(0, 5)).into(),
             rhs: "   Hello    San    Francisco!    ".into(),
         }
         .into())
@@ -1176,7 +1391,7 @@ fn parse_poetic_string_assignment() {
     assert_eq!(
         parse("Peter say    Hello    San    Francisco!    "),
         Ok(PoeticStringAssignment {
-            dest: SimpleIdentifier("Peter".into()).into(),
+            dest: WithRange(SimpleIdentifier("Peter".into()), line_range(0, 5)).into(),
             rhs: "   Hello    San    Francisco!    ".into(),
         }
         .into())
@@ -1186,7 +1401,7 @@ fn parse_poetic_string_assignment() {
     assert_eq!(
         parse("Peter says "),
         Ok(PoeticStringAssignment {
-            dest: SimpleIdentifier("Peter".into()).into(),
+            dest: WithRange(SimpleIdentifier("Peter".into()), line_range(0, 5)).into(),
             rhs: "".into(),
         }
         .into())
@@ -1195,7 +1410,11 @@ fn parse_poetic_string_assignment() {
     assert_eq!(
         parse("My parents said we'd never make it\n"),
         Ok(PoeticStringAssignment {
-            dest: CommonIdentifier("My".into(), "parents".into()).into(),
+            dest: WithRange(
+                CommonIdentifier("My".into(), "parents".into()),
+                line_range(0, 10)
+            )
+            .into(),
             rhs: "we'd never make it".into(),
         }
         .into())
@@ -1316,6 +1535,10 @@ fn poetic_number_literal_compute_value() {
     assert_eq!(val("Tommy was Obi-Wan's pal"), 93.0);
 }
 
+fn range_on_line(line: u32, range: (u32, u32)) -> SourceRange {
+    ((line, range.0), (line, range.1)).into()
+}
+
 #[test]
 fn parse_block() {
     let parse = |text| Parser::for_source_code(text).parse_block();
@@ -1324,21 +1547,27 @@ fn parse_block() {
     assert_eq!(
         parse(
             "\
-            Variable is 1
-            Tommy is a rockstar"
+Variable is 1
+Tommy is a rockstar"
         ),
         Ok(Block(vec![
             StatementWithLine(
                 PoeticNumberAssignment {
-                    dest: SimpleIdentifier("Variable".into()).into(),
-                    rhs: LiteralExpression::Number(1.0).into()
+                    dest: WithRange(
+                        SimpleIdentifier("Variable".into()),
+                        range_on_line(1, (0, 8))
+                    )
+                    .into(),
+                    rhs: WithRange(LiteralExpression::Number(1.0), range_on_line(1, (12, 13)))
+                        .into()
                 }
                 .into(),
                 1
             ),
             StatementWithLine(
                 PoeticNumberAssignment {
-                    dest: SimpleIdentifier("Tommy".into()).into(),
+                    dest: WithRange(SimpleIdentifier("Tommy".into()), range_on_line(2, (0, 5)))
+                        .into(),
                     rhs: PoeticNumberLiteral {
                         elems: vec![
                             PoeticNumberLiteralElem::Word("a".into()),
@@ -1355,22 +1584,28 @@ fn parse_block() {
     assert_eq!(
         parse(
             "\
-            Variable is 1
-            Tommy is a rockstar
+Variable is 1
+Tommy is a rockstar
             "
         ),
         Ok(Block(vec![
             StatementWithLine(
                 PoeticNumberAssignment {
-                    dest: SimpleIdentifier("Variable".into()).into(),
-                    rhs: LiteralExpression::Number(1.0).into()
+                    dest: WithRange(
+                        SimpleIdentifier("Variable".into()),
+                        range_on_line(1, (0, 8))
+                    )
+                    .into(),
+                    rhs: WithRange(LiteralExpression::Number(1.0), range_on_line(1, (12, 13)))
+                        .into()
                 }
                 .into(),
                 1
             ),
             StatementWithLine(
                 PoeticNumberAssignment {
-                    dest: SimpleIdentifier("Tommy".into()).into(),
+                    dest: WithRange(SimpleIdentifier("Tommy".into()), range_on_line(2, (0, 5)))
+                        .into(),
                     rhs: PoeticNumberLiteral {
                         elems: vec![
                             PoeticNumberLiteralElem::Word("a".into()),
@@ -1388,23 +1623,29 @@ fn parse_block() {
     assert_eq!(
         parse(
             "\
-            Variable is 1
-            Tommy is a rockstar
+Variable is 1
+Tommy is a rockstar
             
             "
         ),
         Ok(Block(vec![
             StatementWithLine(
                 PoeticNumberAssignment {
-                    dest: SimpleIdentifier("Variable".into()).into(),
-                    rhs: LiteralExpression::Number(1.0).into()
+                    dest: WithRange(
+                        SimpleIdentifier("Variable".into()),
+                        range_on_line(1, (0, 8))
+                    )
+                    .into(),
+                    rhs: WithRange(LiteralExpression::Number(1.0), range_on_line(1, (12, 13)))
+                        .into()
                 }
                 .into(),
                 1
             ),
             StatementWithLine(
                 PoeticNumberAssignment {
-                    dest: SimpleIdentifier("Tommy".into()).into(),
+                    dest: WithRange(SimpleIdentifier("Tommy".into()), range_on_line(2, (0, 5)))
+                        .into(),
                     rhs: PoeticNumberLiteral {
                         elems: vec![
                             PoeticNumberLiteralElem::Word("a".into()),
@@ -1427,22 +1668,30 @@ fn parse_if_statement() {
     assert_eq!(
         parse(
             "\
-        if x is 5,
-        x is 6
+if x is 5,
+x is 6
         "
         ),
         Ok(Some(
             If {
                 condition: BinaryExpression {
                     operator: BinaryOperator::Eq,
-                    lhs: boxed_expr(SimpleIdentifier("x".into())),
-                    rhs: boxed_expr(LiteralExpression::Number(5.0))
+                    lhs: boxed_expr(WithRange(
+                        SimpleIdentifier("x".into()),
+                        range_on_line(1, (3, 4))
+                    )),
+                    rhs: boxed_expr(WithRange(
+                        LiteralExpression::Number(5.0),
+                        range_on_line(1, (8, 9))
+                    ))
                 }
                 .into(),
                 then_block: Block(vec![StatementWithLine(
                     PoeticNumberAssignment {
-                        dest: SimpleIdentifier("x".into()).into(),
-                        rhs: LiteralExpression::Number(6.0).into()
+                        dest: WithRange(SimpleIdentifier("x".into()), range_on_line(2, (0, 1)))
+                            .into(),
+                        rhs: WithRange(LiteralExpression::Number(6.0), range_on_line(2, (5, 6)))
+                            .into()
                     }
                     .into(),
                     2
@@ -1455,32 +1704,42 @@ fn parse_if_statement() {
     assert_eq!(
         parse(
             "\
-        if x is 5,
-        x is 6
-        else
-        x is 7
+if x is 5,
+x is 6
+else
+x is 7
         "
         ),
         Ok(Some(
             If {
                 condition: BinaryExpression {
                     operator: BinaryOperator::Eq,
-                    lhs: boxed_expr(SimpleIdentifier("x".into())),
-                    rhs: boxed_expr(LiteralExpression::Number(5.0))
+                    lhs: boxed_expr(WithRange(
+                        SimpleIdentifier("x".into()),
+                        range_on_line(1, (3, 4))
+                    )),
+                    rhs: boxed_expr(WithRange(
+                        LiteralExpression::Number(5.0),
+                        range_on_line(1, (8, 9))
+                    ))
                 }
                 .into(),
                 then_block: Block(vec![StatementWithLine(
                     PoeticNumberAssignment {
-                        dest: SimpleIdentifier("x".into()).into(),
-                        rhs: LiteralExpression::Number(6.0).into()
+                        dest: WithRange(SimpleIdentifier("x".into()), range_on_line(2, (0, 1)))
+                            .into(),
+                        rhs: WithRange(LiteralExpression::Number(6.0), range_on_line(2, (5, 6)))
+                            .into()
                     }
                     .into(),
                     2
                 )]),
                 else_block: Some(Block(vec![StatementWithLine(
                     PoeticNumberAssignment {
-                        dest: SimpleIdentifier("x".into()).into(),
-                        rhs: LiteralExpression::Number(7.0).into()
+                        dest: WithRange(SimpleIdentifier("x".into()), range_on_line(4, (0, 1)))
+                            .into(),
+                        rhs: WithRange(LiteralExpression::Number(7.0), range_on_line(4, (5, 6)))
+                            .into()
                     }
                     .into(),
                     4
@@ -1493,23 +1752,31 @@ fn parse_if_statement() {
     assert_eq!(
         parse(
             "\
-        if x is 5
-        else
-        x is 7"
+if x is 5
+else
+x is 7"
         ),
         Ok(Some(
             If {
                 condition: BinaryExpression {
                     operator: BinaryOperator::Eq,
-                    lhs: boxed_expr(SimpleIdentifier("x".into())),
-                    rhs: boxed_expr(LiteralExpression::Number(5.0))
+                    lhs: boxed_expr(WithRange(
+                        SimpleIdentifier("x".into()),
+                        range_on_line(1, (3, 4))
+                    )),
+                    rhs: boxed_expr(WithRange(
+                        LiteralExpression::Number(5.0),
+                        range_on_line(1, (8, 9))
+                    ))
                 }
                 .into(),
                 then_block: Block::empty(),
                 else_block: Some(Block(vec![StatementWithLine(
                     PoeticNumberAssignment {
-                        dest: SimpleIdentifier("x".into()).into(),
-                        rhs: LiteralExpression::Number(7.0).into()
+                        dest: WithRange(SimpleIdentifier("x".into()), range_on_line(3, (0, 1)))
+                            .into(),
+                        rhs: WithRange(LiteralExpression::Number(7.0), range_on_line(3, (5, 6)))
+                            .into()
                     }
                     .into(),
                     3
@@ -1522,15 +1789,21 @@ fn parse_if_statement() {
     assert_eq!(
         parse(
             "\
-        if x is 5
-        else"
+if x is 5
+else"
         ),
         Ok(Some(
             If {
                 condition: BinaryExpression {
                     operator: BinaryOperator::Eq,
-                    lhs: boxed_expr(SimpleIdentifier("x".into())),
-                    rhs: boxed_expr(LiteralExpression::Number(5.0))
+                    lhs: boxed_expr(WithRange(
+                        SimpleIdentifier("x".into()),
+                        range_on_line(1, (3, 4))
+                    )),
+                    rhs: boxed_expr(WithRange(
+                        LiteralExpression::Number(5.0),
+                        range_on_line(1, (8, 9))
+                    ))
                 }
                 .into(),
                 then_block: Block::empty(),
@@ -1549,11 +1822,11 @@ fn parse_loop() {
     assert_eq!(
         parse(
             "\
-        while x is 5,
-        x is 6
-        
-        until x is 5,
-        x is 6
+while x is 5,
+x is 6
+
+until x is 5,
+x is 6
         "
         ),
         Ok(Block(vec![
@@ -1561,14 +1834,25 @@ fn parse_loop() {
                 While {
                     condition: BinaryExpression {
                         operator: BinaryOperator::Eq,
-                        lhs: boxed_expr(SimpleIdentifier("x".into())),
-                        rhs: boxed_expr(LiteralExpression::Number(5.0))
+                        lhs: boxed_expr(WithRange(
+                            SimpleIdentifier("x".into()),
+                            range_on_line(1, (6, 7))
+                        )),
+                        rhs: boxed_expr(WithRange(
+                            LiteralExpression::Number(5.0),
+                            range_on_line(1, (11, 12))
+                        ))
                     }
                     .into(),
                     block: Block(vec![StatementWithLine(
                         PoeticNumberAssignment {
-                            dest: SimpleIdentifier("x".into()).into(),
-                            rhs: LiteralExpression::Number(6.0).into()
+                            dest: WithRange(SimpleIdentifier("x".into()), range_on_line(2, (0, 1)))
+                                .into(),
+                            rhs: WithRange(
+                                LiteralExpression::Number(6.0),
+                                range_on_line(2, (5, 6))
+                            )
+                            .into()
                         }
                         .into(),
                         2
@@ -1581,14 +1865,25 @@ fn parse_loop() {
                 Until {
                     condition: BinaryExpression {
                         operator: BinaryOperator::Eq,
-                        lhs: boxed_expr(SimpleIdentifier("x".into())),
-                        rhs: boxed_expr(LiteralExpression::Number(5.0))
+                        lhs: boxed_expr(WithRange(
+                            SimpleIdentifier("x".into()),
+                            range_on_line(4, (6, 7))
+                        )),
+                        rhs: boxed_expr(WithRange(
+                            LiteralExpression::Number(5.0),
+                            range_on_line(4, (11, 12))
+                        ))
                     }
                     .into(),
                     block: Block(vec![StatementWithLine(
                         PoeticNumberAssignment {
-                            dest: SimpleIdentifier("x".into()).into(),
-                            rhs: LiteralExpression::Number(6.0).into()
+                            dest: WithRange(SimpleIdentifier("x".into()), range_on_line(5, (0, 1)))
+                                .into(),
+                            rhs: WithRange(
+                                LiteralExpression::Number(6.0),
+                                range_on_line(5, (5, 6))
+                            )
+                            .into()
                         }
                         .into(),
                         5
@@ -1602,11 +1897,11 @@ fn parse_loop() {
     assert_eq!(
         parse(
             "\
-        while x is 5,
-        x is 6
-        (end loop)
-        until x is 5,
-        x is 6
+while x is 5,
+x is 6
+(end loop)
+until x is 5,
+x is 6
         "
         ),
         Ok(Block(vec![
@@ -1614,14 +1909,25 @@ fn parse_loop() {
                 While {
                     condition: BinaryExpression {
                         operator: BinaryOperator::Eq,
-                        lhs: boxed_expr(SimpleIdentifier("x".into())),
-                        rhs: boxed_expr(LiteralExpression::Number(5.0))
+                        lhs: boxed_expr(WithRange(
+                            SimpleIdentifier("x".into()),
+                            range_on_line(1, (6, 7))
+                        )),
+                        rhs: boxed_expr(WithRange(
+                            LiteralExpression::Number(5.0),
+                            range_on_line(1, (11, 12))
+                        ))
                     }
                     .into(),
                     block: Block(vec![StatementWithLine(
                         PoeticNumberAssignment {
-                            dest: SimpleIdentifier("x".into()).into(),
-                            rhs: LiteralExpression::Number(6.0).into()
+                            dest: WithRange(SimpleIdentifier("x".into()), range_on_line(2, (0, 1)))
+                                .into(),
+                            rhs: WithRange(
+                                LiteralExpression::Number(6.0),
+                                range_on_line(2, (5, 6))
+                            )
+                            .into()
                         }
                         .into(),
                         2
@@ -1634,14 +1940,25 @@ fn parse_loop() {
                 Until {
                     condition: BinaryExpression {
                         operator: BinaryOperator::Eq,
-                        lhs: boxed_expr(SimpleIdentifier("x".into())),
-                        rhs: boxed_expr(LiteralExpression::Number(5.0))
+                        lhs: boxed_expr(WithRange(
+                            SimpleIdentifier("x".into()),
+                            range_on_line(4, (6, 7))
+                        )),
+                        rhs: boxed_expr(WithRange(
+                            LiteralExpression::Number(5.0),
+                            range_on_line(4, (11, 12))
+                        ))
                     }
                     .into(),
                     block: Block(vec![StatementWithLine(
                         PoeticNumberAssignment {
-                            dest: SimpleIdentifier("x".into()).into(),
-                            rhs: LiteralExpression::Number(6.0).into()
+                            dest: WithRange(SimpleIdentifier("x".into()), range_on_line(5, (0, 1)))
+                                .into(),
+                            rhs: WithRange(
+                                LiteralExpression::Number(6.0),
+                                range_on_line(5, (5, 6))
+                            )
+                            .into()
                         }
                         .into(),
                         5
@@ -1656,19 +1973,25 @@ fn parse_loop() {
     assert_eq!(
         parse(
             "\
-        while x is 5,
-        while y is 6,
-        y is 7
+while x is 5,
+while y is 6,
+y is 7
 
-        x is 6
+x is 6
         "
         ),
         Ok(Block(vec![StatementWithLine(
             While {
                 condition: BinaryExpression {
                     operator: BinaryOperator::Eq,
-                    lhs: boxed_expr(SimpleIdentifier("x".into())),
-                    rhs: boxed_expr(LiteralExpression::Number(5.0))
+                    lhs: boxed_expr(WithRange(
+                        SimpleIdentifier("x".into()),
+                        range_on_line(1, (6, 7))
+                    )),
+                    rhs: boxed_expr(WithRange(
+                        LiteralExpression::Number(5.0),
+                        range_on_line(1, (11, 12))
+                    ))
                 }
                 .into(),
                 block: Block(vec![
@@ -1676,14 +1999,28 @@ fn parse_loop() {
                         While {
                             condition: BinaryExpression {
                                 operator: BinaryOperator::Eq,
-                                lhs: boxed_expr(SimpleIdentifier("y".into())),
-                                rhs: boxed_expr(LiteralExpression::Number(6.0))
+                                lhs: boxed_expr(WithRange(
+                                    SimpleIdentifier("y".into()),
+                                    range_on_line(2, (6, 7))
+                                )),
+                                rhs: boxed_expr(WithRange(
+                                    LiteralExpression::Number(6.0),
+                                    range_on_line(2, (11, 12))
+                                ))
                             }
                             .into(),
                             block: Block(vec![StatementWithLine(
                                 PoeticNumberAssignment {
-                                    dest: SimpleIdentifier("y".into()).into(),
-                                    rhs: LiteralExpression::Number(7.0).into()
+                                    dest: WithRange(
+                                        SimpleIdentifier("y".into()),
+                                        range_on_line(3, (0, 1))
+                                    )
+                                    .into(),
+                                    rhs: WithRange(
+                                        LiteralExpression::Number(7.0),
+                                        range_on_line(3, (5, 6))
+                                    )
+                                    .into()
                                 }
                                 .into(),
                                 3
@@ -1694,8 +2031,13 @@ fn parse_loop() {
                     ),
                     StatementWithLine(
                         PoeticNumberAssignment {
-                            dest: SimpleIdentifier("x".into()).into(),
-                            rhs: LiteralExpression::Number(6.0).into()
+                            dest: WithRange(SimpleIdentifier("x".into()), range_on_line(5, (0, 1)))
+                                .into(),
+                            rhs: WithRange(
+                                LiteralExpression::Number(6.0),
+                                range_on_line(5, (5, 6))
+                            )
+                            .into()
                         }
                         .into(),
                         5
@@ -1716,7 +2058,7 @@ fn parse_build_knock() {
         parse("build it up"),
         Ok(Some(
             Inc {
-                dest: Identifier::Pronoun,
+                dest: WithRange(Identifier::Pronoun, line_range(6, 8)),
                 amount: 1
             }
             .into()
@@ -1726,7 +2068,7 @@ fn parse_build_knock() {
         parse("build it up, up, up"),
         Ok(Some(
             Inc {
-                dest: Identifier::Pronoun,
+                dest: WithRange(Identifier::Pronoun, line_range(6, 8)),
                 amount: 3
             }
             .into()
@@ -1736,7 +2078,7 @@ fn parse_build_knock() {
         parse("knock it down"),
         Ok(Some(
             Dec {
-                dest: Identifier::Pronoun,
+                dest: WithRange(Identifier::Pronoun, line_range(6, 8)),
                 amount: 1
             }
             .into()
@@ -1746,7 +2088,7 @@ fn parse_build_knock() {
         parse("knock it down down down, down"),
         Ok(Some(
             Dec {
-                dest: Identifier::Pronoun,
+                dest: WithRange(Identifier::Pronoun, line_range(6, 8)),
                 amount: 4
             }
             .into()
@@ -1762,7 +2104,7 @@ fn parse_io() {
         parse("say it"),
         Ok(Some(
             Output {
-                value: Identifier::Pronoun.into()
+                value: WithRange(Identifier::Pronoun, line_range(4, 6)).into()
             }
             .into()
         ))
@@ -1771,7 +2113,7 @@ fn parse_io() {
         parse("shout it"),
         Ok(Some(
             Output {
-                value: Identifier::Pronoun.into()
+                value: WithRange(Identifier::Pronoun, line_range(6, 8)).into()
             }
             .into()
         ))
@@ -1781,8 +2123,11 @@ fn parse_io() {
         Ok(Some(
             Output {
                 value: ArraySubscript {
-                    array: boxed_expr(Identifier::Pronoun),
-                    subscript: boxed_expr(LiteralExpression::Number(255.0))
+                    array: boxed_expr(WithRange(Identifier::Pronoun, line_range(6, 8))),
+                    subscript: boxed_expr(WithRange(
+                        LiteralExpression::Number(255.0),
+                        line_range(12, 15)
+                    ))
                 }
                 .into()
             }
@@ -1794,7 +2139,7 @@ fn parse_io() {
         parse("listen to it"),
         Ok(Some(
             Input {
-                dest: Some(Identifier::Pronoun.into())
+                dest: Some(WithRange(Identifier::Pronoun, line_range(10, 12)).into())
             }
             .into()
         ))
@@ -1805,8 +2150,11 @@ fn parse_io() {
             Input {
                 dest: Some(
                     ArraySubscript {
-                        array: boxed_expr(Identifier::Pronoun),
-                        subscript: boxed_expr(SimpleIdentifier("night".into())),
+                        array: boxed_expr(WithRange(Identifier::Pronoun, line_range(10, 12))),
+                        subscript: boxed_expr(WithRange(
+                            SimpleIdentifier("night".into()),
+                            line_range(16, 21)
+                        )),
                     }
                     .into()
                 )
@@ -1826,7 +2174,7 @@ fn parse_mutation() {
         Ok(Some(
             Mutation {
                 operator: MutationOperator::Cut,
-                operand: Identifier::Pronoun.into(),
+                operand: WithRange(Identifier::Pronoun, line_range(4, 6)).into(),
                 dest: None,
                 param: None,
             }
@@ -1838,8 +2186,8 @@ fn parse_mutation() {
         Ok(Some(
             Mutation {
                 operator: MutationOperator::Cut,
-                operand: Identifier::Pronoun.into(),
-                dest: Some(SimpleIdentifier("pieces".into()).into()),
+                operand: WithRange(Identifier::Pronoun, line_range(4, 6)).into(),
+                dest: Some(WithRange(SimpleIdentifier("pieces".into()), line_range(12, 18)).into()),
                 param: None,
             }
             .into()
@@ -1850,9 +2198,15 @@ fn parse_mutation() {
         Ok(Some(
             Mutation {
                 operator: MutationOperator::Cut,
-                operand: Identifier::Pronoun.into(),
+                operand: WithRange(Identifier::Pronoun, line_range(4, 6)).into(),
                 dest: None,
-                param: Some(CommonIdentifier("my".into(), "knife".into()).into()),
+                param: Some(
+                    WithRange(
+                        CommonIdentifier("my".into(), "knife".into()),
+                        line_range(12, 20)
+                    )
+                    .into()
+                ),
             }
             .into()
         ))
@@ -1862,9 +2216,15 @@ fn parse_mutation() {
         Ok(Some(
             Mutation {
                 operator: MutationOperator::Cut,
-                operand: Identifier::Pronoun.into(),
-                dest: Some(SimpleIdentifier("pieces".into()).into()),
-                param: Some(CommonIdentifier("my".into(), "knife".into()).into()),
+                operand: WithRange(Identifier::Pronoun, line_range(4, 6)).into(),
+                dest: Some(WithRange(SimpleIdentifier("pieces".into()), line_range(12, 18)).into()),
+                param: Some(
+                    WithRange(
+                        CommonIdentifier("my".into(), "knife".into()),
+                        line_range(24, 32)
+                    )
+                    .into()
+                ),
             }
             .into()
         ))
@@ -1874,13 +2234,19 @@ fn parse_mutation() {
         Ok(Some(
             Mutation {
                 operator: MutationOperator::Cut,
-                operand: Identifier::Pronoun.into(),
-                dest: Some(SimpleIdentifier("pieces".into()).into()),
+                operand: WithRange(Identifier::Pronoun, line_range(4, 6)).into(),
+                dest: Some(WithRange(SimpleIdentifier("pieces".into()), line_range(12, 18)).into()),
                 param: Some(
                     BinaryExpression {
                         operator: BinaryOperator::Plus,
-                        lhs: boxed_expr(CommonIdentifier("my".into(), "knife".into())),
-                        rhs: boxed_expr(CommonIdentifier("my".into(), "knife".into())),
+                        lhs: boxed_expr(WithRange(
+                            CommonIdentifier("my".into(), "knife".into()),
+                            line_range(24, 32)
+                        )),
+                        rhs: boxed_expr(WithRange(
+                            CommonIdentifier("my".into(), "knife".into()),
+                            line_range(38, 46)
+                        )),
                     }
                     .into()
                 ),
@@ -1892,7 +2258,7 @@ fn parse_mutation() {
         parse("cut \"2, 2\" with my knife"),
         Err(ParseError::new(
             ParseErrorCode::MutationOperandMustBeIdentifier(
-                LiteralExpression::String("2, 2".into()).into()
+                WithRange(LiteralExpression::String("2, 2".into()), line_range(4, 10)).into()
             ),
             Some(Token::new(TokenType::With, "with"))
         ))
@@ -1903,7 +2269,7 @@ fn parse_mutation() {
         Ok(Some(
             Mutation {
                 operator: MutationOperator::Join,
-                operand: Identifier::Pronoun.into(),
+                operand: WithRange(Identifier::Pronoun, line_range(5, 7)).into(),
                 dest: None,
                 param: None,
             }
@@ -1915,8 +2281,14 @@ fn parse_mutation() {
         Ok(Some(
             Mutation {
                 operator: MutationOperator::Cast,
-                operand: Identifier::Pronoun.into(),
-                dest: Some(CommonIdentifier("the".into(), "fire".into()).into()),
+                operand: WithRange(Identifier::Pronoun, line_range(5, 7)).into(),
+                dest: Some(
+                    WithRange(
+                        CommonIdentifier("the".into(), "fire".into()),
+                        line_range(13, 21)
+                    )
+                    .into()
+                ),
                 param: None,
             }
             .into()
@@ -1928,14 +2300,17 @@ fn parse_mutation() {
         Ok(Some(
             Mutation {
                 operator: MutationOperator::Cast,
-                operand: Identifier::Pronoun.into(),
+                operand: WithRange(Identifier::Pronoun, line_range(5, 7)).into(),
                 dest: Some(
                     ArraySubscript {
-                        array: boxed_expr(CommonIdentifier("the".into(), "fire".into())),
-                        subscript: boxed_expr(ProperIdentifier(vec![
-                            "Mount".into(),
-                            "Doom".into()
-                        ]))
+                        array: boxed_expr(WithRange(
+                            CommonIdentifier("the".into(), "fire".into()),
+                            line_range(13, 21)
+                        )),
+                        subscript: boxed_expr(WithRange(
+                            ProperIdentifier(vec!["Mount".into(), "Doom".into()]),
+                            line_range(25, 35)
+                        ))
                     }
                     .into()
                 ),
@@ -1955,7 +2330,7 @@ fn parse_rounding() {
         Ok(Some(
             Rounding {
                 direction: RoundingDirection::Up,
-                operand: Identifier::Pronoun.into()
+                operand: WithRange(Identifier::Pronoun, line_range(5, 7)).into()
             }
             .into()
         ))
@@ -1965,7 +2340,7 @@ fn parse_rounding() {
         Ok(Some(
             Rounding {
                 direction: RoundingDirection::Up,
-                operand: Identifier::Pronoun.into()
+                operand: WithRange(Identifier::Pronoun, line_range(8, 10)).into()
             }
             .into()
         ))
@@ -1975,7 +2350,7 @@ fn parse_rounding() {
         Ok(Some(
             Rounding {
                 direction: RoundingDirection::Down,
-                operand: Identifier::Pronoun.into()
+                operand: WithRange(Identifier::Pronoun, line_range(5, 7)).into()
             }
             .into()
         ))
@@ -1985,7 +2360,7 @@ fn parse_rounding() {
         Ok(Some(
             Rounding {
                 direction: RoundingDirection::Down,
-                operand: Identifier::Pronoun.into()
+                operand: WithRange(Identifier::Pronoun, line_range(10, 12)).into()
             }
             .into()
         ))
@@ -1995,7 +2370,7 @@ fn parse_rounding() {
         Ok(Some(
             Rounding {
                 direction: RoundingDirection::Nearest,
-                operand: Identifier::Pronoun.into()
+                operand: WithRange(Identifier::Pronoun, line_range(5, 7)).into()
             }
             .into()
         ))
@@ -2005,7 +2380,7 @@ fn parse_rounding() {
         Ok(Some(
             Rounding {
                 direction: RoundingDirection::Nearest,
-                operand: Identifier::Pronoun.into()
+                operand: WithRange(Identifier::Pronoun, line_range(12, 14)).into()
             }
             .into()
         ))
@@ -2015,7 +2390,7 @@ fn parse_rounding() {
         Ok(Some(
             Rounding {
                 direction: RoundingDirection::Nearest,
-                operand: Identifier::Pronoun.into()
+                operand: WithRange(Identifier::Pronoun, line_range(5, 7)).into()
             }
             .into()
         ))
@@ -2025,7 +2400,7 @@ fn parse_rounding() {
         Ok(Some(
             Rounding {
                 direction: RoundingDirection::Nearest,
-                operand: Identifier::Pronoun.into()
+                operand: WithRange(Identifier::Pronoun, line_range(11, 13)).into()
             }
             .into()
         ))
@@ -2067,8 +2442,8 @@ fn parse_array_push_pop() {
         parse("rock ints with 1"),
         Ok(Some(
             ArrayPush {
-                array: SimpleIdentifier("ints".into()).into(),
-                value: LiteralExpression::Number(1.0).into()
+                array: WithRange(SimpleIdentifier("ints".into()), line_range(5, 9)).into(),
+                value: WithRange(LiteralExpression::Number(1.0), line_range(15, 16)).into()
             }
             .into()
         ))
@@ -2077,12 +2452,12 @@ fn parse_array_push_pop() {
         parse("rock ints with 1, 2, 3"),
         Ok(Some(
             ArrayPush {
-                array: SimpleIdentifier("ints".into()).into(),
+                array: WithRange(SimpleIdentifier("ints".into()), line_range(5, 9)).into(),
                 value: ExpressionList {
-                    first: LiteralExpression::Number(1.0).into(),
+                    first: WithRange(LiteralExpression::Number(1.0), line_range(15, 16)).into(),
                     rest: vec![
-                        LiteralExpression::Number(2.0).into(),
-                        LiteralExpression::Number(3.0).into()
+                        WithRange(LiteralExpression::Number(2.0), line_range(18, 19)).into(),
+                        WithRange(LiteralExpression::Number(3.0), line_range(21, 22)).into()
                     ]
                 }
                 .into()
@@ -2094,18 +2469,24 @@ fn parse_array_push_pop() {
         parse("rock ints with 1, 2 with 3, 4, 5"),
         Ok(Some(
             ArrayPush {
-                array: SimpleIdentifier("ints".into()).into(),
+                array: WithRange(SimpleIdentifier("ints".into()), line_range(5, 9)).into(),
                 value: ExpressionList {
-                    first: LiteralExpression::Number(1.0).into(),
+                    first: WithRange(LiteralExpression::Number(1.0), line_range(15, 16)).into(),
                     rest: vec![
                         BinaryExpression {
                             operator: BinaryOperator::Plus,
-                            lhs: boxed_expr(LiteralExpression::Number(2.0)),
-                            rhs: boxed_expr(LiteralExpression::Number(3.0))
+                            lhs: boxed_expr(WithRange(
+                                LiteralExpression::Number(2.0),
+                                line_range(18, 19)
+                            )),
+                            rhs: boxed_expr(WithRange(
+                                LiteralExpression::Number(3.0),
+                                line_range(25, 26)
+                            ))
                         }
                         .into(),
-                        LiteralExpression::Number(4.0).into(),
-                        LiteralExpression::Number(5.0).into(),
+                        WithRange(LiteralExpression::Number(4.0), line_range(28, 29)).into(),
+                        WithRange(LiteralExpression::Number(5.0), line_range(31, 32)).into(),
                     ]
                 }
                 .into()
@@ -2117,7 +2498,7 @@ fn parse_array_push_pop() {
         parse("rock you like a hurricane"),
         Ok(Some(
             ArrayPush {
-                array: SimpleIdentifier("you".into()).into(),
+                array: WithRange(SimpleIdentifier("you".into()), line_range(5, 8)).into(),
                 value: PoeticNumberLiteral {
                     elems: vec![
                         PoeticNumberLiteralElem::Word("a".into()),
@@ -2133,7 +2514,7 @@ fn parse_array_push_pop() {
         parse("rock you like nothing"),
         Ok(Some(
             ArrayPush {
-                array: SimpleIdentifier("you".into()).into(),
+                array: WithRange(SimpleIdentifier("you".into()), line_range(5, 8)).into(),
                 value: PoeticNumberLiteral {
                     elems: vec![PoeticNumberLiteralElem::Word("nothing".into())]
                 }
@@ -2147,11 +2528,14 @@ fn parse_array_push_pop() {
         Ok(Some(
             ArrayPush {
                 array: ArraySubscript {
-                    array: boxed_expr(SimpleIdentifier("ints".into())),
-                    subscript: boxed_expr(SimpleIdentifier("night".into()))
+                    array: boxed_expr(WithRange(SimpleIdentifier("ints".into()), line_range(5, 9))),
+                    subscript: boxed_expr(WithRange(
+                        SimpleIdentifier("night".into()),
+                        line_range(13, 18)
+                    ))
                 }
                 .into(),
-                value: LiteralExpression::Number(1.0).into()
+                value: WithRange(LiteralExpression::Number(1.0), line_range(24, 25)).into()
             }
             .into()
         ))
@@ -2161,7 +2545,7 @@ fn parse_array_push_pop() {
         parse("roll ints"),
         Ok(Some(
             ArrayPop {
-                array: SimpleIdentifier("ints".into()).into(),
+                array: WithRange(SimpleIdentifier("ints".into()), line_range(5, 9)).into(),
                 dest: None
             }
             .into()
@@ -2171,8 +2555,8 @@ fn parse_array_push_pop() {
         parse("roll ints into it"),
         Ok(Some(
             ArrayPop {
-                array: SimpleIdentifier("ints".into()).into(),
-                dest: Some(Identifier::Pronoun.into())
+                array: WithRange(SimpleIdentifier("ints".into()), line_range(5, 9)).into(),
+                dest: Some(WithRange(Identifier::Pronoun, line_range(15, 17)).into())
             }
             .into()
         ))
@@ -2182,8 +2566,11 @@ fn parse_array_push_pop() {
         Ok(Some(
             ArrayPop {
                 array: ArraySubscript {
-                    array: boxed_expr(SimpleIdentifier("ints".into())),
-                    subscript: boxed_expr(SimpleIdentifier("night".into()))
+                    array: boxed_expr(WithRange(SimpleIdentifier("ints".into()), line_range(5, 9))),
+                    subscript: boxed_expr(WithRange(
+                        SimpleIdentifier("night".into()),
+                        line_range(13, 18)
+                    ))
                 }
                 .into(),
                 dest: None
@@ -2200,7 +2587,7 @@ fn parse_return() {
         parse("return it"),
         Ok(Some(
             Return {
-                value: Identifier::Pronoun.into()
+                value: WithRange(Identifier::Pronoun, line_range(7, 9)).into()
             }
             .into()
         ))
@@ -2209,7 +2596,7 @@ fn parse_return() {
         parse("give it"),
         Ok(Some(
             Return {
-                value: Identifier::Pronoun.into()
+                value: WithRange(Identifier::Pronoun, line_range(5, 7)).into()
             }
             .into()
         ))
@@ -2218,7 +2605,7 @@ fn parse_return() {
         parse("give it back"),
         Ok(Some(
             Return {
-                value: Identifier::Pronoun.into()
+                value: WithRange(Identifier::Pronoun, line_range(5, 7)).into()
             }
             .into()
         ))
@@ -2227,7 +2614,7 @@ fn parse_return() {
         parse("give back it"),
         Ok(Some(
             Return {
-                value: Identifier::Pronoun.into()
+                value: WithRange(Identifier::Pronoun, line_range(10, 12)).into()
             }
             .into()
         ))
@@ -2236,7 +2623,7 @@ fn parse_return() {
         parse("give back it back"),
         Ok(Some(
             Return {
-                value: Identifier::Pronoun.into()
+                value: WithRange(Identifier::Pronoun, line_range(10, 12)).into()
             }
             .into()
         ))
@@ -2245,7 +2632,7 @@ fn parse_return() {
         parse("return it back"),
         Ok(Some(
             Return {
-                value: Identifier::Pronoun.into()
+                value: WithRange(Identifier::Pronoun, line_range(7, 9)).into()
             }
             .into()
         ))
@@ -2254,7 +2641,7 @@ fn parse_return() {
         parse("send it back"),
         Ok(Some(
             Return {
-                value: Identifier::Pronoun.into()
+                value: WithRange(Identifier::Pronoun, line_range(5, 7)).into()
             }
             .into()
         ))
@@ -2272,8 +2659,8 @@ fn parse_return() {
             Return {
                 value: BinaryExpression {
                     operator: BinaryOperator::Plus,
-                    lhs: boxed_expr(SimpleIdentifier("X".into())),
-                    rhs: boxed_expr(SimpleIdentifier("Y".into()))
+                    lhs: boxed_expr(WithRange(SimpleIdentifier("X".into()), line_range(10, 11))),
+                    rhs: boxed_expr(WithRange(SimpleIdentifier("Y".into()), line_range(17, 18)))
                 }
                 .into()
             }
@@ -2289,98 +2676,131 @@ fn parse_function() {
     assert_eq!(
         parse(
             "\
-            Echo takes X
-            say X
+Echo takes X
+say X
             "
         ),
         Ok(Some(
             Function {
-                name: SimpleIdentifier("Echo".into()).into(),
-                params: vec![SimpleIdentifier("X".into()).into()],
-                body: Block(vec![StatementWithLine(
-                    Output {
-                        value: SimpleIdentifier("X".into()).into()
-                    }
-                    .into(),
-                    2
-                )])
-            }
-            .into()
-        ))
-    );
-    assert_eq!(
-        parse(
-            "\
-            my heart takes X
-            say X
-            "
-        ),
-        Ok(Some(
-            Function {
-                name: CommonIdentifier("my".into(), "heart".into()).into(),
-                params: vec![SimpleIdentifier("X".into()).into()],
-                body: Block(vec![StatementWithLine(
-                    Output {
-                        value: SimpleIdentifier("X".into()).into()
-                    }
-                    .into(),
-                    2
-                )])
-            }
-            .into()
-        ))
-    );
-    assert_eq!(
-        parse(
-            "\
-            Tom Sawyer wants my body
-            say X
-            "
-        ),
-        Ok(Some(
-            Function {
-                name: ProperIdentifier(vec!["Tom".into(), "Sawyer".into()]).into(),
-                params: vec![CommonIdentifier("my".into(), "body".into()).into()],
-                body: Block(vec![StatementWithLine(
-                    Output {
-                        value: SimpleIdentifier("X".into()).into()
-                    }
-                    .into(),
-                    2
-                )])
-            }
-            .into()
-        ))
-    );
-    assert_eq!(
-        parse(
-            "\
-            AddOrSub takes X, and B
-            if B
-            Give Back X plus 1
-            (end if)
-            say \"else\"
-            Give Back X minus 1
-            (end function)
-            "
-        ),
-        Ok(Some(
-            Function {
-                name: SimpleIdentifier("AddOrSub".into()).into(),
+                name: WithRange(SimpleIdentifier("Echo".into()), range_on_line(1, (0, 4))).into(),
                 params: vec![
-                    SimpleIdentifier("X".into()).into(),
-                    SimpleIdentifier("B".into()).into()
+                    WithRange(SimpleIdentifier("X".into()), range_on_line(1, (11, 12))).into()
+                ],
+                body: Block(vec![StatementWithLine(
+                    Output {
+                        value: WithRange(SimpleIdentifier("X".into()), range_on_line(2, (4, 5)))
+                            .into()
+                    }
+                    .into(),
+                    2
+                )])
+            }
+            .into()
+        ))
+    );
+    assert_eq!(
+        parse(
+            "\
+my heart takes X
+say X
+            "
+        ),
+        Ok(Some(
+            Function {
+                name: WithRange(
+                    CommonIdentifier("my".into(), "heart".into()),
+                    range_on_line(1, (0, 8))
+                )
+                .into(),
+                params: vec![
+                    WithRange(SimpleIdentifier("X".into()), range_on_line(1, (15, 16))).into()
+                ],
+                body: Block(vec![StatementWithLine(
+                    Output {
+                        value: WithRange(SimpleIdentifier("X".into()), range_on_line(2, (4, 5)))
+                            .into()
+                    }
+                    .into(),
+                    2
+                )])
+            }
+            .into()
+        ))
+    );
+    assert_eq!(
+        parse(
+            "\
+Tom Sawyer wants my body
+say X
+            "
+        ),
+        Ok(Some(
+            Function {
+                name: WithRange(
+                    ProperIdentifier(vec!["Tom".into(), "Sawyer".into()]),
+                    range_on_line(1, (0, 10))
+                )
+                .into(),
+                params: vec![WithRange(
+                    CommonIdentifier("my".into(), "body".into()),
+                    range_on_line(1, (17, 24))
+                )
+                .into()],
+                body: Block(vec![StatementWithLine(
+                    Output {
+                        value: WithRange(SimpleIdentifier("X".into()), range_on_line(2, (4, 5)))
+                            .into()
+                    }
+                    .into(),
+                    2
+                )])
+            }
+            .into()
+        ))
+    );
+    assert_eq!(
+        parse(
+            "\
+AddOrSub takes X, and B
+if B
+Give Back X plus 1
+(end if)
+say \"else\"
+Give Back X minus 1
+(end function)
+            "
+        ),
+        Ok(Some(
+            Function {
+                name: WithRange(
+                    SimpleIdentifier("AddOrSub".into()),
+                    range_on_line(1, (0, 8))
+                )
+                .into(),
+                params: vec![
+                    WithRange(SimpleIdentifier("X".into()), range_on_line(1, (15, 16))).into(),
+                    WithRange(SimpleIdentifier("B".into()), range_on_line(1, (22, 23))).into()
                 ],
                 body: Block(vec![
                     StatementWithLine(
                         If {
-                            condition: SimpleIdentifier("B".into()).into(),
+                            condition: WithRange(
+                                SimpleIdentifier("B".into()),
+                                range_on_line(2, (3, 4))
+                            )
+                            .into(),
                             then_block: Block(vec![StatementWithLine(
                                 Return {
                                     value: BinaryExpression {
                                         operator: BinaryOperator::Plus,
-                                        lhs: boxed_expr(SimpleIdentifier("X".into())),
-                                        rhs: boxed_expr(LiteralExpression::Number(1.0))
+                                        lhs: boxed_expr(WithRange(
+                                            SimpleIdentifier("X".into()),
+                                            range_on_line(3, (10, 11))
+                                        )),
+                                        rhs: boxed_expr(WithRange(
+                                            LiteralExpression::Number(1.0),
+                                            range_on_line(3, (17, 18))
+                                        ))
                                     }
                                     .into()
                                 }
@@ -2394,7 +2814,11 @@ fn parse_function() {
                     ),
                     StatementWithLine(
                         Output {
-                            value: LiteralExpression::String("else".into()).into()
+                            value: WithRange(
+                                LiteralExpression::String("else".into()),
+                                range_on_line(5, (4, 10))
+                            )
+                            .into()
                         }
                         .into(),
                         5
@@ -2403,8 +2827,14 @@ fn parse_function() {
                         Return {
                             value: BinaryExpression {
                                 operator: BinaryOperator::Minus,
-                                lhs: boxed_expr(SimpleIdentifier("X".into())),
-                                rhs: boxed_expr(LiteralExpression::Number(1.0))
+                                lhs: boxed_expr(WithRange(
+                                    SimpleIdentifier("X".into()),
+                                    range_on_line(6, (10, 11))
+                                )),
+                                rhs: boxed_expr(WithRange(
+                                    LiteralExpression::Number(1.0),
+                                    range_on_line(6, (18, 19))
+                                ))
                             }
                             .into()
                         }
@@ -2425,8 +2855,8 @@ fn parse_function_call_expr() {
     assert_eq!(
         parse("F taking X"),
         Ok(FunctionCall {
-            name: SimpleIdentifier("F".into()).into(),
-            args: vec![SimpleIdentifier("X".into()).into()]
+            name: WithRange(SimpleIdentifier("F".into()), line_range(0, 1)).into(),
+            args: vec![WithRange(SimpleIdentifier("X".into()), line_range(9, 10)).into()]
         }
         .into())
     );
@@ -2434,12 +2864,16 @@ fn parse_function_call_expr() {
     assert_eq!(
         parse("my heart taking X, Y, and Z, and 12"),
         Ok(FunctionCall {
-            name: CommonIdentifier("my".into(), "heart".into()).into(),
+            name: WithRange(
+                CommonIdentifier("my".into(), "heart".into()),
+                line_range(0, 8)
+            )
+            .into(),
             args: vec![
-                SimpleIdentifier("X".into()).into(),
-                SimpleIdentifier("Y".into()).into(),
-                SimpleIdentifier("Z".into()).into(),
-                LiteralExpression::Number(12.0).into(),
+                WithRange(SimpleIdentifier("X".into()), line_range(16, 17)).into(),
+                WithRange(SimpleIdentifier("Y".into()), line_range(19, 20)).into(),
+                WithRange(SimpleIdentifier("Z".into()), line_range(26, 27)).into(),
+                WithRange(LiteralExpression::Number(12.0), line_range(33, 35)).into(),
             ]
         }
         .into())
@@ -2454,8 +2888,8 @@ fn parse_function_call_statement() {
         parse("F taking X"),
         Ok(Some(
             FunctionCall {
-                name: SimpleIdentifier("F".into()).into(),
-                args: vec![SimpleIdentifier("X".into()).into()]
+                name: WithRange(SimpleIdentifier("F".into()), line_range(0, 1)).into(),
+                args: vec![WithRange(SimpleIdentifier("X".into()), line_range(9, 10)).into()]
             }
             .into()
         ))
@@ -2465,12 +2899,16 @@ fn parse_function_call_statement() {
         parse("my heart taking X, Y, and Z, and 12"),
         Ok(Some(
             FunctionCall {
-                name: CommonIdentifier("my".into(), "heart".into()).into(),
+                name: WithRange(
+                    CommonIdentifier("my".into(), "heart".into()),
+                    line_range(0, 8)
+                )
+                .into(),
                 args: vec![
-                    SimpleIdentifier("X".into()).into(),
-                    SimpleIdentifier("Y".into()).into(),
-                    SimpleIdentifier("Z".into()).into(),
-                    LiteralExpression::Number(12.0).into(),
+                    WithRange(SimpleIdentifier("X".into()), line_range(16, 17)).into(),
+                    WithRange(SimpleIdentifier("Y".into()), line_range(19, 20)).into(),
+                    WithRange(SimpleIdentifier("Z".into()), line_range(26, 27)).into(),
+                    WithRange(LiteralExpression::Number(12.0), line_range(33, 35)).into(),
                 ]
             }
             .into()
@@ -2485,20 +2923,22 @@ fn parse() {
     assert_eq!(
         parse(
             "\
-    let X be Y
+let X be Y
 
-    let Y be Z
+let Y be Z
 
 
-    let Z be Z
+let Z be Z
     "
         ),
         Ok(Program {
             code: vec![
                 Block(vec![StatementWithLine(
                     Assignment {
-                        dest: SimpleIdentifier("X".into()).into(),
-                        value: SimpleIdentifier("Y".into()).into(),
+                        dest: WithRange(SimpleIdentifier("X".into()), range_on_line(1, (4, 5)))
+                            .into(),
+                        value: WithRange(SimpleIdentifier("Y".into()), range_on_line(1, (9, 10)))
+                            .into(),
                         operator: None
                     }
                     .into(),
@@ -2507,8 +2947,10 @@ fn parse() {
                 .into(),
                 Block(vec![StatementWithLine(
                     Assignment {
-                        dest: SimpleIdentifier("Y".into()).into(),
-                        value: SimpleIdentifier("Z".into()).into(),
+                        dest: WithRange(SimpleIdentifier("Y".into()), range_on_line(3, (4, 5)))
+                            .into(),
+                        value: WithRange(SimpleIdentifier("Z".into()), range_on_line(3, (9, 10)))
+                            .into(),
                         operator: None
                     }
                     .into(),
@@ -2517,8 +2959,10 @@ fn parse() {
                 .into(),
                 Block(vec![StatementWithLine(
                     Assignment {
-                        dest: SimpleIdentifier("Z".into()).into(),
-                        value: SimpleIdentifier("Z".into()).into(),
+                        dest: WithRange(SimpleIdentifier("Z".into()), range_on_line(6, (4, 5)))
+                            .into(),
+                        value: WithRange(SimpleIdentifier("Z".into()), range_on_line(6, (9, 10)))
+                            .into(),
                         operator: None
                     }
                     .into(),
@@ -2567,15 +3011,17 @@ fn parse_error_to_string() {
     );
 
     check!(
-        ParseErrorCode::MutationOperandMustBeIdentifier(LiteralExpression::Number(0.0).into()),
+        ParseErrorCode::MutationOperandMustBeIdentifier(
+            WithRange(LiteralExpression::Number(0.0), bogus_range()).into()
+        ),
         "Mutation operand with no `into` destination must be identifier; found literal",
         "Mutation operand with no `into` destination must be identifier; found literal"
     );
     check!(
         ParseErrorCode::MutationOperandMustBeIdentifier(
             ArraySubscript {
-                array: boxed_expr(Identifier::Pronoun),
-                subscript: boxed_expr(Identifier::Pronoun)
+                array: boxed_expr(WithRange(Identifier::Pronoun, bogus_range())),
+                subscript: boxed_expr(WithRange(Identifier::Pronoun, bogus_range()))
             }
             .into()
         ),
@@ -2585,7 +3031,7 @@ fn parse_error_to_string() {
     check!(
         ParseErrorCode::MutationOperandMustBeIdentifier(
             FunctionCall {
-                name: SimpleIdentifier("foo".into()).into(),
+                name: WithRange(SimpleIdentifier("foo".into()), bogus_range()).into(),
                 args: vec![]
             }
             .into()

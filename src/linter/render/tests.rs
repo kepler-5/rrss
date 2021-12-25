@@ -1,6 +1,13 @@
-use crate::frontend::ast::ArraySubscript;
+use crate::frontend::{
+    ast::{ArraySubscript, WithRange},
+    source_range::SourceRange,
+};
 
 use super::*;
+
+fn bogus_range() -> SourceRange {
+    ((0, 0), (0, 0)).into()
+}
 
 #[test]
 fn render_variable_name() {
@@ -44,13 +51,13 @@ fn render_identifier() {
 #[test]
 fn render_assignment_lhs() {
     assert_eq!(
-        AssignmentLHS::from(SimpleIdentifier("foo".into())).render(),
+        AssignmentLHS::from(WithRange(SimpleIdentifier("foo".into()), bogus_range())).render(),
         "foo"
     );
     assert_eq!(
         AssignmentLHS::from(ArraySubscript {
-            array: Box::new(SimpleIdentifier("foo".into()).into()),
-            subscript: Box::new(SimpleIdentifier("bar".into()).into())
+            array: Box::new(WithRange(SimpleIdentifier("foo".into()), bogus_range()).into()),
+            subscript: Box::new(WithRange(SimpleIdentifier("bar".into()), bogus_range()).into())
         })
         .render(),
         "<expression>"

@@ -109,8 +109,11 @@ fn count_xs() {
     impl Visit for CountXs {
         type Output = Counter;
         type Error = ();
-        fn visit_simple_identifier(&mut self, n: &SimpleIdentifier) -> visit::Result<Self> {
-            Ok(((n.0 == "x") as i32).into())
+        fn visit_simple_identifier(
+            &mut self,
+            n: WithRange<&SimpleIdentifier>,
+        ) -> visit::Result<Self> {
+            Ok(((n.0 .0 == "x") as i32).into())
         }
     }
 
@@ -176,8 +179,11 @@ fn count_xs_unless_there_are_continues() {
     impl Visit for CountXsUnlessThereAreContinues {
         type Output = Counter;
         type Error = &'static str;
-        fn visit_simple_identifier(&mut self, n: &SimpleIdentifier) -> visit::Result<Self> {
-            Ok(((n.0 == "x") as i32).into())
+        fn visit_simple_identifier(
+            &mut self,
+            n: WithRange<&SimpleIdentifier>,
+        ) -> visit::Result<Self> {
+            Ok(((n.0 .0 == "x") as i32).into())
         }
         fn visit_continue(&mut self) -> visit::Result<Self> {
             Err("found continue!")
@@ -220,8 +226,11 @@ fn collect_all_number_literals_functional() {
         type Output = HashSet<String>;
         type Error = ();
 
-        fn visit_literal_expression(&mut self, e: &LiteralExpression) -> visit::Result<Self> {
-            match e {
+        fn visit_literal_expression(
+            &mut self,
+            e: &WithRange<LiteralExpression>,
+        ) -> visit::Result<Self> {
+            match e.0 {
                 LiteralExpression::Number(x) => Ok([x.to_string()].into_iter().collect()),
                 _ => leaf(()),
             }
@@ -267,8 +276,11 @@ fn collect_all_number_literals_stateful() {
         type Output = ();
         type Error = ();
 
-        fn visit_literal_expression(&mut self, e: &LiteralExpression) -> visit::Result<Self> {
-            if let LiteralExpression::Number(x) = e {
+        fn visit_literal_expression(
+            &mut self,
+            e: &WithRange<LiteralExpression>,
+        ) -> visit::Result<Self> {
+            if let LiteralExpression::Number(x) = e.0 {
                 self.literals.insert(x.to_string());
             }
             Ok(())

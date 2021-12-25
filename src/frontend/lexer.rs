@@ -316,15 +316,27 @@ impl<'a> Lexer<'a> {
         self.line as usize
     }
 
+    pub fn start_loc(&self) -> SourceLocation {
+        SourceLocation::new(self.line, self.start_idx() as u32 - self.line_start)
+    }
+
     pub fn current_loc(&self) -> SourceLocation {
         SourceLocation::new(self.line, self.current_idx() as u32 - self.line_start)
     }
 
-    fn current_idx(&self) -> usize {
-        self.char_indices
-            .clone()
-            .next()
-            .map(|(i, _)| i)
+    fn start_idx(&self) -> usize {
+        self.staged
+            .as_ref()
+            .map(|tok| self.get_start_index_of(tok).unwrap())
+            .or_else(|| find_word_start(&mut self.char_indices.clone()).map(|(i, _)| i))
+            .unwrap_or_else(|| self.buf.len())
+    }
+
+    pub fn current_idx(&self) -> usize {
+        self.staged
+            .as_ref()
+            .map(|tok| self.get_start_index_of(tok).unwrap())
+            .or_else(|| self.char_indices.clone().next().map(|(i, _)| i))
             .unwrap_or_else(|| self.buf.len())
     }
 
