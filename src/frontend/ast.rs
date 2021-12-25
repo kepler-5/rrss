@@ -528,3 +528,65 @@ impl PoeticNumberLiteral {
             .sum()
     }
 }
+
+/////////////// impl Range
+
+fn head_tail_range(head: &impl Range, tail: &Vec<impl Range>) -> SourceRange {
+    let head_range = head.range();
+    if let Some(last) = tail.last() {
+        head_range.concat(last.range())
+    } else {
+        head_range
+    }
+}
+
+impl Range for PrimaryExpression {
+    fn range(&self) -> SourceRange {
+        match self {
+            PrimaryExpression::Literal(x) => x.range(),
+            PrimaryExpression::Identifier(x) => x.range(),
+            PrimaryExpression::ArraySubscript(x) => x.range(),
+            PrimaryExpression::FunctionCall(x) => x.range(),
+        }
+    }
+}
+
+impl Range for ArraySubscript {
+    fn range(&self) -> SourceRange {
+        self.array.range().concat(self.subscript.range())
+    }
+}
+
+impl Range for FunctionCall {
+    fn range(&self) -> SourceRange {
+        head_tail_range(&self.name, &self.args)
+    }
+}
+
+impl Range for Expression {
+    fn range(&self) -> SourceRange {
+        match self {
+            Expression::PrimaryExpression(x) => x.range(),
+            Expression::BinaryExpression(x) => x.range(),
+            Expression::UnaryExpression(x) => x.range(),
+        }
+    }
+}
+
+impl Range for BinaryExpression {
+    fn range(&self) -> SourceRange {
+        self.lhs.range().concat(self.rhs.range())
+    }
+}
+
+impl Range for UnaryExpression {
+    fn range(&self) -> SourceRange {
+        self.operand.range()
+    }
+}
+
+impl Range for ExpressionList {
+    fn range(&self) -> SourceRange {
+        head_tail_range(&self.first, &self.rest)
+    }
+}

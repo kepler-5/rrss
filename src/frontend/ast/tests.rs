@@ -37,3 +37,40 @@ fn test_find_or_end() {
     assert_eq!(position_or_end(vec![1, 2, 3].into_iter(), |x| *x == 4), 3);
     assert_eq!(position_or_end(vec![1, 2, 3].into_iter(), |x| *x == 9), 3);
 }
+
+fn line_range(start: u32, end: u32) -> SourceRange {
+    ((1, start), (1, end)).into()
+}
+
+#[test]
+fn range() {
+    // interdependences ftw
+    let expr_range = |text| {
+        crate::frontend::parser::Parser::for_source_code(text)
+            .parse_expression()
+            .unwrap()
+            .range()
+    };
+
+    assert_eq!(expr_range("1 + 1 * 1, 2, 3"), line_range(0, 15));
+    assert_eq!(expr_range("1 + 1 * 1, 2, 3        "), line_range(0, 15));
+    assert_eq!(expr_range("        1 + 1 * 1, 2, 3"), line_range(8, 23));
+    assert_eq!(
+        expr_range("        1 + 1 * 1, 2, 3        "),
+        line_range(8, 23)
+    );
+    assert_eq!(expr_range("the arrray at 3"), line_range(0, 15));
+    assert_eq!(expr_range("the arrray at 3        "), line_range(0, 15));
+    assert_eq!(expr_range("        the arrray at 3"), line_range(8, 23));
+    assert_eq!(
+        expr_range("        the arrray at 3        "),
+        line_range(8, 23)
+    );
+    assert_eq!(expr_range("a func taking 3"), line_range(0, 15));
+    assert_eq!(expr_range("a func taking 3        "), line_range(0, 15));
+    assert_eq!(expr_range("        a func taking 3"), line_range(8, 23));
+    assert_eq!(
+        expr_range("        a func taking 3        "),
+        line_range(8, 23)
+    );
+}
