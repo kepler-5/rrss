@@ -1,8 +1,15 @@
 use std::{collections::HashSet, hash::Hash};
 
 use super::*;
-use crate::{analysis::visit, frontend::parser::parse};
+use crate::{
+    analysis::visit,
+    frontend::{parser::parse, source_range::SourceLocation},
+};
 use derive_more::From;
+
+fn bogus_loc() -> SourceLocation {
+    (0, 0).into()
+}
 
 #[test]
 fn combine() {
@@ -33,17 +40,21 @@ fn combine() {
     );
     assert_eq!(
         IsEmpty.visit_program(&Program {
-            code: vec![Block::empty(), Block::empty(), Block::empty()]
+            code: vec![
+                Block::Empty(bogus_loc()),
+                Block::Empty(bogus_loc()),
+                Block::Empty(bogus_loc())
+            ]
         }),
         Ok(true.into())
     );
     assert_eq!(
         IsEmpty.visit_program(&Program {
             code: vec![
-                Block::empty(),
-                Block::empty(),
-                Block(vec![StatementWithLine(Statement::Continue, 3)]),
-                Block::empty()
+                Block::Empty(bogus_loc()),
+                Block::Empty(bogus_loc()),
+                Block::NonEmpty(vec![Statement::Continue]),
+                Block::Empty(bogus_loc()),
             ]
         }),
         Ok(false.into())
@@ -77,19 +88,23 @@ fn short_circuit() {
     assert_eq!(E::new().visit_program(&Program { code: vec![] }), Ok(()));
     assert_eq!(
         E::new().visit_program(&Program {
-            code: vec![Block::empty()]
+            code: vec![Block::Empty(bogus_loc())]
         }),
         Ok(())
     );
     assert_eq!(
         E::new().visit_program(&Program {
-            code: vec![Block::empty(), Block::empty()]
+            code: vec![Block::Empty(bogus_loc()), Block::Empty(bogus_loc())]
         }),
         Err(())
     );
     assert_eq!(
         E::new().visit_program(&Program {
-            code: vec![Block::empty(), Block::empty(), Block::empty()]
+            code: vec![
+                Block::Empty(bogus_loc()),
+                Block::Empty(bogus_loc()),
+                Block::Empty(bogus_loc())
+            ]
         }),
         Err(())
     );
@@ -123,7 +138,11 @@ fn count_xs() {
     );
     assert_eq!(
         CountXs.visit_program(&Program {
-            code: vec![Block::empty(), Block::empty(), Block::empty()]
+            code: vec![
+                Block::Empty(bogus_loc()),
+                Block::Empty(bogus_loc()),
+                Block::Empty(bogus_loc())
+            ]
         }),
         Ok(0.into())
     );

@@ -1542,7 +1542,7 @@ fn range_on_line(line: u32, range: (u32, u32)) -> SourceRange {
 #[test]
 fn parse_block() {
     let parse = |text| Parser::for_source_code(text).parse_block();
-    assert_eq!(parse("\n"), Ok(Block::empty()));
+    assert_eq!(parse("\n"), Ok(Block::Empty((1, 0).into())));
 
     assert_eq!(
         parse(
@@ -1550,35 +1550,27 @@ fn parse_block() {
 Variable is 1
 Tommy is a rockstar"
         ),
-        Ok(Block(vec![
-            StatementWithLine(
-                PoeticNumberAssignment {
-                    dest: WithRange(
-                        SimpleIdentifier("Variable".into()),
-                        range_on_line(1, (0, 8))
-                    )
-                    .into(),
-                    rhs: WithRange(LiteralExpression::Number(1.0), range_on_line(1, (12, 13)))
-                        .into()
+        Ok(Block::NonEmpty(vec![
+            PoeticNumberAssignment {
+                dest: WithRange(
+                    SimpleIdentifier("Variable".into()),
+                    range_on_line(1, (0, 8))
+                )
+                .into(),
+                rhs: WithRange(LiteralExpression::Number(1.0), range_on_line(1, (12, 13))).into()
+            }
+            .into(),
+            PoeticNumberAssignment {
+                dest: WithRange(SimpleIdentifier("Tommy".into()), range_on_line(2, (0, 5))).into(),
+                rhs: PoeticNumberLiteral {
+                    elems: vec![
+                        PoeticNumberLiteralElem::Word("a".into()),
+                        PoeticNumberLiteralElem::Word("rockstar".into()),
+                    ]
                 }
                 .into(),
-                1
-            ),
-            StatementWithLine(
-                PoeticNumberAssignment {
-                    dest: WithRange(SimpleIdentifier("Tommy".into()), range_on_line(2, (0, 5)))
-                        .into(),
-                    rhs: PoeticNumberLiteral {
-                        elems: vec![
-                            PoeticNumberLiteralElem::Word("a".into()),
-                            PoeticNumberLiteralElem::Word("rockstar".into()),
-                        ]
-                    }
-                    .into(),
-                }
-                .into(),
-                2
-            )
+            }
+            .into()
         ]))
     );
     assert_eq!(
@@ -1588,35 +1580,27 @@ Variable is 1
 Tommy is a rockstar
             "
         ),
-        Ok(Block(vec![
-            StatementWithLine(
-                PoeticNumberAssignment {
-                    dest: WithRange(
-                        SimpleIdentifier("Variable".into()),
-                        range_on_line(1, (0, 8))
-                    )
-                    .into(),
-                    rhs: WithRange(LiteralExpression::Number(1.0), range_on_line(1, (12, 13)))
-                        .into()
+        Ok(Block::NonEmpty(vec![
+            PoeticNumberAssignment {
+                dest: WithRange(
+                    SimpleIdentifier("Variable".into()),
+                    range_on_line(1, (0, 8))
+                )
+                .into(),
+                rhs: WithRange(LiteralExpression::Number(1.0), range_on_line(1, (12, 13))).into()
+            }
+            .into(),
+            PoeticNumberAssignment {
+                dest: WithRange(SimpleIdentifier("Tommy".into()), range_on_line(2, (0, 5))).into(),
+                rhs: PoeticNumberLiteral {
+                    elems: vec![
+                        PoeticNumberLiteralElem::Word("a".into()),
+                        PoeticNumberLiteralElem::Word("rockstar".into()),
+                    ]
                 }
                 .into(),
-                1
-            ),
-            StatementWithLine(
-                PoeticNumberAssignment {
-                    dest: WithRange(SimpleIdentifier("Tommy".into()), range_on_line(2, (0, 5)))
-                        .into(),
-                    rhs: PoeticNumberLiteral {
-                        elems: vec![
-                            PoeticNumberLiteralElem::Word("a".into()),
-                            PoeticNumberLiteralElem::Word("rockstar".into()),
-                        ]
-                    }
-                    .into(),
-                }
-                .into(),
-                2
-            )
+            }
+            .into()
         ]))
     );
 
@@ -1628,35 +1612,27 @@ Tommy is a rockstar
             
             "
         ),
-        Ok(Block(vec![
-            StatementWithLine(
-                PoeticNumberAssignment {
-                    dest: WithRange(
-                        SimpleIdentifier("Variable".into()),
-                        range_on_line(1, (0, 8))
-                    )
-                    .into(),
-                    rhs: WithRange(LiteralExpression::Number(1.0), range_on_line(1, (12, 13)))
-                        .into()
+        Ok(Block::NonEmpty(vec![
+            PoeticNumberAssignment {
+                dest: WithRange(
+                    SimpleIdentifier("Variable".into()),
+                    range_on_line(1, (0, 8))
+                )
+                .into(),
+                rhs: WithRange(LiteralExpression::Number(1.0), range_on_line(1, (12, 13))).into()
+            }
+            .into(),
+            PoeticNumberAssignment {
+                dest: WithRange(SimpleIdentifier("Tommy".into()), range_on_line(2, (0, 5))).into(),
+                rhs: PoeticNumberLiteral {
+                    elems: vec![
+                        PoeticNumberLiteralElem::Word("a".into()),
+                        PoeticNumberLiteralElem::Word("rockstar".into()),
+                    ]
                 }
                 .into(),
-                1
-            ),
-            StatementWithLine(
-                PoeticNumberAssignment {
-                    dest: WithRange(SimpleIdentifier("Tommy".into()), range_on_line(2, (0, 5)))
-                        .into(),
-                    rhs: PoeticNumberLiteral {
-                        elems: vec![
-                            PoeticNumberLiteralElem::Word("a".into()),
-                            PoeticNumberLiteralElem::Word("rockstar".into()),
-                        ]
-                    }
-                    .into(),
-                }
-                .into(),
-                2
-            )
+            }
+            .into()
         ]))
     );
 }
@@ -1686,16 +1662,11 @@ x is 6
                     ))
                 }
                 .into(),
-                then_block: Block(vec![StatementWithLine(
-                    PoeticNumberAssignment {
-                        dest: WithRange(SimpleIdentifier("x".into()), range_on_line(2, (0, 1)))
-                            .into(),
-                        rhs: WithRange(LiteralExpression::Number(6.0), range_on_line(2, (5, 6)))
-                            .into()
-                    }
-                    .into(),
-                    2
-                )]),
+                then_block: Block::NonEmpty(vec![PoeticNumberAssignment {
+                    dest: WithRange(SimpleIdentifier("x".into()), range_on_line(2, (0, 1))).into(),
+                    rhs: WithRange(LiteralExpression::Number(6.0), range_on_line(2, (5, 6))).into()
+                }
+                .into()]),
                 else_block: None,
             }
             .into()
@@ -1724,26 +1695,16 @@ x is 7
                     ))
                 }
                 .into(),
-                then_block: Block(vec![StatementWithLine(
-                    PoeticNumberAssignment {
-                        dest: WithRange(SimpleIdentifier("x".into()), range_on_line(2, (0, 1)))
-                            .into(),
-                        rhs: WithRange(LiteralExpression::Number(6.0), range_on_line(2, (5, 6)))
-                            .into()
-                    }
-                    .into(),
-                    2
-                )]),
-                else_block: Some(Block(vec![StatementWithLine(
-                    PoeticNumberAssignment {
-                        dest: WithRange(SimpleIdentifier("x".into()), range_on_line(4, (0, 1)))
-                            .into(),
-                        rhs: WithRange(LiteralExpression::Number(7.0), range_on_line(4, (5, 6)))
-                            .into()
-                    }
-                    .into(),
-                    4
-                )])),
+                then_block: Block::NonEmpty(vec![PoeticNumberAssignment {
+                    dest: WithRange(SimpleIdentifier("x".into()), range_on_line(2, (0, 1))).into(),
+                    rhs: WithRange(LiteralExpression::Number(6.0), range_on_line(2, (5, 6))).into()
+                }
+                .into()]),
+                else_block: Some(Block::NonEmpty(vec![PoeticNumberAssignment {
+                    dest: WithRange(SimpleIdentifier("x".into()), range_on_line(4, (0, 1))).into(),
+                    rhs: WithRange(LiteralExpression::Number(7.0), range_on_line(4, (5, 6))).into()
+                }
+                .into()])),
             }
             .into()
         ))
@@ -1770,17 +1731,12 @@ x is 7"
                     ))
                 }
                 .into(),
-                then_block: Block::empty(),
-                else_block: Some(Block(vec![StatementWithLine(
-                    PoeticNumberAssignment {
-                        dest: WithRange(SimpleIdentifier("x".into()), range_on_line(3, (0, 1)))
-                            .into(),
-                        rhs: WithRange(LiteralExpression::Number(7.0), range_on_line(3, (5, 6)))
-                            .into()
-                    }
-                    .into(),
-                    3
-                )])),
+                then_block: Block::Empty((2, 0).into()),
+                else_block: Some(Block::NonEmpty(vec![PoeticNumberAssignment {
+                    dest: WithRange(SimpleIdentifier("x".into()), range_on_line(3, (0, 1))).into(),
+                    rhs: WithRange(LiteralExpression::Number(7.0), range_on_line(3, (5, 6))).into()
+                }
+                .into()])),
             }
             .into()
         ))
@@ -1806,8 +1762,8 @@ else"
                     ))
                 }
                 .into(),
-                then_block: Block::empty(),
-                else_block: Some(Block::empty()),
+                then_block: Block::Empty((2, 0).into()),
+                else_block: Some(Block::Empty((2, 4).into())),
             }
             .into()
         ))
@@ -1829,158 +1785,7 @@ until x is 5,
 x is 6
         "
         ),
-        Ok(Block(vec![
-            StatementWithLine(
-                While {
-                    condition: BinaryExpression {
-                        operator: BinaryOperator::Eq,
-                        lhs: boxed_expr(WithRange(
-                            SimpleIdentifier("x".into()),
-                            range_on_line(1, (6, 7))
-                        )),
-                        rhs: boxed_expr(WithRange(
-                            LiteralExpression::Number(5.0),
-                            range_on_line(1, (11, 12))
-                        ))
-                    }
-                    .into(),
-                    block: Block(vec![StatementWithLine(
-                        PoeticNumberAssignment {
-                            dest: WithRange(SimpleIdentifier("x".into()), range_on_line(2, (0, 1)))
-                                .into(),
-                            rhs: WithRange(
-                                LiteralExpression::Number(6.0),
-                                range_on_line(2, (5, 6))
-                            )
-                            .into()
-                        }
-                        .into(),
-                        2
-                    )])
-                }
-                .into(),
-                1
-            ),
-            StatementWithLine(
-                Until {
-                    condition: BinaryExpression {
-                        operator: BinaryOperator::Eq,
-                        lhs: boxed_expr(WithRange(
-                            SimpleIdentifier("x".into()),
-                            range_on_line(4, (6, 7))
-                        )),
-                        rhs: boxed_expr(WithRange(
-                            LiteralExpression::Number(5.0),
-                            range_on_line(4, (11, 12))
-                        ))
-                    }
-                    .into(),
-                    block: Block(vec![StatementWithLine(
-                        PoeticNumberAssignment {
-                            dest: WithRange(SimpleIdentifier("x".into()), range_on_line(5, (0, 1)))
-                                .into(),
-                            rhs: WithRange(
-                                LiteralExpression::Number(6.0),
-                                range_on_line(5, (5, 6))
-                            )
-                            .into()
-                        }
-                        .into(),
-                        5
-                    )])
-                }
-                .into(),
-                4
-            )
-        ]))
-    );
-    assert_eq!(
-        parse(
-            "\
-while x is 5,
-x is 6
-(end loop)
-until x is 5,
-x is 6
-        "
-        ),
-        Ok(Block(vec![
-            StatementWithLine(
-                While {
-                    condition: BinaryExpression {
-                        operator: BinaryOperator::Eq,
-                        lhs: boxed_expr(WithRange(
-                            SimpleIdentifier("x".into()),
-                            range_on_line(1, (6, 7))
-                        )),
-                        rhs: boxed_expr(WithRange(
-                            LiteralExpression::Number(5.0),
-                            range_on_line(1, (11, 12))
-                        ))
-                    }
-                    .into(),
-                    block: Block(vec![StatementWithLine(
-                        PoeticNumberAssignment {
-                            dest: WithRange(SimpleIdentifier("x".into()), range_on_line(2, (0, 1)))
-                                .into(),
-                            rhs: WithRange(
-                                LiteralExpression::Number(6.0),
-                                range_on_line(2, (5, 6))
-                            )
-                            .into()
-                        }
-                        .into(),
-                        2
-                    )])
-                }
-                .into(),
-                1
-            ),
-            StatementWithLine(
-                Until {
-                    condition: BinaryExpression {
-                        operator: BinaryOperator::Eq,
-                        lhs: boxed_expr(WithRange(
-                            SimpleIdentifier("x".into()),
-                            range_on_line(4, (6, 7))
-                        )),
-                        rhs: boxed_expr(WithRange(
-                            LiteralExpression::Number(5.0),
-                            range_on_line(4, (11, 12))
-                        ))
-                    }
-                    .into(),
-                    block: Block(vec![StatementWithLine(
-                        PoeticNumberAssignment {
-                            dest: WithRange(SimpleIdentifier("x".into()), range_on_line(5, (0, 1)))
-                                .into(),
-                            rhs: WithRange(
-                                LiteralExpression::Number(6.0),
-                                range_on_line(5, (5, 6))
-                            )
-                            .into()
-                        }
-                        .into(),
-                        5
-                    )])
-                }
-                .into(),
-                4
-            )
-        ]))
-    );
-
-    assert_eq!(
-        parse(
-            "\
-while x is 5,
-while y is 6,
-y is 7
-
-x is 6
-        "
-        ),
-        Ok(Block(vec![StatementWithLine(
+        Ok(Block::NonEmpty(vec![
             While {
                 condition: BinaryExpression {
                     operator: BinaryOperator::Eq,
@@ -1994,59 +1799,143 @@ x is 6
                     ))
                 }
                 .into(),
-                block: Block(vec![
-                    StatementWithLine(
-                        While {
-                            condition: BinaryExpression {
-                                operator: BinaryOperator::Eq,
-                                lhs: boxed_expr(WithRange(
-                                    SimpleIdentifier("y".into()),
-                                    range_on_line(2, (6, 7))
-                                )),
-                                rhs: boxed_expr(WithRange(
-                                    LiteralExpression::Number(6.0),
-                                    range_on_line(2, (11, 12))
-                                ))
-                            }
-                            .into(),
-                            block: Block(vec![StatementWithLine(
-                                PoeticNumberAssignment {
-                                    dest: WithRange(
-                                        SimpleIdentifier("y".into()),
-                                        range_on_line(3, (0, 1))
-                                    )
-                                    .into(),
-                                    rhs: WithRange(
-                                        LiteralExpression::Number(7.0),
-                                        range_on_line(3, (5, 6))
-                                    )
-                                    .into()
-                                }
-                                .into(),
-                                3
-                            )])
-                        }
-                        .into(),
-                        2
-                    ),
-                    StatementWithLine(
-                        PoeticNumberAssignment {
-                            dest: WithRange(SimpleIdentifier("x".into()), range_on_line(5, (0, 1)))
-                                .into(),
-                            rhs: WithRange(
-                                LiteralExpression::Number(6.0),
-                                range_on_line(5, (5, 6))
-                            )
-                            .into()
-                        }
-                        .into(),
-                        5
-                    )
-                ])
+                block: Block::NonEmpty(vec![PoeticNumberAssignment {
+                    dest: WithRange(SimpleIdentifier("x".into()), range_on_line(2, (0, 1))).into(),
+                    rhs: WithRange(LiteralExpression::Number(6.0), range_on_line(2, (5, 6))).into()
+                }
+                .into()])
             }
             .into(),
-            1
-        ),]))
+            Until {
+                condition: BinaryExpression {
+                    operator: BinaryOperator::Eq,
+                    lhs: boxed_expr(WithRange(
+                        SimpleIdentifier("x".into()),
+                        range_on_line(4, (6, 7))
+                    )),
+                    rhs: boxed_expr(WithRange(
+                        LiteralExpression::Number(5.0),
+                        range_on_line(4, (11, 12))
+                    ))
+                }
+                .into(),
+                block: Block::NonEmpty(vec![PoeticNumberAssignment {
+                    dest: WithRange(SimpleIdentifier("x".into()), range_on_line(5, (0, 1))).into(),
+                    rhs: WithRange(LiteralExpression::Number(6.0), range_on_line(5, (5, 6))).into()
+                }
+                .into()])
+            }
+            .into()
+        ]))
+    );
+    assert_eq!(
+        parse(
+            "\
+while x is 5,
+x is 6
+(end loop)
+until x is 5,
+x is 6
+        "
+        ),
+        Ok(Block::NonEmpty(vec![
+            While {
+                condition: BinaryExpression {
+                    operator: BinaryOperator::Eq,
+                    lhs: boxed_expr(WithRange(
+                        SimpleIdentifier("x".into()),
+                        range_on_line(1, (6, 7))
+                    )),
+                    rhs: boxed_expr(WithRange(
+                        LiteralExpression::Number(5.0),
+                        range_on_line(1, (11, 12))
+                    ))
+                }
+                .into(),
+                block: Block::NonEmpty(vec![PoeticNumberAssignment {
+                    dest: WithRange(SimpleIdentifier("x".into()), range_on_line(2, (0, 1))).into(),
+                    rhs: WithRange(LiteralExpression::Number(6.0), range_on_line(2, (5, 6))).into()
+                }
+                .into()])
+            }
+            .into(),
+            Until {
+                condition: BinaryExpression {
+                    operator: BinaryOperator::Eq,
+                    lhs: boxed_expr(WithRange(
+                        SimpleIdentifier("x".into()),
+                        range_on_line(4, (6, 7))
+                    )),
+                    rhs: boxed_expr(WithRange(
+                        LiteralExpression::Number(5.0),
+                        range_on_line(4, (11, 12))
+                    ))
+                }
+                .into(),
+                block: Block::NonEmpty(vec![PoeticNumberAssignment {
+                    dest: WithRange(SimpleIdentifier("x".into()), range_on_line(5, (0, 1))).into(),
+                    rhs: WithRange(LiteralExpression::Number(6.0), range_on_line(5, (5, 6))).into()
+                }
+                .into()])
+            }
+            .into()
+        ]))
+    );
+
+    assert_eq!(
+        parse(
+            "\
+while x is 5,
+while y is 6,
+y is 7
+
+x is 6
+        "
+        ),
+        Ok(Block::NonEmpty(vec![While {
+            condition: BinaryExpression {
+                operator: BinaryOperator::Eq,
+                lhs: boxed_expr(WithRange(
+                    SimpleIdentifier("x".into()),
+                    range_on_line(1, (6, 7))
+                )),
+                rhs: boxed_expr(WithRange(
+                    LiteralExpression::Number(5.0),
+                    range_on_line(1, (11, 12))
+                ))
+            }
+            .into(),
+            block: Block::NonEmpty(vec![
+                While {
+                    condition: BinaryExpression {
+                        operator: BinaryOperator::Eq,
+                        lhs: boxed_expr(WithRange(
+                            SimpleIdentifier("y".into()),
+                            range_on_line(2, (6, 7))
+                        )),
+                        rhs: boxed_expr(WithRange(
+                            LiteralExpression::Number(6.0),
+                            range_on_line(2, (11, 12))
+                        ))
+                    }
+                    .into(),
+                    block: Block::NonEmpty(vec![PoeticNumberAssignment {
+                        dest: WithRange(SimpleIdentifier("y".into()), range_on_line(3, (0, 1)))
+                            .into(),
+                        rhs: WithRange(LiteralExpression::Number(7.0), range_on_line(3, (5, 6)))
+                            .into()
+                    }
+                    .into()])
+                }
+                .into(),
+                PoeticNumberAssignment {
+                    dest: WithRange(SimpleIdentifier("x".into()), range_on_line(5, (0, 1))).into(),
+                    rhs: WithRange(LiteralExpression::Number(6.0), range_on_line(5, (5, 6))).into()
+                }
+                .into()
+            ])
+        }
+        .into()]))
     );
 }
 
@@ -2686,14 +2575,10 @@ say X
                 params: vec![
                     WithRange(SimpleIdentifier("X".into()), range_on_line(1, (11, 12))).into()
                 ],
-                body: Block(vec![StatementWithLine(
-                    Output {
-                        value: WithRange(SimpleIdentifier("X".into()), range_on_line(2, (4, 5)))
-                            .into()
-                    }
-                    .into(),
-                    2
-                )])
+                body: Block::NonEmpty(vec![Output {
+                    value: WithRange(SimpleIdentifier("X".into()), range_on_line(2, (4, 5))).into()
+                }
+                .into()])
             }
             .into()
         ))
@@ -2715,14 +2600,10 @@ say X
                 params: vec![
                     WithRange(SimpleIdentifier("X".into()), range_on_line(1, (15, 16))).into()
                 ],
-                body: Block(vec![StatementWithLine(
-                    Output {
-                        value: WithRange(SimpleIdentifier("X".into()), range_on_line(2, (4, 5)))
-                            .into()
-                    }
-                    .into(),
-                    2
-                )])
+                body: Block::NonEmpty(vec![Output {
+                    value: WithRange(SimpleIdentifier("X".into()), range_on_line(2, (4, 5))).into()
+                }
+                .into()])
             }
             .into()
         ))
@@ -2746,14 +2627,10 @@ say X
                     range_on_line(1, (17, 24))
                 )
                 .into()],
-                body: Block(vec![StatementWithLine(
-                    Output {
-                        value: WithRange(SimpleIdentifier("X".into()), range_on_line(2, (4, 5)))
-                            .into()
-                    }
-                    .into(),
-                    2
-                )])
+                body: Block::NonEmpty(vec![Output {
+                    value: WithRange(SimpleIdentifier("X".into()), range_on_line(2, (4, 5))).into()
+                }
+                .into()])
             }
             .into()
         ))
@@ -2781,66 +2658,54 @@ Give Back X minus 1
                     WithRange(SimpleIdentifier("X".into()), range_on_line(1, (15, 16))).into(),
                     WithRange(SimpleIdentifier("B".into()), range_on_line(1, (22, 23))).into()
                 ],
-                body: Block(vec![
-                    StatementWithLine(
-                        If {
-                            condition: WithRange(
-                                SimpleIdentifier("B".into()),
-                                range_on_line(2, (3, 4))
-                            )
-                            .into(),
-                            then_block: Block(vec![StatementWithLine(
-                                Return {
-                                    value: BinaryExpression {
-                                        operator: BinaryOperator::Plus,
-                                        lhs: boxed_expr(WithRange(
-                                            SimpleIdentifier("X".into()),
-                                            range_on_line(3, (10, 11))
-                                        )),
-                                        rhs: boxed_expr(WithRange(
-                                            LiteralExpression::Number(1.0),
-                                            range_on_line(3, (17, 18))
-                                        ))
-                                    }
-                                    .into()
-                                }
-                                .into(),
-                                3
-                            )]),
-                            else_block: None,
-                        }
+                body: Block::NonEmpty(vec![
+                    If {
+                        condition: WithRange(
+                            SimpleIdentifier("B".into()),
+                            range_on_line(2, (3, 4))
+                        )
                         .into(),
-                        2
-                    ),
-                    StatementWithLine(
-                        Output {
-                            value: WithRange(
-                                LiteralExpression::String("else".into()),
-                                range_on_line(5, (4, 10))
-                            )
-                            .into()
-                        }
-                        .into(),
-                        5
-                    ),
-                    StatementWithLine(
-                        Return {
+                        then_block: Block::NonEmpty(vec![Return {
                             value: BinaryExpression {
-                                operator: BinaryOperator::Minus,
+                                operator: BinaryOperator::Plus,
                                 lhs: boxed_expr(WithRange(
                                     SimpleIdentifier("X".into()),
-                                    range_on_line(6, (10, 11))
+                                    range_on_line(3, (10, 11))
                                 )),
                                 rhs: boxed_expr(WithRange(
                                     LiteralExpression::Number(1.0),
-                                    range_on_line(6, (18, 19))
+                                    range_on_line(3, (17, 18))
                                 ))
                             }
                             .into()
                         }
-                        .into(),
-                        6
-                    )
+                        .into()]),
+                        else_block: None,
+                    }
+                    .into(),
+                    Output {
+                        value: WithRange(
+                            LiteralExpression::String("else".into()),
+                            range_on_line(5, (4, 10))
+                        )
+                        .into()
+                    }
+                    .into(),
+                    Return {
+                        value: BinaryExpression {
+                            operator: BinaryOperator::Minus,
+                            lhs: boxed_expr(WithRange(
+                                SimpleIdentifier("X".into()),
+                                range_on_line(6, (10, 11))
+                            )),
+                            rhs: boxed_expr(WithRange(
+                                LiteralExpression::Number(1.0),
+                                range_on_line(6, (18, 19))
+                            ))
+                        }
+                        .into()
+                    }
+                    .into()
                 ])
             }
             .into()
@@ -2933,41 +2798,29 @@ let Z be Z
         ),
         Ok(Program {
             code: vec![
-                Block(vec![StatementWithLine(
-                    Assignment {
-                        dest: WithRange(SimpleIdentifier("X".into()), range_on_line(1, (4, 5)))
-                            .into(),
-                        value: WithRange(SimpleIdentifier("Y".into()), range_on_line(1, (9, 10)))
-                            .into(),
-                        operator: None
-                    }
-                    .into(),
-                    1
-                )])
+                Block::NonEmpty(vec![Assignment {
+                    dest: WithRange(SimpleIdentifier("X".into()), range_on_line(1, (4, 5))).into(),
+                    value: WithRange(SimpleIdentifier("Y".into()), range_on_line(1, (9, 10)))
+                        .into(),
+                    operator: None
+                }
+                .into()])
                 .into(),
-                Block(vec![StatementWithLine(
-                    Assignment {
-                        dest: WithRange(SimpleIdentifier("Y".into()), range_on_line(3, (4, 5)))
-                            .into(),
-                        value: WithRange(SimpleIdentifier("Z".into()), range_on_line(3, (9, 10)))
-                            .into(),
-                        operator: None
-                    }
-                    .into(),
-                    3
-                )])
+                Block::NonEmpty(vec![Assignment {
+                    dest: WithRange(SimpleIdentifier("Y".into()), range_on_line(3, (4, 5))).into(),
+                    value: WithRange(SimpleIdentifier("Z".into()), range_on_line(3, (9, 10)))
+                        .into(),
+                    operator: None
+                }
+                .into()])
                 .into(),
-                Block(vec![StatementWithLine(
-                    Assignment {
-                        dest: WithRange(SimpleIdentifier("Z".into()), range_on_line(6, (4, 5)))
-                            .into(),
-                        value: WithRange(SimpleIdentifier("Z".into()), range_on_line(6, (9, 10)))
-                            .into(),
-                        operator: None
-                    }
-                    .into(),
-                    6
-                )])
+                Block::NonEmpty(vec![Assignment {
+                    dest: WithRange(SimpleIdentifier("Z".into()), range_on_line(6, (4, 5))).into(),
+                    value: WithRange(SimpleIdentifier("Z".into()), range_on_line(6, (9, 10)))
+                        .into(),
+                    operator: None
+                }
+                .into()])
                 .into()
             ]
         })

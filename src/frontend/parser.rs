@@ -628,19 +628,20 @@ impl<'a> Parser<'a> {
         self.expect_token_or_end(TokenType::Newline).map(|_| ())
     }
 
-    fn parse_block_loop(&mut self) -> Result<Vec<StatementWithLine>, ParseError<'a>> {
+    fn parse_block_loop(&mut self) -> Result<Vec<Statement>, ParseError<'a>> {
         let mut statements = Vec::new();
-        while let (line, Some(s)) = (self.current_line(), self.parse_statement()?) {
-            statements.push(StatementWithLine(s, line));
+        while let Some(s) = self.parse_statement()? {
+            statements.push(s);
             self.expect_eol()?;
         }
         Ok(statements)
     }
 
     fn parse_block(&mut self) -> Result<Block, ParseError<'a>> {
+        let loc = self.current_loc();
         let statements = self.parse_block_loop()?;
         self.expect_eol()?;
-        Ok(Block(statements))
+        Ok(Block::new(loc, statements))
     }
 
     fn expect_token(&mut self, tok: TokenType<'a>) -> Result<Token<'a>, ParseError<'a>> {
@@ -862,7 +863,7 @@ impl<'a> Parser<'a> {
         self.consume(TokenType::If);
         let condition = self.parse_expression()?;
         self.expect_eol()?;
-        let then_block = Block(self.parse_block_loop()?);
+        let then_block = Block::new(self.current_loc(), self.parse_block_loop()?);
         let else_block = self
             .match_and_consume(TokenType::Else)
             .map(|_| {
@@ -882,7 +883,7 @@ impl<'a> Parser<'a> {
         let is_while = *start_token == TokenType::While;
         let condition = self.parse_expression()?;
         self.expect_eol()?;
-        let block = Block(self.parse_block_loop()?);
+        let block = Block::new(self.current_loc(), self.parse_block_loop()?);
         Ok(if is_while {
             While { condition, block }.into()
         } else {

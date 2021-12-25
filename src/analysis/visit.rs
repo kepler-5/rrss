@@ -37,7 +37,12 @@ pub trait Visit {
     }
 
     fn visit_block(&mut self, b: &Block) -> Result<Self> {
-        combine_all(b.0.iter().map(|sl| self.visit_statement(&sl.0)))
+        match b {
+            Block::Empty(_) => leaf(()),
+            Block::NonEmpty(statements) => {
+                combine_all(statements.iter().map(|s| self.visit_statement(s)))
+            }
+        }
     }
 
     fn visit_statement(&mut self, s: &Statement) -> Result<Self> {

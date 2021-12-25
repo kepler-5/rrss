@@ -2,7 +2,7 @@ use std::{hint::unreachable_unchecked, iter::Peekable};
 
 use crate::frontend::source_range::SourceRange;
 
-use derive_more::From;
+use derive_more::{From, IsVariant};
 
 use super::source_range::{Range, SourceLocation};
 
@@ -403,19 +403,19 @@ pub enum Statement {
 
 bridging_from!(for Statement: PoeticAssignment);
 
-#[derive(Debug, PartialEq)]
-pub struct StatementWithLine(pub Statement, pub usize);
-
-#[derive(Debug, PartialEq)]
-pub struct Block(pub Vec<StatementWithLine>);
+#[derive(Debug, IsVariant, PartialEq)]
+pub enum Block {
+    Empty(SourceLocation),
+    NonEmpty(Vec<Statement>),
+}
 
 impl Block {
-    pub fn empty() -> Self {
-        Self(Vec::new())
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+    pub fn new(loc: SourceLocation, statements: Vec<Statement>) -> Self {
+        if statements.is_empty() {
+            Self::Empty(loc)
+        } else {
+            Self::NonEmpty(statements)
+        }
     }
 }
 
