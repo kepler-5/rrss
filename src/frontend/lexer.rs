@@ -1,6 +1,6 @@
 use std::{collections::HashMap, iter::repeat, slice::SliceIndex, str::CharIndices};
 
-use derive_more::Constructor;
+use derive_more::{Constructor, IsVariant};
 use lazy_static::lazy_static;
 
 use crate::frontend::source_range::SourceLocation;
@@ -11,7 +11,7 @@ mod tests;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ErrorMessage(&'static str);
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, IsVariant, PartialEq)]
 pub enum TokenType<'a> {
     Word,
     CapitalizedWord,
@@ -116,12 +116,6 @@ impl<'a> Token<'a> {
     pub fn is_ispelled(&self, text: &str) -> bool {
         assert!(text.chars().all(|c| c.is_lowercase()));
         self.spelling.to_lowercase() == text
-    }
-}
-
-impl<'a> TokenType<'a> {
-    pub fn is_comment(&self) -> bool {
-        matches!(self, TokenType::Comment(_))
     }
 }
 

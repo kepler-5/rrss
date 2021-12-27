@@ -339,22 +339,24 @@ impl<'a> Parser<'a> {
                     TokenType::Isnt,
                 ]
                 .as_ref(),
-                |p| p.parse_term(),
+                Self::parse_term,
                 expr,
             )
         }
     }
 
     fn parse_term(&mut self) -> Result<Expression, ParseError<'a>> {
-        self.parse_binary_expression(&[TokenType::Plus, TokenType::With, TokenType::Minus], |p| {
-            p.parse_factor()
-        })
+        self.parse_binary_expression(
+            &[TokenType::Plus, TokenType::With, TokenType::Minus],
+            Self::parse_factor,
+        )
     }
 
     fn parse_factor(&mut self) -> Result<Expression, ParseError<'a>> {
-        self.parse_binary_expression(&[TokenType::Multiply, TokenType::Divide], |p| {
-            p.parse_unary_expression()
-        })
+        self.parse_binary_expression(
+            &[TokenType::Multiply, TokenType::Divide],
+            Self::parse_unary_expression,
+        )
     }
 
     fn parse_binary_expression<F>(
