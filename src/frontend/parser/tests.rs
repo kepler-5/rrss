@@ -1035,40 +1035,28 @@ fn parse_assignment_errors() {
         parse("Let 5 be 6"),
         Err(ParseError {
             code: ParseErrorCode::ExpectedIdentifier,
-            token: Some(Token {
-                id: TokenType::Number(5.0),
-                spelling: "5"
-            })
+            token: Some(Token::new(TokenType::Number(5.0), "5", line_range(4, 5)))
         })
     );
     assert_eq!(
         parse("Put 6 into 5"),
         Err(ParseError {
             code: ParseErrorCode::ExpectedIdentifier,
-            token: Some(Token {
-                id: TokenType::Number(5.0),
-                spelling: "5"
-            })
+            token: Some(Token::new(TokenType::Number(5.0), "5", line_range(11, 12)))
         })
     );
     assert_eq!(
         parse("Let five bee 6"),
         Err(ParseError {
             code: ParseErrorCode::ExpectedToken(TokenType::Be),
-            token: Some(Token {
-                id: TokenType::Word,
-                spelling: "bee"
-            })
+            token: Some(Token::new(TokenType::Word, "bee", line_range(9, 12)))
         })
     );
     assert_eq!(
         parse("Put five intoo six"),
         Err(ParseError {
             code: ParseErrorCode::ExpectedToken(TokenType::Into),
-            token: Some(Token {
-                id: TokenType::Word,
-                spelling: "intoo"
-            })
+            token: Some(Token::new(TokenType::Word, "intoo", line_range(9, 14)))
         })
     );
 
@@ -1076,10 +1064,7 @@ fn parse_assignment_errors() {
         parse("Put 1, 2, 3 into six"),
         Err(ParseError {
             code: ParseErrorCode::ExpectedToken(TokenType::Into),
-            token: Some(Token {
-                id: TokenType::Comma,
-                spelling: ","
-            })
+            token: Some(Token::new(TokenType::Comma, ",", line_range(5, 6)))
         })
     );
 }
@@ -1439,10 +1424,7 @@ fn parse_poetic_assignment_errors() {
                 TokenType::Says,
                 TokenType::Say,
             ]),
-            token: Some(Token {
-                id: TokenType::Dot,
-                spelling: "."
-            })
+            token: Some(Token::new(TokenType::Dot, ".", line_range(8, 9)))
         })
     );
 
@@ -1456,10 +1438,11 @@ fn parse_poetic_assignment_errors() {
                 TokenType::Says,
                 TokenType::Say,
             ]),
-            token: Some(Token {
-                id: TokenType::SayAlias,
-                spelling: "whisper"
-            })
+            token: Some(Token::new(
+                TokenType::SayAlias,
+                "whisper",
+                line_range(9, 16)
+            ))
         })
     );
 
@@ -1474,25 +1457,30 @@ fn parse_poetic_assignment_errors() {
         parse("My world is without--"),
         Err(ParseError {
             code: ParseErrorCode::UnexpectedToken,
-            token: Some(Token {
-                id: TokenType::Minus,
-                spelling: "-"
-            })
+            token: Some(Token::new(TokenType::Minus, "-", line_range(20, 21)))
         })
     );
 
     assert_eq!(
         parse("My world said"),
         Err(ParseError {
-            code: ParseErrorCode::ExpectedSpaceAfterSays(Token::new(TokenType::Says, "said")),
+            code: ParseErrorCode::ExpectedSpaceAfterSays(Token::new(
+                TokenType::Says,
+                "said",
+                line_range(9, 13)
+            )),
             token: None
         })
     );
     assert_eq!(
         parse("My world said\n"),
         Err(ParseError {
-            code: ParseErrorCode::ExpectedSpaceAfterSays(Token::new(TokenType::Says, "said")),
-            token: Some(Token::new(TokenType::Newline, "\n"))
+            code: ParseErrorCode::ExpectedSpaceAfterSays(Token::new(
+                TokenType::Says,
+                "said",
+                line_range(9, 13)
+            )),
+            token: Some(Token::new(TokenType::Newline, "\n", line_range(13, 14)))
         })
     );
 }
@@ -2157,7 +2145,7 @@ fn parse_mutation() {
             ParseErrorCode::MutationOperandMustBeIdentifier(
                 WithRange(LiteralExpression::String("2, 2".into()), line_range(4, 10)).into()
             ),
-            Some(Token::new(TokenType::With, "with"))
+            Some(Token::new(TokenType::With, "with", line_range(11, 15)))
         ))
     );
 
@@ -2562,7 +2550,7 @@ fn parse_return() {
         parse("send back it"),
         Err(ParseError::new(
             ParseErrorCode::ExpectedPrimaryExpression,
-            Some(Token::new(TokenType::Back, "back"))
+            Some(Token::new(TokenType::Back, "back", line_range(5, 9)))
         ))
     );
     assert_eq!(
@@ -2852,8 +2840,14 @@ let Z be Z
 
 #[test]
 fn parse_error_to_string() {
-    let bogus = || Some(Token::new(TokenType::ApostropheNApostrophe, "bloop"));
-    let bogus2 = || Token::new(TokenType::Word, "worrrd");
+    let bogus = || {
+        Some(Token::new(
+            TokenType::ApostropheNApostrophe,
+            "bloop",
+            line_range(0, 5),
+        ))
+    };
+    let bogus2 = || Token::new(TokenType::Word, "worrrd", line_range(0, 6));
 
     macro_rules! check {
         ($err_code:expr, $without_token:literal, $with_token:literal $(,)?) => {

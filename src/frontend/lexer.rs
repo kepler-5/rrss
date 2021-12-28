@@ -5,6 +5,8 @@ use lazy_static::lazy_static;
 
 use crate::frontend::source_range::SourceLocation;
 
+use super::source_range::SourceRange;
+
 #[cfg(test)]
 mod tests;
 
@@ -107,6 +109,7 @@ pub enum TokenType<'a> {
 pub struct Token<'a> {
     pub id: TokenType<'a>,
     pub spelling: &'a str,
+    pub range: SourceRange,
 }
 
 impl<'a> Token<'a> {
@@ -226,10 +229,8 @@ lazy_static! {
     };
 }
 
-fn match_keyword<'a>(word: &'a str) -> Option<Token<'a>> {
-    KEYWORDS
-        .get(word.to_lowercase().as_str())
-        .map(|tok| Token::new(*tok, word))
+fn match_keyword<'a>(word: &'a str) -> Option<TokenType<'a>> {
+    KEYWORDS.get(word.to_lowercase().as_str()).copied()
 }
 
 fn is_ignorable_whitespace(c: char) -> bool {
@@ -287,12 +288,14 @@ impl<'a> Lexer<'a> {
     }
 
     pub fn get_start_index_of(&self, cursor: &Token<'a>) -> Option<usize> {
-        let cursor_start = cursor.spelling.as_ptr();
+        self.get_index_of(cursor.spelling.as_ptr())
+    }
+
+    fn get_index_of(&self, cursor: *const u8) -> Option<usize> {
         let bytes = self.buf.as_bytes();
-        bytes
-            .as_ptr_range()
-            .contains(&cursor_start)
-            .then(|| unsafe { cursor_start.offset_from(bytes.as_ptr()) } as usize)
+        let range = bytes.as_ptr_range();
+        (range.contains(&cursor) || range.end == cursor)
+            .then(|| unsafe { cursor.offset_from(bytes.as_ptr()) } as usize)
     }
 
     pub fn get_literal_text_between(&self, start: &Token<'a>, end: &Token<'a>) -> Option<&'a str> {
@@ -351,12 +354,24 @@ impl<'a> Lexer<'a> {
             .unwrap_or(self.buf.len())
     }
 
+    fn make_range(&self, start: usize, end: usize) -> SourceRange {
+        let from_line_start = |x| {
+            u32::try_from(x)
+                .ok()
+                .and_then(|x| x.checked_sub(self.line_start))
+                .unwrap()
+        };
+        let start = from_line_start(start);
+        let end = from_line_start(end);
+        ((self.line, start), (self.line, end)).into()
+    }
+
     fn scan_number(&self, start: usize) -> Option<LexResult<'a>> {
         let end = self
             .find_next_index(|c| c.is_whitespace() || (is_ignorable_punctuation(c) && c != '.'));
         let text = self.substr(start..end);
         text.parse::<f64>().ok().map(|n| LexResult {
-            token: Token::new(TokenType::Number(n), text),
+            token: Token::new(TokenType::Number(n), text, self.make_range(start, end)),
             end,
             newlines: 0,
             new_line_start: None,
@@ -367,24 +382,27 @@ impl<'a> Lexer<'a> {
         self.find_next_index(|c| c.is_whitespace() || is_ignorable_punctuation(c))
     }
 
-    fn find_word_type(&self, word: &'a str) -> Token<'a> {
-        assert!(!word.is_empty());
+    fn find_word_type(&self, word: &'a str) -> TokenType<'a> {
+        debug_assert!(!word.is_empty());
         match_keyword(word).unwrap_or_else(|| {
-            Token::new(
-                word.chars()
-                    .next()
-                    .unwrap()
-                    .is_uppercase()
-                    .then(|| TokenType::CapitalizedWord)
-                    .unwrap_or(TokenType::Word),
-                word,
-            )
+            word.chars()
+                .next()
+                .unwrap()
+                .is_uppercase()
+                .then(|| TokenType::CapitalizedWord)
+                .unwrap_or(TokenType::Word)
         })
     }
 
     fn last_n(text: &str, n: usize) -> &str {
-        assert!(text.len() >= n);
+        debug_assert!(text.len() >= n);
         &text[(text.len() - n)..]
+    }
+
+    fn make_token_from(&self, text: &'a str, id: TokenType<'a>) -> Token<'a> {
+        let start = self.get_index_of(text.as_ptr());
+        let end = self.get_index_of(unsafe { text.as_ptr().offset(text.len() as isize) });
+        Token::new(id, text, self.make_range(start.unwrap(), end.unwrap()))
     }
 
     fn tokenize_word(&mut self, word: &'a str, end: usize) -> LexResult<'a> {
@@ -396,8 +414,9 @@ impl<'a> Lexer<'a> {
                     .map(|stripped| (stripped, Some((TokenType::ApostropheRE, 3))))
             })
             .unwrap_or_else(|| (word.trim_end_matches('\''), None));
-        self.staged = staged_type.map(|(id, len)| Token::new(id, Self::last_n(word, len)));
-        let token = self.find_word_type(stripped);
+        self.staged =
+            staged_type.map(|(id, len)| self.make_token_from(Self::last_n(word, len), id));
+        let token = self.make_token_from(stripped, self.find_word_type(stripped));
         LexResult {
             token,
             end,
@@ -413,11 +432,11 @@ impl<'a> Lexer<'a> {
             .filter(|s| s.chars().all(|c| c.is_alphabetic() || c == '\''))
             .map(|word| self.tokenize_word(word, end))
             .unwrap_or_else(|| LexResult {
-                token: Token::new(
+                token: self.make_token_from(
+                    text,
                     TokenType::Error(ErrorMessage(
                         "Identifier may not contain non-alphabetic characters",
                     )),
-                    text,
                 ),
                 end,
                 newlines: 0,
@@ -427,8 +446,9 @@ impl<'a> Lexer<'a> {
 
     fn scan_keyword(&self, start: usize) -> Option<LexResult<'a>> {
         let end = self.find_next_word_end();
-        match_keyword(self.substr(start..end)).map(|token| LexResult {
-            token,
+        let text = self.substr(start..end);
+        match_keyword(text).map(|id| LexResult {
+            token: Token::new(id, text, self.make_range(start, end)),
             end,
             newlines: 0,
             new_line_start: None,
@@ -458,14 +478,14 @@ impl<'a> Lexer<'a> {
             let end = close + 1;
             let text = self.substr(open..end);
             LexResult {
-                token: Token::new(factory(self.substr((open + 1)..close)), text),
+                token: self.make_token_from(text, factory(self.substr((open + 1)..close))),
                 end,
                 newlines,
                 new_line_start,
             }
         } else {
             LexResult {
-                token: Token::new(TokenType::Error(error), self.substr(open..)),
+                token: self.make_token_from(self.substr(open..), TokenType::Error(error)),
                 end: self.buf.len(),
                 newlines,
                 new_line_start,
@@ -492,8 +512,12 @@ impl<'a> Lexer<'a> {
     }
 
     fn scan_apostrophe_n_apostrophe(&self, start: usize) -> Option<LexResult<'a>> {
-        self.substr(start..).strip_prefix("'n'").map(|_| LexResult {
-            token: Token::new(TokenType::ApostropheNApostrophe, "'n'"),
+        let text = self.substr(start..);
+        text.strip_prefix("'n'").map(|_| LexResult {
+            token: self.make_token_from(
+                unsafe { text.get_unchecked(..3) },
+                TokenType::ApostropheNApostrophe,
+            ),
             end: start + 3,
             newlines: 0,
             new_line_start: None,
@@ -503,7 +527,7 @@ impl<'a> Lexer<'a> {
     fn make_error_token(&self, start: usize, error: ErrorMessage) -> LexResult<'a> {
         let end = self.find_next_word_end();
         LexResult {
-            token: Token::new(TokenType::Error(error), self.substr(start..end)),
+            token: self.make_token_from(self.substr(start..end), TokenType::Error(error)),
             end,
             newlines: 0,
             new_line_start: None,
@@ -522,7 +546,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn char_token(&self, token_type: TokenType<'a>, start: usize) -> LexResult<'a> {
-        let token = Token::new(token_type, self.substr(start..(start + 1)));
+        let token = self.make_token_from(self.substr(start..(start + 1)), token_type);
         let end = start + 1;
         match token_type {
             TokenType::Newline => LexResult {
@@ -541,7 +565,7 @@ impl<'a> Lexer<'a> {
     }
     fn two_char_token(&self, token_type: TokenType<'a>, start: usize) -> LexResult<'a> {
         LexResult {
-            token: Token::new(token_type, self.substr(start..(start + 2))),
+            token: self.make_token_from(self.substr(start..(start + 2)), token_type),
             end: start + 2,
             newlines: 0,
             new_line_start: None,
