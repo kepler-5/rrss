@@ -1,11 +1,11 @@
 use std::hint::unreachable_unchecked;
 
-use derive_more::Constructor;
+use derive_more::{Constructor, From};
 use itertools::Itertools;
 
 use crate::frontend::{ast::*, lexer::*};
 
-use super::source_range::SourceLocation;
+use super::source_range::{SourceLocation, SourceRange};
 
 mod display;
 #[cfg(test)]
@@ -39,6 +39,28 @@ impl<'a> MatchesToken for &[TokenType<'a>] {
     }
 }
 
+#[derive(Clone, Debug, Default, PartialEq)]
+struct AccumulatedRange(Option<SourceRange>);
+
+impl AccumulatedRange {
+    fn new() -> Self {
+        Self(None)
+    }
+    fn acc(&mut self, r: SourceRange) {
+        self.0 = Some(match self.0.take() {
+            Some(sr) => sr.concat(r),
+            None => r,
+        })
+    }
+    unsafe fn extract_unchecked(self) -> SourceRange {
+        debug_assert!(self.0.is_some());
+        match self.0 {
+            Some(r) => r,
+            None => unreachable_unchecked(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParseErrorCode<'a> {
     Generic(String),
@@ -54,6 +76,12 @@ pub enum ParseErrorCode<'a> {
     ExpectedSpaceAfterSays(Token<'a>),
     UnexpectedToken,
     UnexpectedEndOfTokens,
+}
+
+#[derive(Clone, Debug, From, PartialEq)]
+pub enum ParseErrorLocation<'a> {
+    Token(Token<'a>),
+    Line(u32),
 }
 
 #[derive(Clone, Constructor, Debug, PartialEq)]
@@ -182,10 +210,6 @@ impl<'a> Parser<'a> {
         self.lexer.underlying().current_line()
     }
 
-    fn start_loc(&self) -> SourceLocation {
-        self.lexer.underlying().start_loc()
-    }
-
     fn current_loc(&self) -> SourceLocation {
         self.lexer.underlying().current_loc()
     }
@@ -212,10 +236,14 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn match_and_consume_while<M, R, Tx>(&mut self, m: M, tx: Tx) -> Result<Vec<R>, ParseError<'a>>
+    fn match_and_consume_while<M, R, Tx>(
+        &mut self,
+        m: M,
+        mut tx: Tx,
+    ) -> Result<Vec<R>, ParseError<'a>>
     where
         for<'b> &'b M: MatchesToken,
-        Tx: Fn(&Token, &mut Parser<'a>) -> Result<Option<R>, ParseError<'a>>,
+        Tx: FnMut(&Token, &mut Parser<'a>) -> Result<Option<R>, ParseError<'a>>,
     {
         let mut result = Vec::new();
         while let Some(token) = self.match_and_consume(&m) {
@@ -447,15 +475,13 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_pronoun(&mut self) -> Option<WithRange<Identifier>> {
-        let start = self.start_loc();
         self.match_and_consume(TokenType::Pronoun)
-            .map(|_| WithRange(Identifier::Pronoun, start.to(self.current_loc())))
+            .map(|tok| WithRange(Identifier::Pronoun, tok.range))
     }
 
     fn parse_literal_expression(&mut self) -> Option<WithRange<LiteralExpression>> {
-        let start = self.start_loc();
-        self.current()
-            .and_then(|token| match token.id {
+        self.current().and_then(|token| {
+            match token.id {
                 TokenType::Null => Some(LiteralExpression::Null),
                 TokenType::Number(n) => Some(LiteralExpression::Number(n)),
                 TokenType::StringLiteral(s) => Some(LiteralExpression::String(s.to_owned())),
@@ -463,24 +489,24 @@ impl<'a> Parser<'a> {
                 TokenType::True => Some(LiteralExpression::Boolean(true)),
                 TokenType::False => Some(LiteralExpression::Boolean(false)),
                 _ => None,
-            })
+            }
             .map(|expr| {
                 self.lexer.next();
-                WithRange(expr, start.to(self.current_loc()))
+                WithRange(expr, token.range)
             })
+        })
     }
 
     fn parse_common_identifier(
         &mut self,
     ) -> Result<Option<WithRange<CommonIdentifier>>, ParseError<'a>> {
-        let start = self.start_loc();
-        if let Some(prefix) = self
+        if let Some((prefix, prefix_range)) = self
             .match_and_consume(TokenType::CommonVariablePrefix)
-            .map(|tok| tok.spelling)
+            .map(|tok| (tok.spelling, tok.range))
         {
-            let next_word = self
+            let (next_word, next_range) = self
                 .match_and_consume([TokenType::Word, TokenType::CapitalizedWord].as_ref()) // capitalized words are invalid, but we want to match them for good error messages
-                .map(|tok| tok.spelling)
+                .map(|tok| (tok.spelling, tok.range))
                 .ok_or_else(|| {
                     self.new_parse_error(ParseErrorCode::MissingIDAfterCommonPrefix(prefix.into()))
                 })?;
@@ -496,7 +522,7 @@ impl<'a> Parser<'a> {
                 })?;
             Ok(Some(WithRange(
                 CommonIdentifier(prefix.into(), identifier.into()),
-                start.to(self.current_loc()),
+                prefix_range.concat(next_range),
             )))
         } else {
             Ok(None)
@@ -504,22 +530,19 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_simple_identifier(&mut self) -> Option<WithRange<SimpleIdentifier>> {
-        let start = self.start_loc();
         self.match_and_consume([TokenType::Word, TokenType::CapitalizedWord].as_ref())
-            .map(|tok| {
-                WithRange(
-                    SimpleIdentifier(tok.spelling.into()),
-                    start.to(self.current_loc()),
-                )
-            })
+            .map(|tok| WithRange(SimpleIdentifier(tok.spelling.into()), tok.range))
     }
 
     fn parse_capitalized_identifier(&mut self) -> Option<WithRange<VariableName>> {
-        let start = self.start_loc();
+        let mut range = AccumulatedRange::new();
         let names = self
             .match_and_consume_while(
                 |tok: &Token| tok.id == TokenType::CapitalizedWord,
-                |tok, _| Ok(Some(tok.spelling.to_owned())),
+                |tok, _| {
+                    range.acc(tok.range.clone());
+                    Ok(Some(tok.spelling.to_owned()))
+                },
             )
             .unwrap();
         match names.len() {
@@ -527,7 +550,7 @@ impl<'a> Parser<'a> {
             1 => Some(SimpleIdentifier(take_first(names)).into()),
             _ => Some(ProperIdentifier(names).into()),
         }
-        .map(|n| WithRange(n, start.to(self.current_loc())))
+        .map(|n| WithRange(n, unsafe { range.extract_unchecked() }))
     }
 
     fn parse_variable_name(&mut self) -> Result<Option<WithRange<VariableName>>, ParseError<'a>> {
@@ -1009,27 +1032,30 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_break(&mut self) -> Result<Break, ParseError<'a>> {
-        let start_loc = self.start_loc();
-        self.consume(TokenType::Break);
+        let start_range = self.consume(TokenType::Break).range;
         self.match_and_consume(|tok: &Token| tok.is_ispelled("it"))
             .map(|_| self.expect_token(TokenType::Down))
             .transpose()
-            .map(|_| Break(start_loc.to(self.current_loc())))
+            .map(|end| {
+                let range = if let Some(end) = end {
+                    start_range.concat(end.range)
+                } else {
+                    start_range
+                };
+                Break(range)
+            })
     }
 
     fn parse_simple_continue(&mut self) -> Result<Continue, ParseError<'a>> {
-        let start_loc = self.start_loc();
-        self.consume(TokenType::Continue);
-        Ok(Continue(start_loc.to(self.current_loc())))
+        Ok(Continue(self.consume(TokenType::Continue).range))
     }
     fn parse_take_it_to_the_top(&mut self) -> Result<Continue, ParseError<'a>> {
-        let start_loc = self.start_loc();
-        self.consume(TokenType::Take);
+        let start_range = self.consume(TokenType::Take).range;
         self.expect_token_ispelled("it")?;
         self.expect_token(TokenType::To)?;
         self.expect_token_ispelled("the")?;
-        self.expect_token(TokenType::Top)?;
-        Ok(Continue(start_loc.to(self.current_loc())))
+        let end_range = self.expect_token(TokenType::Top)?.range;
+        Ok(Continue(start_range.concat(end_range)))
     }
 
     fn parse_array_push_rhs(&mut self) -> Result<ArrayPushRHS, ParseError<'a>> {
