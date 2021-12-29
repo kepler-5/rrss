@@ -9,7 +9,7 @@ fn range_on_line(line: u32, range: (u32, u32)) -> SourceRange {
 }
 
 fn lex(buf: &str) -> Vec<Token> {
-    Lexer::new(buf).collect::<Vec<_>>()
+    Lexer::new(buf).collect()
 }
 
 fn types(buf: &str) -> Vec<TokenType> {
@@ -18,6 +18,10 @@ fn types(buf: &str) -> Vec<TokenType> {
 
 fn no_ranges(buf: &str) -> Vec<(TokenType, &str)> {
     lex(buf).iter().map(|tok| (tok.id, tok.spelling)).collect()
+}
+
+fn skipping_comments(buf: &str) -> Vec<Token> {
+    Lexer::new(buf).skip_comments().collect()
 }
 
 #[test]
@@ -638,8 +642,6 @@ fn lex_apostrophe_stuff() {
 #[test]
 #[ignore = "This fails currently and I'll fix it sometime soon!"]
 fn lex_apostrophe_after_literal() {
-    let lex = |buf| Lexer::new(buf).collect::<Vec<_>>();
-
     assert_eq!(
         lex("1's"),
         [
@@ -658,8 +660,6 @@ fn lex_apostrophe_after_literal() {
 
 #[test]
 fn lex_errors() {
-    let lex = |buf| Lexer::new(buf).collect::<Vec<_>>();
-
     assert_eq!(
         lex("3bca"),
         [Token::new(
@@ -724,11 +724,10 @@ fn lex_errors() {
 
 #[test]
 fn skip_comments() {
-    let lex = |buf| Lexer::new(buf).skip_comments().collect::<Vec<_>>();
-    assert_eq!(lex(""), []);
-    assert_eq!(lex("()"), []);
+    assert_eq!(skipping_comments(""), []);
+    assert_eq!(skipping_comments("()"), []);
     assert_eq!(
-        lex("hi(hi)hi"),
+        skipping_comments("hi(hi)hi"),
         [
             Token::new(TokenType::Word, "hi", line_range(0, 2)),
             Token::new(TokenType::Word, "hi", line_range(6, 8))
