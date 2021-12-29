@@ -263,6 +263,15 @@ struct LexResult<'a> {
     new_line_start: Option<u32>,
 }
 
+impl<'a> LexResult<'a> {
+    fn extended_to(mut self, other: &LexResult) -> Self {
+        self.end = self.end.max(other.end);
+        self.newlines = self.newlines + other.newlines;
+        self.new_line_start = self.new_line_start.max(other.new_line_start);
+        self
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Lexer<'a> {
     buf: &'a str,
@@ -369,15 +378,16 @@ impl<'a> Lexer<'a> {
         self.make_loc(start).to(self.make_loc(end))
     }
 
-    fn scan_number(&self, start: usize) -> Option<LexResult<'a>> {
-        let end = self
-            .find_next_index(|c| c.is_whitespace() || (is_ignorable_punctuation(c) && c != '.'));
+    fn scan_number(&mut self, start: usize) -> Option<LexResult<'a>> {
+        let end = self.find_next_index(|c| !(c.is_ascii_alphanumeric() || c == '.'));
         let text = self.substr(start..end);
-        text.parse::<f64>().ok().map(|n| LexResult {
-            token: Token::new(TokenType::Number(n), text, self.make_range(start, end)),
-            end,
-            newlines: 0,
-            new_line_start: None,
+        text.parse::<f64>().ok().map(|n| {
+            self.maybe_followed_by_apostrophe_suffix(LexResult {
+                token: Token::new(TokenType::Number(n), text, self.make_range(start, end)),
+                end,
+                newlines: 0,
+                new_line_start: None,
+            })
         })
     }
 
@@ -458,8 +468,18 @@ impl<'a> Lexer<'a> {
         })
     }
 
+    fn maybe_followed_by_apostrophe_suffix(&mut self, result: LexResult<'a>) -> LexResult<'a> {
+        if let Some(suffix) = self.scan_apostrophe_suffix(result.end) {
+            let result = result.extended_to(&suffix);
+            self.staged = Some(suffix.token);
+            result
+        } else {
+            result
+        }
+    }
+
     fn scan_delimited<F: FnOnce(&'a str) -> TokenType<'a>>(
-        &self,
+        &mut self,
         open: usize,
         close_char: char,
         factory: F,
@@ -494,15 +514,15 @@ impl<'a> Lexer<'a> {
             text,
             start_loc.to(Self::make_loc_from(current_line, current_line_start, end)),
         );
-        LexResult {
+        self.maybe_followed_by_apostrophe_suffix(LexResult {
             token,
             end,
             newlines,
             new_line_start,
-        }
+        })
     }
 
-    fn scan_comment(&self, open: usize) -> LexResult<'a> {
+    fn scan_comment(&mut self, open: usize) -> LexResult<'a> {
         self.scan_delimited(
             open,
             ')',
@@ -511,7 +531,7 @@ impl<'a> Lexer<'a> {
         )
     }
 
-    fn scan_string_literal(&self, open: usize) -> LexResult<'a> {
+    fn scan_string_literal(&mut self, open: usize) -> LexResult<'a> {
         self.scan_delimited(
             open,
             '"',
@@ -520,17 +540,30 @@ impl<'a> Lexer<'a> {
         )
     }
 
-    fn scan_apostrophe_n_apostrophe(&self, start: usize) -> Option<LexResult<'a>> {
-        let text = self.substr(start..);
-        text.strip_prefix("'n'").map(|_| LexResult {
-            token: self.make_token_from(
-                unsafe { text.get_unchecked(..3) },
-                TokenType::ApostropheNApostrophe,
-            ),
-            end: start + 3,
+    fn scan_for_text(
+        &self,
+        start: usize,
+        text: &str,
+        token_type: TokenType<'a>,
+    ) -> Option<LexResult<'a>> {
+        debug_assert!(!text.contains('\n'));
+        let buf_text = self.substr(start..);
+        buf_text.strip_prefix(text).map(|_| LexResult {
+            token: self
+                .make_token_from(unsafe { buf_text.get_unchecked(..text.len()) }, token_type),
+            end: start + text.len(),
             newlines: 0,
             new_line_start: None,
         })
+    }
+
+    fn scan_apostrophe_n_apostrophe(&self, start: usize) -> Option<LexResult<'a>> {
+        self.scan_for_text(start, "'n'", TokenType::ApostropheNApostrophe)
+    }
+
+    fn scan_apostrophe_suffix(&self, start: usize) -> Option<LexResult<'a>> {
+        self.scan_for_text(start, "'s", TokenType::ApostropheS)
+            .or_else(|| self.scan_for_text(start, "'re", TokenType::ApostropheRE))
     }
 
     fn make_error_token(&self, start: usize, error: ErrorMessage) -> LexResult<'a> {
@@ -634,15 +667,15 @@ impl<'a> Lexer<'a> {
                         } else if is_ignorable_punctuation(c) || c == '\'' {
                             continue;
                         } else {
-                            let error =
-                                || self.make_error_token(start, ErrorMessage("Invalid token"));
                             if c.is_numeric() {
-                                self.scan_number(start).unwrap_or_else(error)
+                                self.scan_number(start).unwrap_or_else(|| {
+                                    self.make_error_token(start, ErrorMessage("Invalid token"))
+                                })
                             } else if c.is_alphabetic() {
                                 self.scan_keyword(start)
                                     .unwrap_or_else(|| self.scan_word(start))
                             } else {
-                                error()
+                                self.make_error_token(start, ErrorMessage("Invalid token"))
                             }
                         }
                     }

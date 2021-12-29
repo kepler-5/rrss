@@ -640,7 +640,6 @@ fn lex_apostrophe_stuff() {
 }
 
 #[test]
-#[ignore = "This fails currently and I'll fix it sometime soon!"]
 fn lex_apostrophe_after_literal() {
     assert_eq!(
         lex("1's"),
@@ -654,6 +653,13 @@ fn lex_apostrophe_after_literal() {
         [
             Token::new(TokenType::StringLiteral("foo"), "\"foo\"", line_range(0, 5)),
             Token::new(TokenType::ApostropheS, "'s", line_range(5, 7))
+        ]
+    );
+    assert_eq!(
+        lex("\"foo\"'re"),
+        [
+            Token::new(TokenType::StringLiteral("foo"), "\"foo\"", line_range(0, 5)),
+            Token::new(TokenType::ApostropheRE, "'re", line_range(5, 8))
         ]
     );
 }
