@@ -350,20 +350,23 @@ impl<'a> Lexer<'a> {
         self.char_indices
             .clone()
             .find(|t| pred(t.1))
-            .map(|t| t.0)
-            .unwrap_or(self.buf.len())
+            .map_or(self.buf.len(), |t| t.0)
+    }
+
+    fn make_loc_from(line: u32, line_start: u32, offset: usize) -> SourceLocation {
+        let from_line_start = u32::try_from(offset)
+            .ok()
+            .and_then(|x| x.checked_sub(line_start))
+            .unwrap();
+        (line, from_line_start).into()
+    }
+
+    fn make_loc(&self, offset: usize) -> SourceLocation {
+        Self::make_loc_from(self.line, self.line_start, offset)
     }
 
     fn make_range(&self, start: usize, end: usize) -> SourceRange {
-        let from_line_start = |x| {
-            u32::try_from(x)
-                .ok()
-                .and_then(|x| x.checked_sub(self.line_start))
-                .unwrap()
-        };
-        let start = from_line_start(start);
-        let end = from_line_start(end);
-        ((self.line, start), (self.line, end)).into()
+        self.make_loc(start).to(self.make_loc(end))
     }
 
     fn scan_number(&self, start: usize) -> Option<LexResult<'a>> {
@@ -464,7 +467,8 @@ impl<'a> Lexer<'a> {
     ) -> LexResult<'a> {
         let mut newlines = 0u32;
         let mut new_line_start = None;
-        if let Some((close, _)) = self
+        let start_loc = self.make_loc(open);
+        let (token_type, text, end) = if let Some(close) = self
             .char_indices
             .clone()
             .inspect(|&(i, c)| {
@@ -474,22 +478,27 @@ impl<'a> Lexer<'a> {
                 }
             })
             .find(|&(_, c)| c == close_char)
+            .map(|(i, _)| i)
         {
+            let token_type = factory(self.substr((open + 1)..close));
             let end = close + 1;
             let text = self.substr(open..end);
-            LexResult {
-                token: self.make_token_from(text, factory(self.substr((open + 1)..close))),
-                end,
-                newlines,
-                new_line_start,
-            }
+            (token_type, text, end)
         } else {
-            LexResult {
-                token: self.make_token_from(self.substr(open..), TokenType::Error(error)),
-                end: self.buf.len(),
-                newlines,
-                new_line_start,
-            }
+            (TokenType::Error(error), self.substr(open..), self.buf.len())
+        };
+        let current_line = self.line + newlines;
+        let current_line_start = new_line_start.unwrap_or(self.line_start);
+        let token = Token::new(
+            token_type,
+            text,
+            start_loc.to(Self::make_loc_from(current_line, current_line_start, end)),
+        );
+        LexResult {
+            token,
+            end,
+            newlines,
+            new_line_start,
         }
     }
 

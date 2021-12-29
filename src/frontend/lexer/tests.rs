@@ -484,6 +484,31 @@ fn lex_comments() {
             Token::new(TokenType::Word, "hi", line_range(6, 8))
         ]
     );
+    assert_eq!(
+        lex("    (multi\nline)"),
+        [Token::new(
+            TokenType::Comment("multi\nline"),
+            "(multi\nline)",
+            SourceLocation::new(1, 4).to((2, 5).into())
+        )]
+    );
+
+    assert_eq!(
+        lex("(unterminated"),
+        [Token::new(
+            TokenType::Error(ErrorMessage("Unterminated comment")),
+            "(unterminated",
+            line_range(0, 13)
+        )]
+    );
+    assert_eq!(
+        lex("(untermi\nated"),
+        [Token::new(
+            TokenType::Error(ErrorMessage("Unterminated comment")),
+            "(untermi\nated",
+            SourceLocation::new(1, 0).to((2, 4).into())
+        )]
+    );
 }
 
 #[test]
@@ -494,6 +519,23 @@ fn lex_strings() {
             TokenType::StringLiteral("Hello San Francisco"),
             "\"Hello San Francisco\"",
             line_range(0, 21)
+        )]
+    );
+
+    assert_eq!(
+        lex("\"unterminated"),
+        [Token::new(
+            TokenType::Error(ErrorMessage("Unterminated string literal")),
+            "\"unterminated",
+            line_range(0, 13)
+        )]
+    );
+    assert_eq!(
+        lex("\"untermi\nated"),
+        [Token::new(
+            TokenType::Error(ErrorMessage("Unterminated string literal")),
+            "\"untermi\nated",
+            SourceLocation::new(1, 0).to((2, 4).into())
         )]
     );
 }
