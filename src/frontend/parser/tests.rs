@@ -2989,3 +2989,37 @@ fn parse_error_to_string() {
         "Parse error (line 1): Unexpected end of tokens"
     );
 }
+
+#[test]
+fn some_diags() {
+    let diag = |code| super::parse(code).unwrap_err().to_string();
+
+    assert_eq!(
+        diag("x"),
+        "Parse error (line 1): Expected `is`, `'s`, `'re`, `says`, or `say`"
+    );
+
+    assert_eq!(
+        diag("x and"),
+        "Parse error (line 1): Expected `is`, `'s`, `'re`, `says`, or `say`, found `and`"
+    );
+
+    assert_eq!(
+        diag(
+            "\
+        x is 5
+        
+        x"
+        ),
+        "Parse error (line 3): Expected `is`, `'s`, `'re`, `says`, or `say`"
+    );
+
+    assert_eq!(
+        diag(
+            "
+            
+        x"
+        ),
+        "Parse error (line 3): Expected `is`, `'s`, `'re`, `says`, or `say`"
+    );
+}
