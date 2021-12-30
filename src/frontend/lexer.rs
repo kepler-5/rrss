@@ -318,8 +318,8 @@ impl<'a> Lexer<'a> {
         self.get_start_index_of(cursor).map(|s| &self.buf[s..])
     }
 
-    pub fn current_line(&self) -> usize {
-        self.line as usize
+    pub fn current_line(&self) -> u32 {
+        self.line
     }
 
     pub fn current_loc(&self) -> SourceLocation {

@@ -87,11 +87,8 @@ pub enum ParseErrorLocation<'a> {
 #[derive(Clone, Constructor, Debug, PartialEq)]
 pub struct ParseError<'a> {
     pub code: ParseErrorCode<'a>,
-    pub token: Option<Token<'a>>,
+    pub loc: ParseErrorLocation<'a>,
 }
-
-#[derive(Clone, Constructor, Debug, PartialEq)]
-pub struct ParseErrorWithLine<'a>(pub ParseError<'a>, pub usize);
 
 pub struct Parser<'a> {
     lexer: CommentSkippingLexer<'a>,
@@ -110,12 +107,10 @@ impl<'a> Parser<'a> {
         Self::new(Lexer::new(text).skip_comments())
     }
 
-    pub fn parse(mut self) -> Result<Program, ParseErrorWithLine<'a>> {
+    pub fn parse(mut self) -> Result<Program, ParseError<'a>> {
         let mut blocks = Vec::new();
         while self.current().is_some() {
-            if let Some(block) =
-                Some(self.parse_block().map_err(|e| self.add_line(e))?).filter(|b| !b.is_empty())
-            {
+            if let Some(block) = Some(self.parse_block()?).filter(|b| !b.is_empty()) {
                 blocks.push(block);
             }
         }
@@ -206,7 +201,7 @@ impl<'a> Parser<'a> {
         self.current().filter(|tok| m.matches_token(tok)).is_some()
     }
 
-    fn current_line(&self) -> usize {
+    fn current_line(&self) -> u32 {
         self.lexer.underlying().current_line()
     }
 
@@ -215,11 +210,12 @@ impl<'a> Parser<'a> {
     }
 
     fn new_parse_error(&self, code: ParseErrorCode<'a>) -> ParseError<'a> {
-        ParseError::new(code, self.current())
-    }
-
-    fn add_line(&self, error: ParseError<'a>) -> ParseErrorWithLine<'a> {
-        ParseErrorWithLine(error, self.current_line())
+        ParseError::new(
+            code,
+            self.current()
+                .map(Into::into)
+                .unwrap_or_else(|| self.current_line().into()),
+        )
     }
 
     fn match_and_consume<M: MatchesToken>(&mut self, m: M) -> Option<Token<'a>> {
@@ -778,7 +774,7 @@ impl<'a> Parser<'a> {
                     } else {
                         Err(ParseError::new(
                             ParseErrorCode::UnexpectedToken,
-                            Some(next_token),
+                            next_token.into(),
                         ))
                     }
                 }
@@ -1095,6 +1091,6 @@ impl<'a> Parser<'a> {
     }
 }
 
-pub fn parse(text: &str) -> Result<Program, ParseErrorWithLine> {
+pub fn parse(text: &str) -> Result<Program, ParseError> {
     Parser::for_source_code(text).parse()
 }

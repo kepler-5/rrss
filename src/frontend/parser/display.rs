@@ -58,9 +58,24 @@ fn expected_id_description(e: &PrimaryExpression) -> &'static str {
     }
 }
 
+impl Display for ParseErrorLocation<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let line = match self {
+            ParseErrorLocation::Token(tok) => tok.range.start().line,
+            ParseErrorLocation::Line(line) => *line,
+        };
+        write!(f, "line {}", line)
+    }
+}
+
 impl Display for ParseError<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let tok = &self.token;
+        write!(f, "Parse error ({}): ", self.loc)?;
+
+        let tok = match &self.loc {
+            ParseErrorLocation::Token(tok) => Some(tok),
+            _ => None
+        };
 
         macro_rules! if_token {
             ($fmt:literal) => {

@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use derive_more::Constructor;
 
-use crate::frontend::parser::ParseErrorWithLine;
+use crate::frontend::parser::ParseError;
 
 #[cfg(test)]
 mod tests;
@@ -28,9 +28,8 @@ pub trait IntoDiag {
     fn into_diag(&self) -> Diag;
 }
 
-impl IntoDiag for ParseErrorWithLine<'_> {
+impl IntoDiag for ParseError<'_> {
     fn into_diag(&self) -> Diag {
-        let ParseErrorWithLine(error, line) = self;
-        Diag::new(format!("Parse error (line {}): {}", line, error))
+        Diag::new(self.to_string())
     }
 }

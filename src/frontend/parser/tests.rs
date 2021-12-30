@@ -680,14 +680,14 @@ fn parse_identifier_errors() {
         parse("my"),
         Err(ParseError::new(
             ParseErrorCode::MissingIDAfterCommonPrefix("my".into()),
-            None
+            1.into()
         ))
     );
     assert_eq!(
         parse("your"),
         Err(ParseError::new(
             ParseErrorCode::MissingIDAfterCommonPrefix("your".into()),
-            None
+            1.into()
         ))
     );
 
@@ -695,35 +695,35 @@ fn parse_identifier_errors() {
         parse("my Heart"),
         Err(ParseError::new(
             ParseErrorCode::UppercaseAfterCommonPrefix("my".into(), "Heart".into()).into(),
-            None
+            1.into()
         ))
     );
     assert_eq!(
         parse("your Heart"),
         Err(ParseError::new(
             ParseErrorCode::UppercaseAfterCommonPrefix("your".into(), "Heart".into()).into(),
-            None
+            1.into()
         ))
     );
     assert_eq!(
         parse("My Heart"),
         Err(ParseError::new(
             ParseErrorCode::UppercaseAfterCommonPrefix("My".into(), "Heart".into()).into(),
-            None
+            1.into()
         ))
     );
     assert_eq!(
         parse("Your Heart"),
         Err(ParseError::new(
             ParseErrorCode::UppercaseAfterCommonPrefix("Your".into(), "Heart".into()).into(),
-            None
+            1.into()
         ))
     );
     assert_eq!(
         parse("your heArt"),
         Err(ParseError::new(
             ParseErrorCode::UppercaseAfterCommonPrefix("your".into(), "heArt".into()).into(),
-            None
+            1.into()
         ))
     );
 }
@@ -1035,28 +1035,28 @@ fn parse_assignment_errors() {
         parse("Let 5 be 6"),
         Err(ParseError {
             code: ParseErrorCode::ExpectedIdentifier,
-            token: Some(Token::new(TokenType::Number(5.0), "5", line_range(4, 5)))
+            loc: Token::new(TokenType::Number(5.0), "5", line_range(4, 5)).into()
         })
     );
     assert_eq!(
         parse("Put 6 into 5"),
         Err(ParseError {
             code: ParseErrorCode::ExpectedIdentifier,
-            token: Some(Token::new(TokenType::Number(5.0), "5", line_range(11, 12)))
+            loc: Token::new(TokenType::Number(5.0), "5", line_range(11, 12)).into()
         })
     );
     assert_eq!(
         parse("Let five bee 6"),
         Err(ParseError {
             code: ParseErrorCode::ExpectedToken(TokenType::Be),
-            token: Some(Token::new(TokenType::Word, "bee", line_range(9, 12)))
+            loc: Token::new(TokenType::Word, "bee", line_range(9, 12)).into()
         })
     );
     assert_eq!(
         parse("Put five intoo six"),
         Err(ParseError {
             code: ParseErrorCode::ExpectedToken(TokenType::Into),
-            token: Some(Token::new(TokenType::Word, "intoo", line_range(9, 14)))
+            loc: Token::new(TokenType::Word, "intoo", line_range(9, 14)).into()
         })
     );
 
@@ -1064,7 +1064,7 @@ fn parse_assignment_errors() {
         parse("Put 1, 2, 3 into six"),
         Err(ParseError {
             code: ParseErrorCode::ExpectedToken(TokenType::Into),
-            token: Some(Token::new(TokenType::Comma, ",", line_range(5, 6)))
+            loc: Token::new(TokenType::Comma, ",", line_range(5, 6)).into()
         })
     );
 }
@@ -1424,7 +1424,7 @@ fn parse_poetic_assignment_errors() {
                 TokenType::Says,
                 TokenType::Say,
             ]),
-            token: Some(Token::new(TokenType::Dot, ".", line_range(8, 9)))
+            loc: Token::new(TokenType::Dot, ".", line_range(8, 9)).into()
         })
     );
 
@@ -1438,11 +1438,7 @@ fn parse_poetic_assignment_errors() {
                 TokenType::Says,
                 TokenType::Say,
             ]),
-            token: Some(Token::new(
-                TokenType::SayAlias,
-                "whisper",
-                line_range(9, 16)
-            ))
+            loc: Token::new(TokenType::SayAlias, "whisper", line_range(9, 16)).into()
         })
     );
 
@@ -1450,14 +1446,14 @@ fn parse_poetic_assignment_errors() {
         parse("My world is without-"),
         Err(ParseError {
             code: ParseErrorCode::UnexpectedEndOfTokens,
-            token: None
+            loc: 1.into()
         })
     );
     assert_eq!(
         parse("My world is without--"),
         Err(ParseError {
             code: ParseErrorCode::UnexpectedToken,
-            token: Some(Token::new(TokenType::Minus, "-", line_range(20, 21)))
+            loc: Token::new(TokenType::Minus, "-", line_range(20, 21)).into()
         })
     );
 
@@ -1469,7 +1465,7 @@ fn parse_poetic_assignment_errors() {
                 "said",
                 line_range(9, 13)
             )),
-            token: None
+            loc: 1.into()
         })
     );
     assert_eq!(
@@ -1480,7 +1476,7 @@ fn parse_poetic_assignment_errors() {
                 "said",
                 line_range(9, 13)
             )),
-            token: Some(Token::new(TokenType::Newline, "\n", line_range(13, 14)))
+            loc: Token::new(TokenType::Newline, "\n", line_range(13, 14)).into()
         })
     );
 }
@@ -2145,7 +2141,7 @@ fn parse_mutation() {
             ParseErrorCode::MutationOperandMustBeIdentifier(
                 WithRange(LiteralExpression::String("2, 2".into()), line_range(4, 10)).into()
             ),
-            Some(Token::new(TokenType::With, "with", line_range(11, 15)))
+            Token::new(TokenType::With, "with", line_range(11, 15)).into()
         ))
     );
 
@@ -2322,14 +2318,14 @@ fn parse_break_continue() {
         parse("break it"),
         Err(ParseError {
             code: ParseErrorCode::ExpectedToken(TokenType::Down),
-            token: None
+            loc: 1.into()
         })
     );
     assert_eq!(
         parse("take it to"),
         Err(ParseError {
             code: ParseErrorCode::ExpectedText("the".into()),
-            token: None
+            loc: 1.into()
         })
     );
 }
@@ -2550,7 +2546,7 @@ fn parse_return() {
         parse("send back it"),
         Err(ParseError::new(
             ParseErrorCode::ExpectedPrimaryExpression,
-            Some(Token::new(TokenType::Back, "back", line_range(5, 9)))
+            Token::new(TokenType::Back, "back", line_range(5, 9)).into()
         ))
     );
     assert_eq!(
@@ -2840,52 +2836,58 @@ let Z be Z
 
 #[test]
 fn parse_error_to_string() {
-    let bogus = || {
-        Some(Token::new(
+    let bogus_loc = || {
+        ParseErrorLocation::from(Token::new(
             TokenType::ApostropheNApostrophe,
             "bloop",
             line_range(0, 5),
         ))
     };
-    let bogus2 = || Token::new(TokenType::Word, "worrrd", line_range(0, 6));
+    let bogus_tok = || Token::new(TokenType::Word, "worrrd", line_range(0, 6));
 
     macro_rules! check {
         ($err_code:expr, $without_token:literal, $with_token:literal $(,)?) => {
-            assert_eq!(ParseError::new($err_code, None).to_string(), $without_token);
-            assert_eq!(ParseError::new($err_code, bogus()).to_string(), $with_token);
+            assert_eq!(
+                ParseError::new($err_code, 1.into()).to_string(),
+                $without_token
+            );
+            assert_eq!(
+                ParseError::new($err_code, bogus_loc()).to_string(),
+                $with_token
+            );
         };
     }
 
     check!(
         ParseErrorCode::Generic("Something bad".into()),
-        "Something bad",
-        "Something bad at `bloop`"
+        "Parse error (line 1): Something bad",
+        "Parse error (line 1): Something bad at `bloop`"
     );
 
     check!(
-        ParseErrorCode::ExpectedSpaceAfterSays(bogus2()),
-        "Expected space after `worrrd`",
-        "Expected space after `worrrd`, found `bloop`"
+        ParseErrorCode::ExpectedSpaceAfterSays(bogus_tok()),
+        "Parse error (line 1): Expected space after `worrrd`",
+        "Parse error (line 1): Expected space after `worrrd`, found `bloop`"
     );
 
     check!(
         ParseErrorCode::MissingIDAfterCommonPrefix("my".into()),
-        "Missing identifier after `my`",
-        "Missing identifier after `my`, found `bloop`"
+        "Parse error (line 1): Missing identifier after `my`",
+        "Parse error (line 1): Missing identifier after `my`, found `bloop`"
     );
 
     check!(
         ParseErrorCode::UppercaseAfterCommonPrefix("my".into(), "heArt".into()),
-        "Unexpected uppercase after common variable prefix; `my heArt` is an invalid common variable name",
-        "Unexpected uppercase after common variable prefix; `my heArt` is an invalid common variable name"
+        "Parse error (line 1): Unexpected uppercase after common variable prefix; `my heArt` is an invalid common variable name",
+        "Parse error (line 1): Unexpected uppercase after common variable prefix; `my heArt` is an invalid common variable name"
     );
 
     check!(
         ParseErrorCode::MutationOperandMustBeIdentifier(
             WithRange(LiteralExpression::Number(0.0), bogus_range()).into()
         ),
-        "Mutation operand with no `into` destination must be identifier; found literal",
-        "Mutation operand with no `into` destination must be identifier; found literal"
+        "Parse error (line 1): Mutation operand with no `into` destination must be identifier; found literal",
+        "Parse error (line 1): Mutation operand with no `into` destination must be identifier; found literal"
     );
     check!(
         ParseErrorCode::MutationOperandMustBeIdentifier(
@@ -2895,8 +2897,8 @@ fn parse_error_to_string() {
             }
             .into()
         ),
-        "Mutation operand with no `into` destination must be identifier; found array subscript expression",
-        "Mutation operand with no `into` destination must be identifier; found array subscript expression"
+        "Parse error (line 1): Mutation operand with no `into` destination must be identifier; found array subscript expression",
+        "Parse error (line 1): Mutation operand with no `into` destination must be identifier; found array subscript expression"
     );
     check!(
         ParseErrorCode::MutationOperandMustBeIdentifier(
@@ -2906,48 +2908,48 @@ fn parse_error_to_string() {
             }
             .into()
         ),
-        "Mutation operand with no `into` destination must be identifier; found function call",
-        "Mutation operand with no `into` destination must be identifier; found function call"
+        "Parse error (line 1): Mutation operand with no `into` destination must be identifier; found function call",
+        "Parse error (line 1): Mutation operand with no `into` destination must be identifier; found function call"
     );
 
     check!(
         ParseErrorCode::ExpectedPrimaryExpression,
-        "Expected primary expression",
-        "Expected primary expression, found `bloop`"
+        "Parse error (line 1): Expected primary expression",
+        "Parse error (line 1): Expected primary expression, found `bloop`"
     );
 
     check!(
         ParseErrorCode::ExpectedIdentifier,
-        "Expected identifier",
-        "Expected identifier, found `bloop`"
+        "Parse error (line 1): Expected identifier",
+        "Parse error (line 1): Expected identifier, found `bloop`"
     );
 
     check!(
         ParseErrorCode::ExpectedText("hello, world".into()),
-        "Expected `hello, world`",
-        "Expected `hello, world`, found `bloop`"
+        "Parse error (line 1): Expected `hello, world`",
+        "Parse error (line 1): Expected `hello, world`, found `bloop`"
     );
 
     check!(
         ParseErrorCode::ExpectedToken(TokenType::And),
-        "Expected `and`",
-        "Expected `and`, found `bloop`"
+        "Parse error (line 1): Expected `and`",
+        "Parse error (line 1): Expected `and`, found `bloop`"
     );
     check!(
         ParseErrorCode::ExpectedToken(TokenType::ApostropheS),
-        "Expected `'s`",
-        "Expected `'s`, found `bloop`"
+        "Parse error (line 1): Expected `'s`",
+        "Parse error (line 1): Expected `'s`, found `bloop`"
     );
 
     check!(
         ParseErrorCode::ExpectedOneOfTokens(vec![TokenType::And]),
-        "Expected `and`",
-        "Expected `and`, found `bloop`"
+        "Parse error (line 1): Expected `and`",
+        "Parse error (line 1): Expected `and`, found `bloop`"
     );
     check!(
         ParseErrorCode::ExpectedOneOfTokens(vec![TokenType::And, TokenType::Big]),
-        "Expected `and` or `big`",
-        "Expected `and` or `big`, found `bloop`"
+        "Parse error (line 1): Expected `and` or `big`",
+        "Parse error (line 1): Expected `and` or `big`, found `bloop`"
     );
     check!(
         ParseErrorCode::ExpectedOneOfTokens(vec![
@@ -2955,8 +2957,8 @@ fn parse_error_to_string() {
             TokenType::Big,
             TokenType::Mysterious,
         ]),
-        "Expected `and`, `big`, or `mysterious`",
-        "Expected `and`, `big`, or `mysterious`, found `bloop`"
+        "Parse error (line 1): Expected `and`, `big`, or `mysterious`",
+        "Parse error (line 1): Expected `and`, `big`, or `mysterious`, found `bloop`"
     );
     check!(
         ParseErrorCode::ExpectedOneOfTokens(vec![
@@ -2965,25 +2967,25 @@ fn parse_error_to_string() {
             TokenType::Mysterious,
             TokenType::Says,
         ]),
-        "Expected `and`, `big`, `mysterious`, or `says`",
-        "Expected `and`, `big`, `mysterious`, or `says`, found `bloop`"
+        "Parse error (line 1): Expected `and`, `big`, `mysterious`, or `says`",
+        "Parse error (line 1): Expected `and`, `big`, `mysterious`, or `says`, found `bloop`"
     );
 
     check!(
         ParseErrorCode::ExpectedPoeticNumberLiteral,
-        "Expected poetic number literal",
-        "Expected poetic number literal, found `bloop`"
+        "Parse error (line 1): Expected poetic number literal",
+        "Parse error (line 1): Expected poetic number literal, found `bloop`"
     );
 
     // UnexpectedToken always has a token
     assert_eq!(
-        ParseError::new(ParseErrorCode::UnexpectedToken, bogus()).to_string(),
-        "Unexpected token `bloop`"
+        ParseError::new(ParseErrorCode::UnexpectedToken, bogus_loc()).to_string(),
+        "Parse error (line 1): Unexpected token `bloop`"
     );
 
     check!(
         ParseErrorCode::UnexpectedEndOfTokens,
-        "Unexpected end of tokens",
-        "Unexpected end of tokens"
+        "Parse error (line 1): Unexpected end of tokens",
+        "Parse error (line 1): Unexpected end of tokens"
     );
 }

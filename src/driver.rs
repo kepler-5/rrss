@@ -5,7 +5,7 @@ use derive_more::Constructor;
 use crate::{
     frontend::{
         ast::Program,
-        parser::{parse, ParseError, ParseErrorWithLine},
+        parser::{parse, ParseError},
     },
     linter::{standard_linter, LinterResult},
 };
@@ -28,12 +28,6 @@ impl std::error::Error for Error {}
 impl From<ParseError<'_>> for Error {
     fn from(p: ParseError) -> Self {
         Error::new(p.to_string())
-    }
-}
-
-impl From<ParseErrorWithLine<'_>> for Error {
-    fn from(p: ParseErrorWithLine<'_>) -> Self {
-        p.0.into()
     }
 }
 
