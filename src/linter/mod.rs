@@ -18,6 +18,7 @@ mod tests;
 pub struct Diag {
     pub issue: String,
     pub suggestions: Vec<String>,
+    pub line: u32,
 }
 
 #[derive(Clone, Debug, IsVariant, PartialEq, Eq)]

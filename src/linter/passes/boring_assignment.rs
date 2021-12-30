@@ -10,7 +10,7 @@ use crate::{
         },
         visit::{self, Visit, VisitExpr, VisitProgram},
     },
-    frontend::ast::*,
+    frontend::{ast::*, source_range::Line},
     linter::{render::Render, Diag, DiagsBuilder, Pass},
 };
 
@@ -97,19 +97,25 @@ fn build_diag<Constant: Display>(
     var: &impl Render,
     suggestion: &str,
     val: Constant,
+    line: u32,
 ) -> DiagsBuilder {
     DiagsBuilder::One(Diag {
         issue: issue_text(var, &val),
         suggestions: vec![suggestion_text(suggestion)],
+        line,
     })
 }
 
-fn build_numeric_diag(var: &impl Render, val: NumericConstant) -> DiagsBuilder {
-    build_diag(var, &numeric_suggestion_payload(var, val), val)
+fn build_numeric_diag(var: &impl Render, val: NumericConstant, line: u32) -> DiagsBuilder {
+    build_diag(var, &numeric_suggestion_payload(var, val), val, line)
 }
 
-fn maybe_build_string_diag(var: &impl Render, val: Option<StringConstant>) -> DiagsBuilder {
-    val.map(|val| build_diag(var, &string_suggestion_payload(var, &val), val))
+fn maybe_build_string_diag(
+    var: &impl Render,
+    val: Option<StringConstant>,
+    line: u32,
+) -> DiagsBuilder {
+    val.map(|val| build_diag(var, &string_suggestion_payload(var, &val), val, line))
         .unwrap_or_default()
 }
 
@@ -124,8 +130,9 @@ fn array_push_suggestion_payload(var: &impl Render, val: NumericConstant) -> Str
 fn maybe_build_numeric_array_push_diag(
     var: &impl Render,
     val: Option<NumericConstant>,
+    line: u32,
 ) -> DiagsBuilder {
-    val.map(|val| build_diag(var, &array_push_suggestion_payload(var, val), val))
+    val.map(|val| build_diag(var, &array_push_suggestion_payload(var, val), val, line))
         .unwrap_or_default()
 }
 
@@ -155,12 +162,13 @@ impl VisitProgram for BoringAssignmentPass {
             Self::Output::Empty
         } else {
             match NumericConstantFolder.visit_expression_list(&a.value) {
-                Ok(x) => build_numeric_diag(&a.dest, x),
+                Ok(x) => build_numeric_diag(&a.dest, x, a.line()),
                 Err(ConstantFoldingError::WrongType) => maybe_build_string_diag(
                     &a.dest,
                     SimpleStringConstantFolder
                         .visit_expression_list(&a.value)
                         .ok(),
+                    a.line(),
                 ),
                 _ => Self::Output::Empty,
             }
@@ -173,10 +181,11 @@ impl VisitProgram for BoringAssignmentPass {
         Ok(match &a.rhs {
             PoeticNumberAssignmentRHS::Expression(e) => {
                 match NumericConstantFolder.visit_expression(e) {
-                    Ok(x) => build_numeric_diag(&a.dest, x),
+                    Ok(x) => build_numeric_diag(&a.dest, x, e.line()),
                     Err(ConstantFoldingError::WrongType) => maybe_build_string_diag(
                         &a.dest,
                         SimpleStringConstantFolder.visit_expression(e).ok(),
+                        e.line(),
                     ),
                     Err(_) => Self::Output::Empty,
                 }
@@ -188,6 +197,7 @@ impl VisitProgram for BoringAssignmentPass {
         Ok(maybe_build_numeric_array_push_diag(
             &a.array,
             Self::find_boring_array_push_rhs(&a.value),
+            a.line(),
         ))
     }
 }

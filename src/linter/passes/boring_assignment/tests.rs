@@ -50,12 +50,14 @@ fn find_boring_assignments() {
                 suggestions: vec![
                     "Consider using a poetic literal such as: `z is *** *****`".into()
                 ],
+                line: 3
             },
             Diag {
                 issue: "Assignment of literal value `3.14` into `pi` isn't very rock'n'roll".into(),
                 suggestions: vec![
                     "Consider using a poetic literal such as: `pi is ***. * ****`".into()
                 ],
+                line: 4
             },
         ]
     );
@@ -82,6 +84,7 @@ fn find_boring_poetic_assignments() {
             Diag {
                 issue: "Assignment of literal value `23` into `x` isn't very rock'n'roll".into(),
                 suggestions: vec!["Consider using a poetic literal such as: `x is ** ***`".into()],
+                line: 1
             },
             Diag {
                 issue: "Assignment of literal value `0` into `counter` isn't very rock'n'roll"
@@ -89,6 +92,7 @@ fn find_boring_poetic_assignments() {
                 suggestions: vec![
                     "Consider using a poetic literal such as: `counter is **********`".into()
                 ],
+                line: 4
             }
         ]
     );
@@ -121,6 +125,7 @@ fn find_boring_array_pushes() {
                     "Consider using a poetic literal such as: `Rock the array like **** *****`"
                         .into()
                 ],
+                line: 3
             },
             Diag {
                 issue: "Assignment of literal value `0` into `the array` isn't very rock'n'roll"
@@ -129,6 +134,7 @@ fn find_boring_array_pushes() {
                     "Consider using a poetic literal such as: `Rock the array like **********`"
                         .into()
                 ],
+                line: 6
             }
         ]
     );
@@ -140,7 +146,7 @@ fn find_boring_string_assignments() {
         BoringAssignmentPass
             .visit_program(
                 &parse(
-                    r#"\
+                    r#"
         x is "hey"
         x is "  hey "
         if x isn't 6
@@ -156,11 +162,13 @@ fn find_boring_string_assignments() {
             Diag {
                 issue: r#"Assignment of literal value `"hey"` into `x` isn't very rock'n'roll"#.into(),
                 suggestions: vec!["Consider using a poetic literal such as: `x says hey`".into()],
+                line: 2
             },
             Diag {
                 issue: r#"Assignment of literal value `"  hey "` into `x` isn't very rock'n'roll"#
                     .into(),
                 suggestions: vec!["Consider using a poetic literal such as: `x says   hey `".into()],
+                line: 3
             },
             Diag {
                 issue: r#"Assignment of literal value `"Rock the house"` into `z` isn't very rock'n'roll"#
@@ -169,6 +177,7 @@ fn find_boring_string_assignments() {
                     "Consider using a poetic literal such as: `z says Rock the house`"
                         .into()
                 ],
+                line: 6
             },
             Diag {
                 issue: r#"Assignment of literal value `"let's search the sky"` into `r` isn't very rock'n'roll"#
@@ -177,6 +186,7 @@ fn find_boring_string_assignments() {
                     "Consider using a poetic literal such as: `r says let's search the sky`"
                         .into()
                 ],
+                line: 7
             }
         ]
     );
