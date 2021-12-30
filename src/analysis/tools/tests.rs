@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use super::*;
-use crate::frontend::parser::*;
+use crate::{analysis::visit::VisitProgram, frontend::parser::*};
 use ConstantFoldingError::*;
 
 #[test]
@@ -29,13 +29,6 @@ fn numeric_constant_folding_expression() {
 }
 
 #[test]
-fn numeric_constant_folding_program() {
-    let val = |text| NumericConstantFolder.visit_program(&parse(text).unwrap());
-    assert_eq!(val(""), Err(NoType));
-    assert_eq!(val("x is 5"), Err(NoType));
-}
-
-#[test]
 fn find_all_constant_assignments() {
     struct ConstantAssignmentFinder;
     impl ConstantAssignmentFinder {
@@ -49,7 +42,8 @@ fn find_all_constant_assignments() {
     impl Visit for ConstantAssignmentFinder {
         type Output = HashSet<String>;
         type Error = ();
-
+    }
+    impl VisitProgram for ConstantAssignmentFinder {
         fn visit_assignment(&mut self, a: &Assignment) -> visit::Result<Self> {
             Self::capture(NumericConstantFolder.visit_expression_list(&a.value))
         }
@@ -120,7 +114,8 @@ fn find_all_constant_string_assignments() {
     impl Visit for ConstantStringAssignmentFinder {
         type Output = HashSet<String>;
         type Error = ();
-
+    }
+    impl VisitProgram for ConstantStringAssignmentFinder {
         fn visit_assignment(&mut self, a: &Assignment) -> visit::Result<Self> {
             Self::capture(
                 SimpleStringConstantFolder

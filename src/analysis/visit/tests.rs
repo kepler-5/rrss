@@ -33,6 +33,8 @@ fn combine() {
     impl Visit for IsEmpty {
         type Output = IsEmptyResult;
         type Error = ();
+    }
+    impl VisitProgram for IsEmpty {
         fn visit_block(&mut self, b: &Block) -> visit::Result<Self> {
             Ok(b.is_empty().into())
         }
@@ -78,6 +80,8 @@ fn short_circuit() {
     impl Visit for ExplodeOnThird {
         type Output = ();
         type Error = ();
+    }
+    impl VisitProgram for ExplodeOnThird {
         fn visit_block(&mut self, _: &Block) -> visit::Result<Self> {
             self.count += 1;
             match self.count {
@@ -128,6 +132,8 @@ fn count_xs() {
     impl Visit for CountXs {
         type Output = Counter;
         type Error = ();
+    }
+    impl VisitExpr for CountXs {
         fn visit_simple_identifier(
             &mut self,
             n: WithRange<&SimpleIdentifier>,
@@ -137,11 +143,11 @@ fn count_xs() {
     }
 
     assert_eq!(
-        CountXs.visit_program(&Program { code: vec![] }),
+        ExprVisitorRunner::new(CountXs).visit_program(&Program { code: vec![] }),
         Ok(0.into())
     );
     assert_eq!(
-        CountXs.visit_program(&Program {
+        ExprVisitorRunner::new(CountXs).visit_program(&Program {
             code: vec![
                 Block::Empty(bogus_loc()),
                 Block::Empty(bogus_loc()),
@@ -152,7 +158,7 @@ fn count_xs() {
     );
 
     assert_eq!(
-        CountXs.visit_program(
+        ExprVisitorRunner::new(CountXs).visit_program(
             &parse(
                 "
         put 5 into x
@@ -174,7 +180,7 @@ fn count_xs() {
     );
 
     assert_eq!(
-        CountXs.visit_program(
+        ExprVisitorRunner::new(CountXs).visit_program(
             &parse(
                 "
         put 5 into y
@@ -202,12 +208,16 @@ fn count_xs_unless_there_are_continues() {
     impl Visit for CountXsUnlessThereAreContinues {
         type Output = Counter;
         type Error = &'static str;
+    }
+    impl VisitExpr for CountXsUnlessThereAreContinues {
         fn visit_simple_identifier(
             &mut self,
             n: WithRange<&SimpleIdentifier>,
         ) -> visit::Result<Self> {
             Ok(((n.0 .0 == "x") as i32).into())
         }
+    }
+    impl VisitProgram for CountXsUnlessThereAreContinues {
         fn visit_continue(&mut self, _: &Continue) -> visit::Result<Self> {
             Err("found continue!")
         }
@@ -248,7 +258,8 @@ fn collect_all_number_literals_functional() {
     impl Visit for CollectAllNumberLiterals {
         type Output = HashSet<String>;
         type Error = ();
-
+    }
+    impl VisitExpr for CollectAllNumberLiterals {
         fn visit_literal_expression(
             &mut self,
             e: &WithRange<LiteralExpression>,
@@ -263,7 +274,7 @@ fn collect_all_number_literals_functional() {
         }
     }
     assert_eq!(
-        CollectAllNumberLiterals.visit_program(
+        ExprVisitorRunner::new(CollectAllNumberLiterals).visit_program(
             &parse(
                 "
         put 5 into x
@@ -298,7 +309,8 @@ fn collect_all_number_literals_stateful() {
     impl Visit for CollectAllNumberLiterals {
         type Output = ();
         type Error = ();
-
+    }
+    impl VisitExpr for CollectAllNumberLiterals {
         fn visit_literal_expression(
             &mut self,
             e: &WithRange<LiteralExpression>,
@@ -314,7 +326,7 @@ fn collect_all_number_literals_stateful() {
         }
     }
     let literals = {
-        let mut c = CollectAllNumberLiterals::default();
+        let mut c = ExprVisitorRunner::new(CollectAllNumberLiterals::default());
         c.visit_program(
             &parse(
                 "
@@ -335,7 +347,7 @@ fn collect_all_number_literals_stateful() {
             .unwrap(),
         )
         .unwrap();
-        c.literals
+        c.inner().literals
     };
     assert_eq!(
         literals,

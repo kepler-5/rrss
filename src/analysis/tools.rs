@@ -5,7 +5,7 @@ use std::{
 
 use derive_more::{Add, From, Neg, Sub};
 
-use super::visit::{self, Combine, Visit};
+use super::visit::{self, Combine, Visit, VisitExpr};
 use crate::frontend::{ast::*, source_range::SourceRange};
 
 #[cfg(test)]
@@ -58,93 +58,13 @@ pub struct NumericConstantFolder;
 impl Visit for NumericConstantFolder {
     type Output = NumericConstant;
     type Error = ConstantFoldingError;
+}
 
-    fn visit_program(&mut self, _: &Program) -> visit::Result<Self> {
-        Err(NoType)
-    }
-
-    fn visit_block(&mut self, _: &Block) -> visit::Result<Self> {
-        Err(NoType)
-    }
-
-    fn visit_statement(&mut self, _: &Statement) -> visit::Result<Self> {
-        Err(NoType)
-    }
-
-    // Statements
-    fn visit_assignment(&mut self, _: &Assignment) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_poetic_assignment(&mut self, _: &PoeticAssignment) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_if(&mut self, _: &If) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_while(&mut self, _: &While) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_until(&mut self, _: &Until) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_inc(&mut self, _: &Inc) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_dec(&mut self, _: &Dec) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_input(&mut self, _: &Input) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_output(&mut self, _: &Output) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_mutation(&mut self, _: &Mutation) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_rounding(&mut self, _: &Rounding) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_continue(&mut self, _: &Continue) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_break(&mut self, _: &Break) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_array_push(&mut self, _: &ArrayPush) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_array_pop(&mut self, _: &ArrayPop) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_return(&mut self, _: &Return) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_function(&mut self, _: &Function) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_function_call(&mut self, _: &FunctionCall) -> visit::Result<Self> {
-        Err(UnknownValue)
-    }
-
-    // Statement helper types
-    fn visit_poetic_number_assignment(
-        &mut self,
-        _: &PoeticNumberAssignment,
-    ) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_poetic_string_assignment(
-        &mut self,
-        _: &PoeticStringAssignment,
-    ) -> visit::Result<Self> {
-        Err(NoType)
-    }
+impl VisitExpr for NumericConstantFolder {
     fn visit_poetic_number_literal(&mut self, p: &PoeticNumberLiteral) -> visit::Result<Self> {
         Ok(p.compute_value().into())
     }
 
-    // Expressions
     fn visit_expression_list(&mut self, e: &ExpressionList) -> visit::Result<Self> {
         e.rest
             .is_empty()
@@ -185,7 +105,6 @@ impl Visit for NumericConstantFolder {
         }
     }
 
-    // Identifiers
     fn visit_pronoun(&mut self, _: SourceRange) -> visit::Result<Self> {
         Err(UnknownValue)
     }
@@ -231,93 +150,13 @@ pub struct SimpleStringConstantFolder;
 impl Visit for SimpleStringConstantFolder {
     type Output = StringConstant;
     type Error = ConstantFoldingError;
+}
 
-    fn visit_program(&mut self, _: &Program) -> visit::Result<Self> {
-        Err(NoType)
-    }
-
-    fn visit_block(&mut self, _: &Block) -> visit::Result<Self> {
-        Err(NoType)
-    }
-
-    fn visit_statement(&mut self, _: &Statement) -> visit::Result<Self> {
-        Err(NoType)
-    }
-
-    // Statements
-    fn visit_assignment(&mut self, _: &Assignment) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_poetic_assignment(&mut self, _: &PoeticAssignment) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_if(&mut self, _: &If) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_while(&mut self, _: &While) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_until(&mut self, _: &Until) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_inc(&mut self, _: &Inc) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_dec(&mut self, _: &Dec) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_input(&mut self, _: &Input) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_output(&mut self, _: &Output) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_mutation(&mut self, _: &Mutation) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_rounding(&mut self, _: &Rounding) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_continue(&mut self, _: &Continue) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_break(&mut self, _: &Break) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_array_push(&mut self, _: &ArrayPush) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_array_pop(&mut self, _: &ArrayPop) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_return(&mut self, _: &Return) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_function(&mut self, _: &Function) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_function_call(&mut self, _: &FunctionCall) -> visit::Result<Self> {
-        Err(UnknownValue)
-    }
-
-    // Statement helper types
-    fn visit_poetic_number_assignment(
-        &mut self,
-        _: &PoeticNumberAssignment,
-    ) -> visit::Result<Self> {
-        Err(NoType)
-    }
-    fn visit_poetic_string_assignment(
-        &mut self,
-        _: &PoeticStringAssignment,
-    ) -> visit::Result<Self> {
-        Err(NoType)
-    }
+impl VisitExpr for SimpleStringConstantFolder {
     fn visit_poetic_number_literal(&mut self, _: &PoeticNumberLiteral) -> visit::Result<Self> {
         Err(WrongType)
     }
 
-    // Expressions
     fn visit_expression_list(&mut self, e: &ExpressionList) -> visit::Result<Self> {
         e.rest
             .is_empty()
@@ -342,8 +181,10 @@ impl Visit for SimpleStringConstantFolder {
             _ => Err(WrongType),
         }
     }
+    fn visit_function_call(&mut self, _: &FunctionCall) -> visit::Result<Self> {
+        Err(UnknownValue)
+    }
 
-    // Identifiers
     fn visit_pronoun(&mut self, _: SourceRange) -> visit::Result<Self> {
         Err(UnknownValue)
     }

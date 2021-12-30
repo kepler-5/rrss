@@ -8,7 +8,7 @@ use crate::{
             ConstantFoldingError, NumericConstant, NumericConstantFolder,
             SimpleStringConstantFolder, StringConstant,
         },
-        visit::{self, Visit},
+        visit::{self, Visit, VisitExpr, VisitProgram},
     },
     frontend::ast::*,
     linter::{render::Render, Diag, DiagsBuilder, Pass},
@@ -148,7 +148,8 @@ impl BoringAssignmentPass {
 impl Visit for BoringAssignmentPass {
     type Output = DiagsBuilder;
     type Error = ();
-
+}
+impl VisitProgram for BoringAssignmentPass {
     fn visit_assignment(&mut self, a: &Assignment) -> visit::Result<Self> {
         Ok(if a.operator.is_some() {
             Self::Output::Empty

@@ -1,5 +1,7 @@
 use std::iter;
 
+use derive_more::Constructor;
+
 use crate::frontend::{ast::*, source_range::SourceRange};
 
 #[cfg(test)]
@@ -31,7 +33,129 @@ pub fn leaf<T, U: Default, E>(_: T) -> std::result::Result<U, E> {
 pub trait Visit {
     type Output: Combine + Default;
     type Error;
+}
 
+pub trait VisitExpr: Visit {
+    // Statement helper types
+    fn visit_assignment_lhs(&mut self, a: &AssignmentLHS) -> Result<Self> {
+        match a {
+            AssignmentLHS::Identifier(i) => self.visit_identifier(i),
+            AssignmentLHS::ArraySubscript(a) => self.visit_array_subsript(a),
+        }
+    }
+    fn visit_poetic_number_assignment_rhs(
+        &mut self,
+        p: &PoeticNumberAssignmentRHS,
+    ) -> Result<Self> {
+        match p {
+            PoeticNumberAssignmentRHS::Expression(e) => self.visit_expression(e),
+            PoeticNumberAssignmentRHS::PoeticNumberLiteral(p) => {
+                self.visit_poetic_number_literal(p)
+            }
+        }
+    }
+    fn visit_poetic_number_literal(&mut self, p: &PoeticNumberLiteral) -> Result<Self> {
+        combine_all(
+            p.elems
+                .iter()
+                .map(|p| self.visit_poetic_number_literal_elem(p)),
+        )
+    }
+    fn visit_poetic_number_literal_elem(&mut self, p: &PoeticNumberLiteralElem) -> Result<Self> {
+        leaf(p)
+    }
+    fn visit_array_push_rhs(&mut self, a: &ArrayPushRHS) -> Result<Self> {
+        match a {
+            ArrayPushRHS::ExpressionList(e) => self.visit_expression_list(e),
+            ArrayPushRHS::PoeticNumberLiteral(p) => self.visit_poetic_number_literal(p),
+        }
+    }
+
+    // Operators
+    fn visit_binary_operator(&mut self, o: BinaryOperator) -> Result<Self> {
+        leaf(o)
+    }
+    fn visit_unary_operator(&mut self, o: UnaryOperator) -> Result<Self> {
+        leaf(o)
+    }
+
+    // Expressions
+    fn visit_expression_list(&mut self, e: &ExpressionList) -> Result<Self> {
+        combine_all(
+            iter::once(self.visit_expression(&e.first))
+                .chain(e.rest.iter().map(|e| self.visit_expression(e))),
+        )
+    }
+    fn visit_expression(&mut self, e: &Expression) -> Result<Self> {
+        match e {
+            Expression::PrimaryExpression(e) => self.visit_primary_expression(e),
+            Expression::BinaryExpression(e) => self.visit_binary_expression(e),
+            Expression::UnaryExpression(e) => self.visit_unary_expression(e),
+        }
+    }
+    fn visit_primary_expression(&mut self, e: &PrimaryExpression) -> Result<Self> {
+        match e {
+            PrimaryExpression::Literal(e) => self.visit_literal_expression(e),
+            PrimaryExpression::Identifier(i) => self.visit_identifier(i),
+            PrimaryExpression::ArraySubscript(a) => self.visit_array_subsript(a),
+            PrimaryExpression::FunctionCall(f) => self.visit_function_call(f),
+        }
+    }
+    fn visit_binary_expression(&mut self, e: &BinaryExpression) -> Result<Self> {
+        Ok(self
+            .visit_expression(&e.lhs)?
+            .combine(self.visit_binary_operator(e.operator)?)
+            .combine(self.visit_expression_list(&e.rhs)?))
+    }
+    fn visit_unary_expression(&mut self, e: &UnaryExpression) -> Result<Self> {
+        Ok(self
+            .visit_unary_operator(e.operator)?
+            .combine(self.visit_expression(&e.operand)?))
+    }
+    fn visit_array_subsript(&mut self, a: &ArraySubscript) -> Result<Self> {
+        Ok(self
+            .visit_primary_expression(&a.array)?
+            .combine(self.visit_primary_expression(&a.subscript)?))
+    }
+    fn visit_literal_expression(&mut self, e: &WithRange<LiteralExpression>) -> Result<Self> {
+        leaf(e)
+    }
+    fn visit_function_call(&mut self, f: &FunctionCall) -> Result<Self> {
+        combine_all(
+            iter::once(self.visit_variable_name(f.name.as_ref()))
+                .chain(f.args.iter().map(|e| self.visit_primary_expression(e))),
+        )
+    }
+
+    // Identifiers
+    fn visit_identifier(&mut self, i: &WithRange<Identifier>) -> Result<Self> {
+        match &i.0 {
+            Identifier::VariableName(n) => self.visit_variable_name(WithRange(&n, i.1.clone())),
+            Identifier::Pronoun => self.visit_pronoun(i.1.clone()),
+        }
+    }
+    fn visit_pronoun(&mut self, range: SourceRange) -> Result<Self> {
+        leaf(range)
+    }
+    fn visit_variable_name(&mut self, n: WithRange<&VariableName>) -> Result<Self> {
+        match n.0 {
+            VariableName::Simple(x) => self.visit_simple_identifier(WithRange(&x, n.1.clone())),
+            VariableName::Common(x) => self.visit_common_identifier(WithRange(&x, n.1.clone())),
+            VariableName::Proper(x) => self.visit_proper_identifier(WithRange(&x, n.1.clone())),
+        }
+    }
+    fn visit_simple_identifier(&mut self, n: WithRange<&SimpleIdentifier>) -> Result<Self> {
+        leaf(n)
+    }
+    fn visit_common_identifier(&mut self, n: WithRange<&CommonIdentifier>) -> Result<Self> {
+        leaf(n)
+    }
+    fn visit_proper_identifier(&mut self, n: WithRange<&ProperIdentifier>) -> Result<Self> {
+        leaf(n)
+    }
+}
+
+pub trait VisitProgram: Visit {
     fn visit_program(&mut self, p: &Program) -> Result<Self> {
         combine_all(p.code.iter().map(|b| self.visit_block(b)))
     }
@@ -64,11 +188,181 @@ pub trait Visit {
             Statement::ArrayPop(a) => self.visit_array_pop(a),
             Statement::Return(r) => self.visit_return(r),
             Statement::Function(f) => self.visit_function(f),
-            Statement::FunctionCall(f) => self.visit_function_call(f),
+            Statement::FunctionCall(f) => self.visit_function_call_statement(f),
         }
     }
 
-    // Statements
+    fn visit_assignment(&mut self, a: &Assignment) -> Result<Self> {
+        leaf(a)
+    }
+    fn visit_poetic_assignment(&mut self, p: &PoeticAssignment) -> Result<Self> {
+        match p {
+            PoeticAssignment::Number(a) => self.visit_poetic_number_assignment(a),
+            PoeticAssignment::String(a) => self.visit_poetic_string_assignment(a),
+        }
+    }
+    fn visit_poetic_number_assignment(&mut self, a: &PoeticNumberAssignment) -> Result<Self> {
+        leaf(a)
+    }
+    fn visit_poetic_string_assignment(&mut self, a: &PoeticStringAssignment) -> Result<Self> {
+        leaf(a)
+    }
+    fn visit_if(&mut self, i: &If) -> Result<Self> {
+        Ok(self.visit_block(&i.then_block)?.combine(
+            i.else_block
+                .as_ref()
+                .map_or_else(|| leaf(()), |b| self.visit_block(b))?,
+        ))
+    }
+    fn visit_while(&mut self, w: &While) -> Result<Self> {
+        Ok(self.visit_block(&w.block)?)
+    }
+    fn visit_until(&mut self, u: &Until) -> Result<Self> {
+        Ok(self.visit_block(&u.block)?)
+    }
+    fn visit_inc(&mut self, i: &Inc) -> Result<Self> {
+        leaf(i)
+    }
+    fn visit_dec(&mut self, d: &Dec) -> Result<Self> {
+        leaf(d)
+    }
+    fn visit_input(&mut self, i: &Input) -> Result<Self> {
+        leaf(i)
+    }
+    fn visit_output(&mut self, o: &Output) -> Result<Self> {
+        leaf(o)
+    }
+    fn visit_mutation(&mut self, m: &Mutation) -> Result<Self> {
+        self.visit_mutation_operator(m.operator)
+    }
+    fn visit_rounding(&mut self, r: &Rounding) -> Result<Self> {
+        self.visit_rounding_direction(r.direction)
+    }
+    fn visit_continue(&mut self, c: &Continue) -> Result<Self> {
+        leaf(c)
+    }
+    fn visit_break(&mut self, b: &Break) -> Result<Self> {
+        leaf(b)
+    }
+    fn visit_array_push(&mut self, a: &ArrayPush) -> Result<Self> {
+        leaf(a)
+    }
+    fn visit_array_pop(&mut self, a: &ArrayPop) -> Result<Self> {
+        leaf(a)
+    }
+    fn visit_return(&mut self, r: &Return) -> Result<Self> {
+        leaf(r)
+    }
+    fn visit_function(&mut self, f: &Function) -> Result<Self> {
+        self.visit_block(&f.body)
+    }
+    fn visit_function_call_statement(&mut self, f: &FunctionCall) -> Result<Self> {
+        leaf(f)
+    }
+
+    fn visit_mutation_operator(&mut self, o: MutationOperator) -> Result<Self> {
+        leaf(o)
+    }
+    fn visit_rounding_direction(&mut self, r: RoundingDirection) -> Result<Self> {
+        leaf(r)
+    }
+}
+
+pub type Result<T> = std::result::Result<<T as Visit>::Output, <T as Visit>::Error>;
+
+#[derive(Constructor)]
+pub struct ExprVisitorRunner<T: VisitExpr> {
+    inner: T,
+}
+
+impl<T: VisitExpr> ExprVisitorRunner<T> {
+    pub fn inner(self) -> T {
+        self.inner
+    }
+}
+
+impl<T: VisitExpr> Visit for ExprVisitorRunner<T> {
+    type Output = T::Output;
+    type Error = T::Error;
+}
+
+impl<T: VisitExpr> VisitExpr for ExprVisitorRunner<T> {
+    // Statement helper types
+    fn visit_assignment_lhs(&mut self, a: &AssignmentLHS) -> Result<Self> {
+        self.inner.visit_assignment_lhs(a)
+    }
+    fn visit_poetic_number_assignment_rhs(
+        &mut self,
+        p: &PoeticNumberAssignmentRHS,
+    ) -> Result<Self> {
+        self.inner.visit_poetic_number_assignment_rhs(p)
+    }
+    fn visit_poetic_number_literal(&mut self, p: &PoeticNumberLiteral) -> Result<Self> {
+        self.inner.visit_poetic_number_literal(p)
+    }
+    fn visit_poetic_number_literal_elem(&mut self, p: &PoeticNumberLiteralElem) -> Result<Self> {
+        self.inner.visit_poetic_number_literal_elem(p)
+    }
+    fn visit_array_push_rhs(&mut self, a: &ArrayPushRHS) -> Result<Self> {
+        self.inner.visit_array_push_rhs(a)
+    }
+
+    // Operators
+    fn visit_binary_operator(&mut self, o: BinaryOperator) -> Result<Self> {
+        self.inner.visit_binary_operator(o)
+    }
+    fn visit_unary_operator(&mut self, o: UnaryOperator) -> Result<Self> {
+        self.inner.visit_unary_operator(o)
+    }
+
+    // Expressions
+    fn visit_expression_list(&mut self, e: &ExpressionList) -> Result<Self> {
+        self.inner.visit_expression_list(e)
+    }
+    fn visit_expression(&mut self, e: &Expression) -> Result<Self> {
+        self.inner.visit_expression(e)
+    }
+    fn visit_primary_expression(&mut self, e: &PrimaryExpression) -> Result<Self> {
+        self.inner.visit_primary_expression(e)
+    }
+    fn visit_binary_expression(&mut self, e: &BinaryExpression) -> Result<Self> {
+        self.inner.visit_binary_expression(e)
+    }
+    fn visit_unary_expression(&mut self, e: &UnaryExpression) -> Result<Self> {
+        self.inner.visit_unary_expression(e)
+    }
+    fn visit_array_subsript(&mut self, a: &ArraySubscript) -> Result<Self> {
+        self.inner.visit_array_subsript(a)
+    }
+    fn visit_literal_expression(&mut self, e: &WithRange<LiteralExpression>) -> Result<Self> {
+        self.inner.visit_literal_expression(e)
+    }
+    fn visit_function_call(&mut self, f: &FunctionCall) -> Result<Self> {
+        self.inner.visit_function_call(f)
+    }
+
+    // Identifiers
+    fn visit_identifier(&mut self, i: &WithRange<Identifier>) -> Result<Self> {
+        self.inner.visit_identifier(i)
+    }
+    fn visit_pronoun(&mut self, range: SourceRange) -> Result<Self> {
+        self.inner.visit_pronoun(range)
+    }
+    fn visit_variable_name(&mut self, n: WithRange<&VariableName>) -> Result<Self> {
+        self.inner.visit_variable_name(n)
+    }
+    fn visit_simple_identifier(&mut self, n: WithRange<&SimpleIdentifier>) -> Result<Self> {
+        self.inner.visit_simple_identifier(n)
+    }
+    fn visit_common_identifier(&mut self, n: WithRange<&CommonIdentifier>) -> Result<Self> {
+        self.inner.visit_common_identifier(n)
+    }
+    fn visit_proper_identifier(&mut self, n: WithRange<&ProperIdentifier>) -> Result<Self> {
+        self.inner.visit_proper_identifier(n)
+    }
+}
+
+impl<T: VisitExpr> VisitProgram for ExprVisitorRunner<T> {
     fn visit_assignment(&mut self, a: &Assignment) -> Result<Self> {
         Ok(self
             .visit_assignment_lhs(&a.dest)?
@@ -83,6 +377,14 @@ pub trait Visit {
             PoeticAssignment::Number(a) => self.visit_poetic_number_assignment(a),
             PoeticAssignment::String(a) => self.visit_poetic_string_assignment(a),
         }
+    }
+    fn visit_poetic_number_assignment(&mut self, a: &PoeticNumberAssignment) -> Result<Self> {
+        Ok(self
+            .visit_assignment_lhs(&a.dest)?
+            .combine(self.visit_poetic_number_assignment_rhs(&a.rhs)?))
+    }
+    fn visit_poetic_string_assignment(&mut self, a: &PoeticStringAssignment) -> Result<Self> {
+        self.visit_assignment_lhs(&a.dest)
     }
     fn visit_if(&mut self, i: &If) -> Result<Self> {
         Ok(self
@@ -169,138 +471,7 @@ pub trait Visit {
         )?
         .combine(self.visit_block(&f.body)?))
     }
-    fn visit_function_call(&mut self, f: &FunctionCall) -> Result<Self> {
-        combine_all(
-            iter::once(self.visit_variable_name(f.name.as_ref()))
-                .chain(f.args.iter().map(|e| self.visit_primary_expression(e))),
-        )
-    }
-
-    // Statement helper types
-    fn visit_assignment_lhs(&mut self, a: &AssignmentLHS) -> Result<Self> {
-        match a {
-            AssignmentLHS::Identifier(i) => self.visit_identifier(i),
-            AssignmentLHS::ArraySubscript(a) => self.visit_array_subsript(a),
-        }
-    }
-    fn visit_poetic_number_assignment(&mut self, a: &PoeticNumberAssignment) -> Result<Self> {
-        Ok(self
-            .visit_assignment_lhs(&a.dest)?
-            .combine(self.visit_poetic_number_assignment_rhs(&a.rhs)?))
-    }
-    fn visit_poetic_string_assignment(&mut self, a: &PoeticStringAssignment) -> Result<Self> {
-        self.visit_assignment_lhs(&a.dest)
-    }
-    fn visit_poetic_number_assignment_rhs(
-        &mut self,
-        p: &PoeticNumberAssignmentRHS,
-    ) -> Result<Self> {
-        match p {
-            PoeticNumberAssignmentRHS::Expression(e) => self.visit_expression(e),
-            PoeticNumberAssignmentRHS::PoeticNumberLiteral(p) => {
-                self.visit_poetic_number_literal(p)
-            }
-        }
-    }
-    fn visit_poetic_number_literal(&mut self, p: &PoeticNumberLiteral) -> Result<Self> {
-        combine_all(
-            p.elems
-                .iter()
-                .map(|p| self.visit_poetic_number_literal_elem(p)),
-        )
-    }
-    fn visit_poetic_number_literal_elem(&mut self, p: &PoeticNumberLiteralElem) -> Result<Self> {
-        leaf(p)
-    }
-    fn visit_array_push_rhs(&mut self, a: &ArrayPushRHS) -> Result<Self> {
-        match a {
-            ArrayPushRHS::ExpressionList(e) => self.visit_expression_list(e),
-            ArrayPushRHS::PoeticNumberLiteral(p) => self.visit_poetic_number_literal(p),
-        }
-    }
-
-    // Operators
-    fn visit_binary_operator(&mut self, o: BinaryOperator) -> Result<Self> {
-        leaf(o)
-    }
-    fn visit_mutation_operator(&mut self, o: MutationOperator) -> Result<Self> {
-        leaf(o)
-    }
-    fn visit_unary_operator(&mut self, o: UnaryOperator) -> Result<Self> {
-        leaf(o)
-    }
-    fn visit_rounding_direction(&mut self, r: RoundingDirection) -> Result<Self> {
-        leaf(r)
-    }
-
-    // Expressions
-    fn visit_expression_list(&mut self, e: &ExpressionList) -> Result<Self> {
-        combine_all(
-            iter::once(self.visit_expression(&e.first))
-                .chain(e.rest.iter().map(|e| self.visit_expression(e))),
-        )
-    }
-    fn visit_expression(&mut self, e: &Expression) -> Result<Self> {
-        match e {
-            Expression::PrimaryExpression(e) => self.visit_primary_expression(e),
-            Expression::BinaryExpression(e) => self.visit_binary_expression(e),
-            Expression::UnaryExpression(e) => self.visit_unary_expression(e),
-        }
-    }
-    fn visit_primary_expression(&mut self, e: &PrimaryExpression) -> Result<Self> {
-        match e {
-            PrimaryExpression::Literal(e) => self.visit_literal_expression(e),
-            PrimaryExpression::Identifier(i) => self.visit_identifier(i),
-            PrimaryExpression::ArraySubscript(a) => self.visit_array_subsript(a),
-            PrimaryExpression::FunctionCall(f) => self.visit_function_call(f),
-        }
-    }
-    fn visit_binary_expression(&mut self, e: &BinaryExpression) -> Result<Self> {
-        Ok(self
-            .visit_expression(&e.lhs)?
-            .combine(self.visit_binary_operator(e.operator)?)
-            .combine(self.visit_expression_list(&e.rhs)?))
-    }
-    fn visit_unary_expression(&mut self, e: &UnaryExpression) -> Result<Self> {
-        Ok(self
-            .visit_unary_operator(e.operator)?
-            .combine(self.visit_expression(&e.operand)?))
-    }
-    fn visit_array_subsript(&mut self, a: &ArraySubscript) -> Result<Self> {
-        Ok(self
-            .visit_primary_expression(&a.array)?
-            .combine(self.visit_primary_expression(&a.subscript)?))
-    }
-    fn visit_literal_expression(&mut self, e: &WithRange<LiteralExpression>) -> Result<Self> {
-        leaf(e)
-    }
-
-    // Identifiers
-    fn visit_identifier(&mut self, i: &WithRange<Identifier>) -> Result<Self> {
-        match &i.0 {
-            Identifier::VariableName(n) => self.visit_variable_name(WithRange(&n, i.1.clone())),
-            Identifier::Pronoun => self.visit_pronoun(i.1.clone()),
-        }
-    }
-    fn visit_pronoun(&mut self, range: SourceRange) -> Result<Self> {
-        leaf(range)
-    }
-    fn visit_variable_name(&mut self, n: WithRange<&VariableName>) -> Result<Self> {
-        match n.0 {
-            VariableName::Simple(x) => self.visit_simple_identifier(WithRange(&x, n.1.clone())),
-            VariableName::Common(x) => self.visit_common_identifier(WithRange(&x, n.1.clone())),
-            VariableName::Proper(x) => self.visit_proper_identifier(WithRange(&x, n.1.clone())),
-        }
-    }
-    fn visit_simple_identifier(&mut self, n: WithRange<&SimpleIdentifier>) -> Result<Self> {
-        leaf(n)
-    }
-    fn visit_common_identifier(&mut self, n: WithRange<&CommonIdentifier>) -> Result<Self> {
-        leaf(n)
-    }
-    fn visit_proper_identifier(&mut self, n: WithRange<&ProperIdentifier>) -> Result<Self> {
-        leaf(n)
+    fn visit_function_call_statement(&mut self, f: &FunctionCall) -> Result<Self> {
+        self.visit_function_call(f)
     }
 }
-
-pub type Result<T> = std::result::Result<<T as Visit>::Output, <T as Visit>::Error>;

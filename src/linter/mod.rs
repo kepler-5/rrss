@@ -3,7 +3,7 @@ use std::hint::unreachable_unchecked;
 use derive_more::{Constructor, IsVariant};
 
 use crate::{
-    analysis::visit::{combine_all, Combine, Visit},
+    analysis::visit::{combine_all, Combine, VisitProgram},
     frontend::ast::Program,
     linter::passes::boring_assignment::BoringAssignmentPass,
 };
@@ -67,7 +67,7 @@ impl<T> Combine for ListBuilder<T> {
 
 type DiagsBuilder = ListBuilder<Diag>;
 
-pub trait Pass: Visit<Output = DiagsBuilder, Error = ()> {}
+pub trait Pass: VisitProgram<Output = DiagsBuilder, Error = ()> {}
 
 pub type Passes = Vec<Box<dyn Pass>>;
 
