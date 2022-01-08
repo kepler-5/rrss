@@ -52,7 +52,7 @@ macro_rules! dump {
     ($result:expr) => {
         match $result {
             Ok(r) => println!("{}", r),
-            Err(e) => println!("{}", e),
+            Err(e) => eprintln!("{}", e),
         }
     };
 }
@@ -78,15 +78,25 @@ where
 {
     let matches = clap::App::new("rrss")
         .about("Rockstar programming language tools")
-        .subcommands([clap::SubCommand::with_name("lint").arg(
-            clap::Arg::with_name("file")
-                .required(true)
-                .takes_value(false),
-        )])
+        .subcommands([
+            clap::SubCommand::with_name("lint").arg(
+                clap::Arg::with_name("file")
+                    .required(true)
+                    .takes_value(false),
+            ),
+            clap::SubCommand::with_name("parse").arg(
+                clap::Arg::with_name("file")
+                    .required(true)
+                    .takes_value(false),
+            ),
+        ])
         .get_matches_from_safe(args)?;
     match matches.subcommand() {
         ("lint", Some(matches)) => {
             load_and_run_from_command_line(Command::Lint, matches.value_of("file").unwrap())?
+        }
+        ("parse", Some(matches)) => {
+            load_and_run_from_command_line(Command::Parse, matches.value_of("file").unwrap())?
         }
         _ => {}
     }
