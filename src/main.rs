@@ -1,9 +1,11 @@
 use std::{env, process};
 
 pub mod analysis;
-pub mod driver;
+pub mod cli;
 pub mod frontend;
 pub mod linter;
+
+use crate::cli::driver;
 
 fn main() {
     let exit_code = match driver::cli(env::args()) {
