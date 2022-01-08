@@ -79,23 +79,15 @@ where
     let matches = clap::App::new("rrss")
         .about("Rockstar programming language tools")
         .subcommands([
-            clap::SubCommand::with_name("lint").arg(
-                clap::Arg::with_name("file")
-                    .required(true)
-                    .takes_value(false),
-            ),
-            clap::SubCommand::with_name("parse").arg(
-                clap::Arg::with_name("file")
-                    .required(true)
-                    .takes_value(false),
-            ),
+            clap::App::new("lint").arg(clap::Arg::new("file").required(true).takes_value(false)),
+            clap::App::new("parse").arg(clap::Arg::new("file").required(true).takes_value(false)),
         ])
-        .get_matches_from_safe(args)?;
+        .try_get_matches_from(args)?;
     match matches.subcommand() {
-        ("lint", Some(matches)) => {
+        Some(("lint", matches)) => {
             load_and_run_from_command_line(Command::Lint, matches.value_of("file").unwrap())?
         }
-        ("parse", Some(matches)) => {
+        Some(("parse", matches)) => {
             load_and_run_from_command_line(Command::Parse, matches.value_of("file").unwrap())?
         }
         _ => {}
