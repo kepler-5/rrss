@@ -2,6 +2,7 @@ use std::{env, process};
 
 pub mod analysis;
 pub mod cli;
+pub mod exec;
 pub mod frontend;
 pub mod linter;
 
