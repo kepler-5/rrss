@@ -418,4 +418,32 @@ impl Val {
             _ => Err(ValueError::InvalidOperationForType),
         }
     }
+
+    pub fn round_up(&mut self) -> Result<(), ValueError> {
+        match self {
+            Val::Number(f) => {
+                *f = f.ceil();
+                Ok(())
+            }
+            _ => Err(ValueError::InvalidOperationForType),
+        }
+    }
+    pub fn round_down(&mut self) -> Result<(), ValueError> {
+        match self {
+            Val::Number(f) => {
+                *f = f.floor();
+                Ok(())
+            }
+            _ => Err(ValueError::InvalidOperationForType),
+        }
+    }
+    pub fn round_nearest(&mut self) -> Result<(), ValueError> {
+        match self {
+            Val::Number(f) => {
+                *f = f.round();
+                Ok(())
+            }
+            _ => Err(ValueError::InvalidOperationForType),
+        }
+    }
 }

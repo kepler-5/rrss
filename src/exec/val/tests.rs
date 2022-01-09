@@ -476,3 +476,94 @@ fn divide() {
     commutative_invalid!(Val::Boolean(false), Val::Null);
     commutative_invalid!(Val::Boolean(false), Val::from(Array::new()));
 }
+
+#[test]
+fn round() {
+    let round_up = |mut val: Val| {
+        val.round_up()?;
+        Ok(val)
+    };
+    assert_eq!(
+        round_up(Val::Undefined),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        round_up(Val::Null),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        round_up(Val::Boolean(false)),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        round_up(Val::from("")),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        round_up(Val::from(Array::new())),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(round_up(Val::Number(1.5)), Ok(Val::Number(2.0)));
+    assert_eq!(round_up(Val::Number(2.0)), Ok(Val::Number(2.0)));
+    assert_eq!(round_up(Val::Number(-1.5)), Ok(Val::Number(-1.0)));
+
+    let round_down = |mut val: Val| {
+        val.round_down()?;
+        Ok(val)
+    };
+    assert_eq!(
+        round_down(Val::Undefined),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        round_down(Val::Null),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        round_down(Val::Boolean(false)),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        round_down(Val::from("")),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        round_down(Val::from(Array::new())),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(round_down(Val::Number(1.5)), Ok(Val::Number(1.0)));
+    assert_eq!(round_down(Val::Number(2.0)), Ok(Val::Number(2.0)));
+    assert_eq!(round_down(Val::Number(-1.5)), Ok(Val::Number(-2.0)));
+
+    let round_nearest = |mut val: Val| {
+        val.round_nearest()?;
+        Ok(val)
+    };
+    assert_eq!(
+        round_nearest(Val::Undefined),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        round_nearest(Val::Null),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        round_nearest(Val::Boolean(false)),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        round_nearest(Val::from("")),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        round_nearest(Val::from(Array::new())),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(round_nearest(Val::Number(1.2)), Ok(Val::Number(1.0)));
+    assert_eq!(round_nearest(Val::Number(1.5)), Ok(Val::Number(2.0)));
+    assert_eq!(round_nearest(Val::Number(1.7)), Ok(Val::Number(2.0)));
+    assert_eq!(round_nearest(Val::Number(2.0)), Ok(Val::Number(2.0)));
+    assert_eq!(round_nearest(Val::Number(-1.2)), Ok(Val::Number(-1.0)));
+    assert_eq!(round_nearest(Val::Number(-1.5)), Ok(Val::Number(-2.0)));
+    assert_eq!(round_nearest(Val::Number(-1.7)), Ok(Val::Number(-2.0)));
+}
