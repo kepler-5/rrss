@@ -1,7 +1,9 @@
 use std::{
     borrow::Borrow,
+    cmp::Ordering,
     collections::{HashMap, VecDeque},
     hash::{Hash, Hasher},
+    mem::discriminant,
 };
 
 use derive_more::IsVariant;
@@ -273,4 +275,47 @@ impl Val {
             Val::Array(_) => true,
         }
     }
+
+    fn cmp_coerced<'a>(&'a self, other: &'a Val) -> Option<(ValOrRef<'a>, ValOrRef<'a>)> {
+        if discriminant(self) == discriminant(other) {
+            Some((self.into(), other.into()))
+        } else {
+            match self {
+                Val::Undefined => Some((self.into(), other.into())),
+                Val::Array(_) => Some((self.into(), other.into())),
+
+                Val::Null => other.cmp_coerced(self).map(|x| (x.1, x.0)),
+
+                Val::Boolean(_) => match other {
+                    Val::Null => Some((self.into(), Val::Boolean(false).into())),
+                    _ => other.cmp_coerced(self).map(|x| (x.1, x.0)),
+                },
+
+                Val::Number(_) => match other {
+                    Val::Boolean(_) => Some((Val::Boolean(self.is_truthy()).into(), other.into())),
+                    Val::Null => Some((self.into(), Val::Number(0.0).into())),
+                    _ => other.cmp_coerced(self).map(|x| (x.1, x.0)),
+                },
+
+                Val::String(s) => match other {
+                    Val::Number(_) => s
+                        .parse::<f64>()
+                        .ok()
+                        .map(|n| (Val::Number(n).into(), other.into())),
+                    Val::Boolean(_) => Some((Val::Boolean(!s.is_empty()).into(), other.into())),
+                    _ => Some((self.into(), other.into())),
+                },
+            }
+        }
+    }
+
+    pub fn equals(&self, other: &Val) -> bool {
+        self.cmp_coerced(other)
+            .map(|(a, b)| a.as_ref() == b.as_ref())
+            .unwrap_or(false)
+    }
+
+    // pub fn compare(&self, other: &Val) -> Ordering {
+    //     todo!()
+    // }
 }

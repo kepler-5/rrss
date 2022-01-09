@@ -142,3 +142,62 @@ fn is_truthy() {
     assert!(Val::from("foo").is_truthy());
     assert!(Val::from(Array::new()).is_truthy());
 }
+
+#[test]
+fn equals() {
+    macro_rules! commutative_equals {
+        ($a:expr, $b:expr) => {
+            assert!($a.equals(&$b));
+            assert!($b.equals(&$a));
+        };
+    }
+    macro_rules! commutative_notequals {
+        ($a:expr, $b:expr) => {
+            assert!(!$a.equals(&$b));
+            assert!(!$b.equals(&$a));
+        };
+    }
+    commutative_equals!(Val::Undefined, Val::Undefined);
+    commutative_notequals!(Val::Undefined, Val::Null);
+    commutative_notequals!(Val::Undefined, Val::Boolean(false));
+    commutative_notequals!(Val::Undefined, Val::Number(0.0));
+    commutative_notequals!(Val::Undefined, Val::from(""));
+    commutative_notequals!(Val::Undefined, Val::from(Array::new()));
+
+    commutative_equals!(Val::Null, Val::Null);
+    commutative_equals!(Val::Boolean(false), Val::Boolean(false));
+    commutative_notequals!(Val::Boolean(true), Val::Boolean(false));
+    commutative_equals!(Val::Number(1.0), Val::Number(1.0));
+    commutative_notequals!(Val::Number(1.0), Val::Number(2.0));
+    commutative_equals!(Val::from("foo"), Val::from("foo"));
+    commutative_notequals!(Val::from("foo"), Val::from("bar"));
+    commutative_equals!(Val::from(Array::new()), Val::from(Array::new()));
+    {
+        let mut a0 = Val::from(Array::new());
+        assert!(a0.push(Val::Null).is_ok());
+        let mut a1 = Val::from(Array::new());
+        commutative_notequals!(a0, a1);
+        assert!(a1.push(Val::Null).is_ok());
+        commutative_equals!(a0, a1);
+    }
+
+    // string mixed equality
+    commutative_equals!(Val::from("0"), Val::Number(0.0));
+    commutative_notequals!(Val::from("ten"), Val::Number(0.0));
+    commutative_equals!(Val::from(""), Val::Boolean(false));
+    commutative_equals!(Val::from("x"), Val::Boolean(true));
+    commutative_notequals!(Val::from("x"), Val::Null);
+    commutative_notequals!(Val::from("x"), Val::from(Array::new()));
+
+    // number mixed equality
+    commutative_equals!(Val::Number(0.0), Val::Boolean(false));
+    commutative_equals!(Val::Number(1.0), Val::Boolean(true));
+    commutative_equals!(Val::Number(0.0), Val::Null);
+    commutative_notequals!(Val::Number(1.0), Val::Null);
+    commutative_notequals!(Val::Number(0.0), Val::from(Array::new()));
+
+    // boolean mixed equality
+    commutative_equals!(Val::Boolean(false), Val::Null);
+    commutative_notequals!(Val::Boolean(true), Val::Null);
+    commutative_notequals!(Val::Boolean(false), Val::from(Array::new()));
+}
