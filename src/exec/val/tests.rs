@@ -252,3 +252,30 @@ fn compare() {
     commutative_invalid!(Val::Boolean(false), Val::Null);
     commutative_invalid!(Val::Boolean(false), Val::from(Array::new()));
 }
+
+#[test]
+fn inc_dec() {
+    let inc = |mut val: Val, amount| {
+        val.inc(amount)?;
+        Ok(val)
+    };
+    assert_eq!(
+        inc(Val::Undefined, 1),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        inc(Val::from("foo"), 1),
+        Err(ValueError::InvalidOperationForType)
+    );
+
+    assert_eq!(inc(Val::Null, 1), Ok(Val::Number(1.0)));
+    assert_eq!(inc(Val::Null, 5), Ok(Val::Number(5.0)));
+    assert_eq!(inc(Val::Null, -5), Ok(Val::Number(-5.0)));
+    assert_eq!(inc(Val::Number(0.0), 1), Ok(Val::Number(1.0)));
+    assert_eq!(inc(Val::Number(0.0), 5), Ok(Val::Number(5.0)));
+    assert_eq!(inc(Val::Number(0.0), -5), Ok(Val::Number(-5.0)));
+    assert_eq!(inc(Val::Boolean(false), 1), Ok(Val::Boolean(true)));
+    assert_eq!(inc(Val::Boolean(false), 2), Ok(Val::Boolean(false)));
+    assert_eq!(inc(Val::Boolean(false), 5), Ok(Val::Boolean(true)));
+    assert_eq!(inc(Val::Boolean(false), -5), Ok(Val::Boolean(true)));
+}

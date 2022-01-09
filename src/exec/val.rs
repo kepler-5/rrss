@@ -3,6 +3,7 @@ use std::{
     cmp::Ordering,
     collections::{HashMap, VecDeque},
     hash::{Hash, Hasher},
+    hint::unreachable_unchecked,
     mem::discriminant,
 };
 
@@ -336,5 +337,25 @@ impl Val {
                 }
             })
             .transpose()
+    }
+
+    pub fn inc(&mut self, x: isize) -> Result<(), ValueError> {
+        if self.is_null() {
+            *self = Val::Number(0.0);
+        }
+        match self {
+            Val::Null => unsafe { unreachable_unchecked() },
+
+            Val::Boolean(b) => {
+                *b ^= x % 2 != 0;
+                Ok(())
+            }
+            Val::Number(n) => {
+                *n += x as f64;
+                Ok(())
+            }
+
+            _ => Err(ValueError::InvalidOperationForType),
+        }
     }
 }
