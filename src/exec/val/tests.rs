@@ -201,3 +201,54 @@ fn equals() {
     commutative_notequals!(Val::Boolean(true), Val::Null);
     commutative_notequals!(Val::Boolean(false), Val::from(Array::new()));
 }
+
+#[test]
+fn compare() {
+    macro_rules! commutative_invalid {
+        ($a:expr, $b:expr) => {
+            assert_eq!($a.compare(&$b), Err(ValueError::InvalidComparison));
+            assert_eq!($b.compare(&$a), Err(ValueError::InvalidComparison));
+        };
+    }
+    macro_rules! commutative_less {
+        ($a:expr, $b:expr) => {
+            assert_eq!($a.compare(&$b), Ok(Some(Ordering::Less)));
+            assert_ne!($b.compare(&$a), Ok(Some(Ordering::Less)));
+        };
+    }
+    macro_rules! commutative_none {
+        ($a:expr, $b:expr) => {
+            assert_eq!($a.compare(&$b), Ok(None));
+            assert_eq!($b.compare(&$a), Ok(None));
+        };
+    }
+
+    commutative_invalid!(Val::Undefined, Val::Null);
+    commutative_invalid!(Val::Undefined, Val::Boolean(false));
+    commutative_invalid!(Val::Undefined, Val::Number(0.0));
+    commutative_invalid!(Val::Undefined, Val::from(""));
+    commutative_invalid!(Val::Undefined, Val::from(Array::new()));
+
+    commutative_invalid!(Val::Boolean(false), Val::Boolean(true));
+    commutative_less!(Val::Number(1.0), Val::Number(10.0));
+    commutative_less!(Val::from("aardvark"), Val::from("bar"));
+    commutative_less!(Val::from("02"), Val::from("10"));
+    commutative_invalid!(Val::from(Array::new()), Val::from(Array::new()));
+
+    // string mixed cmp
+    commutative_less!(Val::from("0"), Val::Number(1.0));
+    commutative_none!(Val::from("ten"), Val::Number(0.0));
+    commutative_invalid!(Val::from(""), Val::Boolean(false));
+    commutative_invalid!(Val::from("x"), Val::Boolean(true));
+    commutative_invalid!(Val::from("x"), Val::Null);
+    commutative_invalid!(Val::from("x"), Val::from(Array::new()));
+
+    // number mixed cmp
+    commutative_invalid!(Val::Number(10.0), Val::Boolean(false));
+    commutative_less!(Val::Number(-1.0), Val::Null);
+    commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
+
+    // boolean mixed equality
+    commutative_invalid!(Val::Boolean(false), Val::Null);
+    commutative_invalid!(Val::Boolean(false), Val::from(Array::new()));
+}

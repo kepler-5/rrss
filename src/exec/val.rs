@@ -7,6 +7,7 @@ use std::{
 };
 
 use derive_more::IsVariant;
+use inner::inner;
 use unchecked_unwrap::UncheckedUnwrap;
 
 #[cfg(test)]
@@ -21,6 +22,7 @@ pub enum ValueError {
     IndexNotAssignable,
     InvalidOperationForType,
     PopOnEmptyArray,
+    InvalidComparison,
 }
 
 #[derive(Debug, IsVariant, PartialEq)]
@@ -315,7 +317,24 @@ impl Val {
             .unwrap_or(false)
     }
 
-    // pub fn compare(&self, other: &Val) -> Ordering {
-    //     todo!()
-    // }
+    pub fn compare(&self, other: &Val) -> Result<Option<Ordering>, ValueError> {
+        self.cmp_coerced(other)
+            .and_then(|(a, b)| {
+                if discriminant(a.as_ref()) != discriminant(b.as_ref()) {
+                    Some(Err(ValueError::InvalidComparison))
+                } else {
+                    match a.as_ref() {
+                        Val::Undefined => Some(Ok(Ordering::Equal)),
+                        Val::Null => Some(Ok(Ordering::Equal)),
+
+                        Val::Number(n) => n.partial_cmp(inner!(b.as_ref(), if Val::Number)).map(Ok),
+                        Val::String(s) => Some(Ok(s.cmp(inner!(b.as_ref(), if Val::String)))),
+
+                        Val::Boolean(_) => Some(Err(ValueError::InvalidComparison)),
+                        Val::Array(_) => Some(Err(ValueError::InvalidComparison)),
+                    }
+                }
+            })
+            .transpose()
+    }
 }
