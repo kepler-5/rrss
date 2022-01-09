@@ -405,4 +405,17 @@ impl Val {
             _ => Err(ValueError::InvalidOperationForType),
         }
     }
+
+    pub fn subtract(&self, other: &Val) -> Result<Val, ValueError> {
+        match (self, other) {
+            (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a - b)),
+            _ => Err(ValueError::InvalidOperationForType),
+        }
+    }
+    pub fn divide(&self, other: &Val) -> Result<Val, ValueError> {
+        match (self, other) {
+            (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a / b)),
+            _ => Err(ValueError::InvalidOperationForType),
+        }
+    }
 }

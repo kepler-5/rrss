@@ -398,3 +398,81 @@ fn multiply() {
     commutative_invalid!(Val::Boolean(false), Val::Null);
     commutative_invalid!(Val::Boolean(false), Val::from(Array::new()));
 }
+
+#[test]
+fn subtract() {
+    macro_rules! commutative_invalid {
+        ($a:expr, $b:expr) => {
+            assert_eq!($a.subtract(&$b), Err(ValueError::InvalidOperationForType));
+            assert_eq!($b.subtract(&$a), Err(ValueError::InvalidOperationForType));
+        };
+    }
+    commutative_invalid!(Val::Undefined, Val::Null);
+    commutative_invalid!(Val::Undefined, Val::Boolean(false));
+    commutative_invalid!(Val::Undefined, Val::Number(0.0));
+    commutative_invalid!(Val::Undefined, Val::from(""));
+    commutative_invalid!(Val::Undefined, Val::from(Array::new()));
+
+    commutative_invalid!(Val::Boolean(false), Val::Boolean(true));
+    assert_eq!(
+        Val::Number(2.0).subtract(&Val::Number(10.0)),
+        Ok(Val::Number(-8.0))
+    );
+    commutative_invalid!(Val::from("aardvark"), Val::from("bar"));
+    commutative_invalid!(Val::from(Array::new()), Val::from(Array::new()));
+
+    // string mixed subtract
+    commutative_invalid!(Val::from("0"), Val::Number(1.0));
+    commutative_invalid!(Val::from("0"), &Val::Number(-1.0));
+    commutative_invalid!(Val::from("x"), Val::Boolean(false));
+    commutative_invalid!(Val::from("x"), Val::Null);
+    commutative_invalid!(Val::from("x"), Val::from(Array::new()));
+
+    // number mixed subtract
+    commutative_invalid!(Val::Number(10.0), Val::Boolean(false));
+    commutative_invalid!(Val::Number(-1.0), Val::Null);
+    commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
+
+    // boolean mixed subtract
+    commutative_invalid!(Val::Boolean(false), Val::Null);
+    commutative_invalid!(Val::Boolean(false), Val::from(Array::new()));
+}
+
+#[test]
+fn divide() {
+    macro_rules! commutative_invalid {
+        ($a:expr, $b:expr) => {
+            assert_eq!($a.divide(&$b), Err(ValueError::InvalidOperationForType));
+            assert_eq!($b.divide(&$a), Err(ValueError::InvalidOperationForType));
+        };
+    }
+    commutative_invalid!(Val::Undefined, Val::Null);
+    commutative_invalid!(Val::Undefined, Val::Boolean(false));
+    commutative_invalid!(Val::Undefined, Val::Number(0.0));
+    commutative_invalid!(Val::Undefined, Val::from(""));
+    commutative_invalid!(Val::Undefined, Val::from(Array::new()));
+
+    commutative_invalid!(Val::Boolean(false), Val::Boolean(true));
+    assert_eq!(
+        Val::Number(2.0).divide(&Val::Number(10.0)),
+        Ok(Val::Number(0.2))
+    );
+    commutative_invalid!(Val::from("aardvark"), Val::from("bar"));
+    commutative_invalid!(Val::from(Array::new()), Val::from(Array::new()));
+
+    // string mixed divide
+    commutative_invalid!(Val::from("0"), Val::Number(1.0));
+    commutative_invalid!(Val::from("0"), &Val::Number(-1.0));
+    commutative_invalid!(Val::from("x"), Val::Boolean(false));
+    commutative_invalid!(Val::from("x"), Val::Null);
+    commutative_invalid!(Val::from("x"), Val::from(Array::new()));
+
+    // number mixed divide
+    commutative_invalid!(Val::Number(10.0), Val::Boolean(false));
+    commutative_invalid!(Val::Number(-1.0), Val::Null);
+    commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
+
+    // boolean mixed divide
+    commutative_invalid!(Val::Boolean(false), Val::Null);
+    commutative_invalid!(Val::Boolean(false), Val::from(Array::new()));
+}
