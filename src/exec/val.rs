@@ -4,6 +4,8 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+use derive_more::IsVariant;
+
 #[cfg(test)]
 mod tests;
 
@@ -16,7 +18,7 @@ pub enum ValueError {
     IndexNotAssignable,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, IsVariant, PartialEq)]
 pub enum Val {
     Undefined,
     Null,
@@ -216,6 +218,9 @@ impl Val {
     }
 
     pub fn index_or_insert(&mut self, val: &Val) -> Result<&mut Val, ValueError> {
+        if self.is_undefined() {
+            *self = Array::new().into();
+        }
         match self {
             Val::Array(a) => a.index_or_insert(val),
             Val::String(_) => Err(ValueError::IndexNotAssignable),

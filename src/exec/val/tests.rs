@@ -40,6 +40,14 @@ fn not_indexable() {
         Val::Number(100.0).index(&"100.0".into()),
         Err(ValueError::NotIndexable)
     );
+
+    // undefined's become arrays when you write to an index
+    let mut und = Val::Undefined;
+    assert!(und.is_undefined());
+    assert_eq!(und.index(&Val::Null), Err(ValueError::NotIndexable));
+    *und.index_or_insert(&Val::Null).unwrap() = Val::Boolean(true);
+    assert!(und.is_array());
+    assert_eq!(und.index(&Val::Null).unwrap().as_ref(), &Val::Boolean(true));
 }
 
 #[test]
