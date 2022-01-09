@@ -79,7 +79,7 @@ pub struct Linter {
 
 #[derive(Constructor)]
 pub struct LinterResult {
-    diags: Vec<Diag>,
+    pub diags: Vec<Diag>,
 }
 
 impl Linter {

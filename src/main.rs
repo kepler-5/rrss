@@ -5,10 +5,8 @@ pub mod cli;
 pub mod frontend;
 pub mod linter;
 
-use crate::cli::driver;
-
 fn main() {
-    let exit_code = match driver::cli(env::args()) {
+    let exit_code = match cli::cli(env::args()) {
         Ok(()) => 0,
         Err(e) => {
             eprintln!("{}", e);
