@@ -358,4 +358,37 @@ impl Val {
             _ => Err(ValueError::InvalidOperationForType),
         }
     }
+
+    fn plus_coerced<'a>(&'a self, other: &'a Val) -> (ValOrRef<'a>, ValOrRef<'a>) {
+        match (self, other) {
+            (Val::String(_), Val::Undefined) => (self.into(), Val::from("mysterious").into()),
+            (Val::String(_), Val::Null) => (self.into(), Val::from("null").into()),
+            (Val::String(_), Val::Boolean(b)) => (
+                self.into(),
+                Val::from(if *b { "true" } else { "false" }).into(),
+            ),
+            (Val::String(_), Val::Number(n)) => (self.into(), Val::from(n.to_string()).into()),
+
+            (Val::String(_), Val::String(_)) => (self.into(), other.into()),
+
+            (_, Val::String(_)) => {
+                let (o, s) = other.plus_coerced(self);
+                (s, o)
+            }
+
+            _ => (self.into(), other.into()),
+        }
+    }
+
+    pub fn plus(&self, other: &Val) -> Result<Val, ValueError> {
+        let (a, b) = self.plus_coerced(other);
+        match (a.as_ref(), b.as_ref()) {
+            (Val::String(a), Val::String(b)) => {
+                Ok(Val::from(a.chars().chain(b.chars()).collect::<String>()))
+            }
+            (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a + b)),
+
+            _ => Err(ValueError::InvalidOperationForType),
+        }
+    }
 }

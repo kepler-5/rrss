@@ -279,3 +279,72 @@ fn inc_dec() {
     assert_eq!(inc(Val::Boolean(false), 5), Ok(Val::Boolean(true)));
     assert_eq!(inc(Val::Boolean(false), -5), Ok(Val::Boolean(true)));
 }
+
+#[test]
+fn plus() {
+    macro_rules! commutative_invalid {
+        ($a:expr, $b:expr) => {
+            assert_eq!($a.plus(&$b), Err(ValueError::InvalidOperationForType));
+            assert_eq!($b.plus(&$a), Err(ValueError::InvalidOperationForType));
+        };
+    }
+    commutative_invalid!(Val::Undefined, Val::Null);
+    commutative_invalid!(Val::Undefined, Val::Boolean(false));
+    commutative_invalid!(Val::Undefined, Val::Number(0.0));
+    commutative_invalid!(Val::Undefined, Val::from(Array::new()));
+
+    commutative_invalid!(Val::Boolean(false), Val::Boolean(true));
+    assert_eq!(
+        Val::Number(1.0).plus(&Val::Number(10.0)),
+        Ok(Val::Number(11.0))
+    );
+    assert_eq!(
+        Val::from("aardvark").plus(&Val::from("bar")),
+        Ok(Val::from("aardvarkbar"))
+    );
+    assert_eq!(
+        Val::from("bar").plus(&Val::from("aardvark")),
+        Ok(Val::from("baraardvark"))
+    );
+    commutative_invalid!(Val::from(Array::new()), Val::from(Array::new()));
+
+    // string mixed plus
+    assert_eq!(Val::from("0").plus(&Val::Number(1.0)), Ok(Val::from("01")));
+    assert_eq!(Val::Number(1.0).plus(&Val::from("0")), Ok(Val::from("10")));
+    assert_eq!(
+        Val::from("x").plus(&Val::Boolean(false)),
+        Ok(Val::from("xfalse"))
+    );
+    assert_eq!(
+        Val::from("x").plus(&Val::Boolean(true)),
+        Ok(Val::from("xtrue"))
+    );
+    assert_eq!(
+        Val::Boolean(false).plus(&Val::from("x")),
+        Ok(Val::from("falsex"))
+    );
+    assert_eq!(
+        Val::Boolean(true).plus(&Val::from("x")),
+        Ok(Val::from("truex"))
+    );
+    assert_eq!(Val::from("x").plus(&Val::Null), Ok(Val::from("xnull")));
+    assert_eq!(Val::Null.plus(&Val::from("x")), Ok(Val::from("nullx")));
+    assert_eq!(
+        Val::from("x").plus(&Val::Undefined),
+        Ok(Val::from("xmysterious"))
+    );
+    assert_eq!(
+        Val::Undefined.plus(&Val::from("x")),
+        Ok(Val::from("mysteriousx"))
+    );
+    commutative_invalid!(Val::from("x"), Val::from(Array::new()));
+
+    // number mixed plus
+    commutative_invalid!(Val::Number(10.0), Val::Boolean(false));
+    commutative_invalid!(Val::Number(-1.0), Val::Null);
+    commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
+
+    // boolean mixed plus
+    commutative_invalid!(Val::Boolean(false), Val::Null);
+    commutative_invalid!(Val::Boolean(false), Val::from(Array::new()));
+}
