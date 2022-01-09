@@ -229,4 +229,15 @@ impl Val {
             v => ValOrRef::Ref(v),
         }
     }
+
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            Val::Undefined => false,
+            Val::Null => false,
+            Val::Boolean(b) => *b,
+            Val::Number(n) => *n != 0.0,
+            Val::String(_) => true,
+            Val::Array(_) => true,
+        }
+    }
 }

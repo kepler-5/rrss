@@ -79,3 +79,16 @@ fn decay() {
     *arr.index_or_insert(&Val::Number(0.0)).unwrap() = Val::Number(1.0);
     assert_eq!(arr.decay(), Val::Number(3.0).into());
 }
+
+#[test]
+fn is_truthy() {
+    assert!(!Val::Undefined.is_truthy());
+    assert!(!Val::Null.is_truthy());
+    assert!(!Val::Boolean(false).is_truthy());
+    assert!(Val::Boolean(true).is_truthy());
+    assert!(!Val::Number(0.0).is_truthy());
+    assert!(Val::Number(42.0).is_truthy());
+    assert!(Val::from("").is_truthy());
+    assert!(Val::from("foo").is_truthy());
+    assert!(Val::from(Array::new()).is_truthy());
+}
