@@ -62,11 +62,11 @@ pub enum LiteralExpression {
     String(String),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SimpleIdentifier(pub String);
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CommonIdentifier(pub String, pub String);
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProperIdentifier(pub Vec<String>);
 
 #[derive(Clone, Debug, PartialEq)]
