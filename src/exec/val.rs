@@ -222,7 +222,9 @@ impl Val {
             _ => Err(ValueError::NotIndexable),
         }
     }
+}
 
+impl Val {
     pub fn decay(&self) -> ValOrRef {
         match self {
             Val::Array(a) => Val::Number(a.len() as f64).into(),

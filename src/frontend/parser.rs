@@ -1054,13 +1054,15 @@ impl<'a> Parser<'a> {
         Ok(Continue(start_range.concat(end_range)))
     }
 
-    fn parse_array_push_rhs(&mut self) -> Result<ArrayPushRHS, ParseError<'a>> {
-        match self.expect_any(&[TokenType::With, TokenType::Like])?.id {
-            TokenType::With => self.parse_toplevel_expression_list().map(Into::into),
-            TokenType::Like => self.parse_poetic_number_literal().map(Into::into),
+    fn parse_array_push_rhs(&mut self) -> Result<Option<ArrayPushRHS>, ParseError<'a>> {
+        self.match_and_consume([TokenType::With, TokenType::Like].as_ref())
+            .map(|tok| match tok.id {
+                TokenType::With => self.parse_toplevel_expression_list().map(Into::into),
+                TokenType::Like => self.parse_poetic_number_literal().map(Into::into),
 
-            _ => unsafe { unreachable_unchecked() },
-        }
+                _ => unsafe { unreachable_unchecked() },
+            })
+            .transpose()
     }
 
     fn parse_array_push(&mut self) -> Result<ArrayPush, ParseError<'a>> {

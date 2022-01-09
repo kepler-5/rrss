@@ -2335,11 +2335,21 @@ fn parse_array_push_pop() {
     let parse = |text| Parser::for_source_code(text).parse_statement();
 
     assert_eq!(
+        parse("rock ints"),
+        Ok(Some(
+            ArrayPush {
+                array: WithRange(SimpleIdentifier("ints".into()), line_range(5, 9)).into(),
+                value: None
+            }
+            .into()
+        ))
+    );
+    assert_eq!(
         parse("rock ints with 1"),
         Ok(Some(
             ArrayPush {
                 array: WithRange(SimpleIdentifier("ints".into()), line_range(5, 9)).into(),
-                value: WithRange(LiteralExpression::Number(1.0), line_range(15, 16)).into()
+                value: Some(WithRange(LiteralExpression::Number(1.0), line_range(15, 16)).into())
             }
             .into()
         ))
@@ -2349,14 +2359,16 @@ fn parse_array_push_pop() {
         Ok(Some(
             ArrayPush {
                 array: WithRange(SimpleIdentifier("ints".into()), line_range(5, 9)).into(),
-                value: ExpressionList {
-                    first: WithRange(LiteralExpression::Number(1.0), line_range(15, 16)).into(),
-                    rest: vec![
-                        WithRange(LiteralExpression::Number(2.0), line_range(18, 19)).into(),
-                        WithRange(LiteralExpression::Number(3.0), line_range(21, 22)).into()
-                    ]
-                }
-                .into()
+                value: Some(
+                    ExpressionList {
+                        first: WithRange(LiteralExpression::Number(1.0), line_range(15, 16)).into(),
+                        rest: vec![
+                            WithRange(LiteralExpression::Number(2.0), line_range(18, 19)).into(),
+                            WithRange(LiteralExpression::Number(3.0), line_range(21, 22)).into()
+                        ]
+                    }
+                    .into()
+                )
             }
             .into()
         ))
@@ -2366,26 +2378,28 @@ fn parse_array_push_pop() {
         Ok(Some(
             ArrayPush {
                 array: WithRange(SimpleIdentifier("ints".into()), line_range(5, 9)).into(),
-                value: ExpressionList {
-                    first: WithRange(LiteralExpression::Number(1.0), line_range(15, 16)).into(),
-                    rest: vec![
-                        BinaryExpression {
-                            operator: BinaryOperator::Plus,
-                            lhs: boxed_expr(WithRange(
-                                LiteralExpression::Number(2.0),
-                                line_range(18, 19)
-                            )),
-                            rhs: boxed_expr(WithRange(
-                                LiteralExpression::Number(3.0),
-                                line_range(25, 26)
-                            ))
-                        }
-                        .into(),
-                        WithRange(LiteralExpression::Number(4.0), line_range(28, 29)).into(),
-                        WithRange(LiteralExpression::Number(5.0), line_range(31, 32)).into(),
-                    ]
-                }
-                .into()
+                value: Some(
+                    ExpressionList {
+                        first: WithRange(LiteralExpression::Number(1.0), line_range(15, 16)).into(),
+                        rest: vec![
+                            BinaryExpression {
+                                operator: BinaryOperator::Plus,
+                                lhs: boxed_expr(WithRange(
+                                    LiteralExpression::Number(2.0),
+                                    line_range(18, 19)
+                                )),
+                                rhs: boxed_expr(WithRange(
+                                    LiteralExpression::Number(3.0),
+                                    line_range(25, 26)
+                                ))
+                            }
+                            .into(),
+                            WithRange(LiteralExpression::Number(4.0), line_range(28, 29)).into(),
+                            WithRange(LiteralExpression::Number(5.0), line_range(31, 32)).into(),
+                        ]
+                    }
+                    .into()
+                )
             }
             .into()
         ))
@@ -2395,13 +2409,15 @@ fn parse_array_push_pop() {
         Ok(Some(
             ArrayPush {
                 array: WithRange(SimpleIdentifier("you".into()), line_range(5, 8)).into(),
-                value: PoeticNumberLiteral {
-                    elems: vec![
-                        PoeticNumberLiteralElem::Word("a".into()),
-                        PoeticNumberLiteralElem::Word("hurricane".into())
-                    ]
-                }
-                .into()
+                value: Some(
+                    PoeticNumberLiteral {
+                        elems: vec![
+                            PoeticNumberLiteralElem::Word("a".into()),
+                            PoeticNumberLiteralElem::Word("hurricane".into())
+                        ]
+                    }
+                    .into()
+                )
             }
             .into()
         ))
@@ -2411,10 +2427,12 @@ fn parse_array_push_pop() {
         Ok(Some(
             ArrayPush {
                 array: WithRange(SimpleIdentifier("you".into()), line_range(5, 8)).into(),
-                value: PoeticNumberLiteral {
-                    elems: vec![PoeticNumberLiteralElem::Word("nothing".into())]
-                }
-                .into()
+                value: Some(
+                    PoeticNumberLiteral {
+                        elems: vec![PoeticNumberLiteralElem::Word("nothing".into())]
+                    }
+                    .into()
+                )
             }
             .into()
         ))
@@ -2431,7 +2449,7 @@ fn parse_array_push_pop() {
                     ))
                 }
                 .into(),
-                value: WithRange(LiteralExpression::Number(1.0), line_range(24, 25)).into()
+                value: Some(WithRange(LiteralExpression::Number(1.0), line_range(24, 25)).into())
             }
             .into()
         ))

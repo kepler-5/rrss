@@ -447,9 +447,11 @@ impl<T: VisitExpr> VisitProgram for ExprVisitorRunner<T> {
         leaf(b)
     }
     fn visit_array_push(&mut self, a: &ArrayPush) -> Result<Self> {
-        Ok(self
-            .visit_primary_expression(&a.array)?
-            .combine(self.visit_array_push_rhs(&a.value)?))
+        Ok(self.visit_primary_expression(&a.array)?.combine(
+            a.value
+                .as_ref()
+                .map_or_else(|| leaf(()), |value| self.visit_array_push_rhs(value))?,
+        ))
     }
     fn visit_array_pop(&mut self, a: &ArrayPop) -> Result<Self> {
         Ok(self.visit_primary_expression(&a.array)?.combine(

@@ -194,11 +194,13 @@ impl VisitProgram for BoringAssignmentPass {
         })
     }
     fn visit_array_push(&mut self, a: &ArrayPush) -> visit::Result<Self> {
-        Ok(maybe_build_numeric_array_push_diag(
-            &a.array,
-            Self::find_boring_array_push_rhs(&a.value),
-            a.line(),
-        ))
+        Ok(a.value.as_ref().map_or(Self::Output::Empty, |value| {
+            maybe_build_numeric_array_push_diag(
+                &a.array,
+                Self::find_boring_array_push_rhs(value),
+                a.line(),
+            )
+        }))
     }
 }
 

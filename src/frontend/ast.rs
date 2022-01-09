@@ -372,7 +372,7 @@ bridging_from!(for ArrayPushRHS: ExpressionList);
 #[derive(Debug, PartialEq)]
 pub struct ArrayPush {
     pub array: PrimaryExpression,
-    pub value: ArrayPushRHS,
+    pub value: Option<ArrayPushRHS>,
 }
 
 #[derive(Debug, PartialEq)]
