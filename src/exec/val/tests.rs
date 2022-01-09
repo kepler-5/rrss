@@ -70,6 +70,48 @@ fn string_index() {
 }
 
 #[test]
+fn array_push_pop() {
+    let mut arr = Val::Undefined;
+
+    let ok = arr.push(Val::Null);
+    assert!(ok.is_ok());
+    assert!(arr.is_array());
+
+    assert_eq!(arr.index(&Val::Number(0.0)).unwrap().as_ref(), &Val::Null);
+    assert_eq!(arr.decay(), Val::Number(1.0).into());
+
+    let ok = arr.push(Val::Boolean(true));
+    assert!(ok.is_ok());
+    assert_eq!(arr.index(&Val::Number(0.0)).unwrap().as_ref(), &Val::Null);
+    assert_eq!(
+        arr.index(&Val::Number(1.0)).unwrap().as_ref(),
+        &Val::Boolean(true)
+    );
+    assert_eq!(arr.decay(), Val::Number(2.0).into());
+
+    let ok = arr.pop();
+    assert!(ok.is_ok());
+    assert_eq!(
+        arr.index(&Val::Number(0.0)).unwrap().as_ref(),
+        &Val::Boolean(true)
+    );
+    assert_eq!(arr.decay(), Val::Number(1.0).into());
+
+    let ok = arr.pop();
+    assert!(ok.is_ok());
+    assert_eq!(arr.decay(), Val::Number(0.0).into());
+
+    let err = arr.pop();
+    assert_eq!(err, Err(ValueError::PopOnEmptyArray));
+
+    assert_eq!(
+        Val::Null.push(Val::Null),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(Val::Null.pop(), Err(ValueError::InvalidOperationForType));
+}
+
+#[test]
 fn decay() {
     assert_eq!(Val::Undefined.decay(), (&Val::Undefined).into());
     assert_eq!(Val::Null.decay(), (&Val::Null).into());

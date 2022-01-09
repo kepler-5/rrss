@@ -1,10 +1,11 @@
 use std::{
     borrow::Borrow,
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     hash::{Hash, Hasher},
 };
 
 use derive_more::IsVariant;
+use unchecked_unwrap::UncheckedUnwrap;
 
 #[cfg(test)]
 mod tests;
@@ -16,6 +17,8 @@ pub enum ValueError {
     NoValueForKey,
     IndexOutOfBounds,
     IndexNotAssignable,
+    InvalidOperationForType,
+    PopOnEmptyArray,
 }
 
 #[derive(Debug, IsVariant, PartialEq)]
@@ -113,14 +116,14 @@ impl<'a> Borrow<dyn Key + 'a> for DictKeyRef<'a> {
 
 #[derive(Debug, PartialEq)]
 pub struct Array {
-    arr: Vec<Val>,
+    arr: VecDeque<Val>,
     dict: HashMap<DictKey, Val>,
 }
 
 impl Array {
     pub fn new() -> Self {
         Self {
-            arr: Vec::new(),
+            arr: VecDeque::new(),
             dict: HashMap::new(),
         }
     }
@@ -148,7 +151,7 @@ impl Array {
 
     fn index_or_insert(&mut self, val: &Val) -> Result<&mut Val, ValueError> {
         match val {
-            Val::Number(n) => self.index_arr_or_insert(*n as usize),
+            Val::Number(n) => Ok(self.index_arr_or_insert(*n as usize)),
             Val::Undefined => Ok(self.index_dict_or_insert(DictKey::Undefined)),
             Val::Null => Ok(self.index_dict_or_insert(DictKey::Null)),
             Val::Boolean(b) => Ok(self.index_dict_or_insert(DictKey::Boolean(*b))),
@@ -156,14 +159,21 @@ impl Array {
             Val::Array(_) => Err(ValueError::InvalidKey),
         }
     }
-    fn index_arr_or_insert(&mut self, i: usize) -> Result<&mut Val, ValueError> {
+    fn index_arr_or_insert(&mut self, i: usize) -> &mut Val {
         if i >= self.arr.len() {
             self.arr.resize_with(i + 1, Default::default);
         }
-        Ok(unsafe { self.arr.get_unchecked_mut(i) })
+        unsafe { self.arr.get_mut(i).unchecked_unwrap() }
     }
     fn index_dict_or_insert(&mut self, k: DictKey) -> &mut Val {
         self.dict.entry(k).or_default()
+    }
+
+    fn push(&mut self, val: Val) {
+        self.arr.push_back(val)
+    }
+    fn pop(&mut self) -> Result<Val, ValueError> {
+        self.arr.pop_front().ok_or(ValueError::PopOnEmptyArray)
     }
 }
 
@@ -225,6 +235,22 @@ impl Val {
             Val::Array(a) => a.index_or_insert(val),
             Val::String(_) => Err(ValueError::IndexNotAssignable),
             _ => Err(ValueError::NotIndexable),
+        }
+    }
+
+    pub fn push(&mut self, val: Val) -> Result<(), ValueError> {
+        if self.is_undefined() {
+            *self = Array::new().into();
+        }
+        match self {
+            Val::Array(a) => Ok(a.push(val)),
+            _ => Err(ValueError::InvalidOperationForType),
+        }
+    }
+    pub fn pop(&mut self) -> Result<Val, ValueError> {
+        match self {
+            Val::Array(a) => a.pop(),
+            _ => Err(ValueError::InvalidOperationForType),
         }
     }
 }
