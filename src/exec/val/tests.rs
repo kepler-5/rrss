@@ -348,3 +348,53 @@ fn plus() {
     commutative_invalid!(Val::Boolean(false), Val::Null);
     commutative_invalid!(Val::Boolean(false), Val::from(Array::new()));
 }
+
+#[test]
+fn multiply() {
+    macro_rules! commutative_invalid {
+        ($a:expr, $b:expr) => {
+            assert_eq!($a.multiply(&$b), Err(ValueError::InvalidOperationForType));
+            assert_eq!($b.multiply(&$a), Err(ValueError::InvalidOperationForType));
+        };
+    }
+    commutative_invalid!(Val::Undefined, Val::Null);
+    commutative_invalid!(Val::Undefined, Val::Boolean(false));
+    commutative_invalid!(Val::Undefined, Val::Number(0.0));
+    commutative_invalid!(Val::Undefined, Val::from(""));
+    commutative_invalid!(Val::Undefined, Val::from(Array::new()));
+
+    commutative_invalid!(Val::Boolean(false), Val::Boolean(true));
+    assert_eq!(
+        Val::Number(2.0).multiply(&Val::Number(10.0)),
+        Ok(Val::Number(20.0))
+    );
+    commutative_invalid!(Val::from("aardvark"), Val::from("bar"));
+    commutative_invalid!(Val::from(Array::new()), Val::from(Array::new()));
+
+    // string mixed multiply
+    assert_eq!(
+        Val::from("0").multiply(&Val::Number(1.0)),
+        Ok(Val::from("0"))
+    );
+    assert_eq!(
+        Val::from("0").multiply(&Val::Number(3.0)),
+        Ok(Val::from("000"))
+    );
+    assert_eq!(
+        Val::from("0").multiply(&Val::Number(0.0)),
+        Ok(Val::from(""))
+    );
+    commutative_invalid!(Val::from("0"), &Val::Number(-1.0));
+    commutative_invalid!(Val::from("x"), Val::Boolean(false));
+    commutative_invalid!(Val::from("x"), Val::Null);
+    commutative_invalid!(Val::from("x"), Val::from(Array::new()));
+
+    // number mixed multiply
+    commutative_invalid!(Val::Number(10.0), Val::Boolean(false));
+    commutative_invalid!(Val::Number(-1.0), Val::Null);
+    commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
+
+    // boolean mixed multiply
+    commutative_invalid!(Val::Boolean(false), Val::Null);
+    commutative_invalid!(Val::Boolean(false), Val::from(Array::new()));
+}

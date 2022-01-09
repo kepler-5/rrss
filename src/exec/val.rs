@@ -9,6 +9,7 @@ use std::{
 
 use derive_more::IsVariant;
 use inner::inner;
+use itertools::repeat_n;
 use unchecked_unwrap::UncheckedUnwrap;
 
 #[cfg(test)]
@@ -387,6 +388,19 @@ impl Val {
                 Ok(Val::from(a.chars().chain(b.chars()).collect::<String>()))
             }
             (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a + b)),
+
+            _ => Err(ValueError::InvalidOperationForType),
+        }
+    }
+
+    pub fn multiply(&self, other: &Val) -> Result<Val, ValueError> {
+        match (self, other) {
+            (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a * b)),
+            (Val::String(a), Val::Number(b)) if *b >= 0.0 => Ok(Val::from(
+                repeat_n(a.chars(), *b as usize)
+                    .flatten()
+                    .collect::<String>(),
+            )),
 
             _ => Err(ValueError::InvalidOperationForType),
         }
