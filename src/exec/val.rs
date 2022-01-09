@@ -123,6 +123,10 @@ impl Array {
         }
     }
 
+    fn len(&self) -> usize {
+        self.arr.len() + self.dict.len()
+    }
+
     fn index(&self, val: &Val) -> Result<&Val, ValueError> {
         match val {
             Val::Number(n) => self.index_arr(*n as usize),
@@ -182,6 +186,12 @@ impl<V: Into<Val>> From<V> for ValOrRef<'_> {
     }
 }
 
+impl<'a> From<&'a Val> for ValOrRef<'a> {
+    fn from(v: &'a Val) -> Self {
+        ValOrRef::Ref(v)
+    }
+}
+
 fn index_string(s: &str, i: usize) -> Result<Val, ValueError> {
     s.chars()
         .nth(i)
@@ -210,6 +220,13 @@ impl Val {
             Val::Array(a) => a.index_or_insert(val),
             Val::String(_) => Err(ValueError::IndexNotAssignable),
             _ => Err(ValueError::NotIndexable),
+        }
+    }
+
+    pub fn decay(&self) -> ValOrRef {
+        match self {
+            Val::Array(a) => Val::Number(a.len() as f64).into(),
+            v => ValOrRef::Ref(v),
         }
     }
 }
