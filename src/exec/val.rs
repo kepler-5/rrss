@@ -1,5 +1,5 @@
 use std::{
-    borrow::Borrow,
+    borrow::{Borrow, Cow},
     cmp::Ordering,
     collections::{HashMap, VecDeque},
     hash::{Hash, Hasher},
@@ -27,7 +27,7 @@ pub enum ValueError {
     InvalidComparison,
 }
 
-#[derive(Debug, IsVariant, PartialEq)]
+#[derive(Clone, Debug, IsVariant, PartialEq)]
 pub enum Val {
     Undefined,
     Null,
@@ -55,7 +55,7 @@ impl From<Array> for Val {
     }
 }
 
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 enum DictKey {
     Undefined,
     Null,
@@ -120,7 +120,7 @@ impl<'a> Borrow<dyn Key + 'a> for DictKeyRef<'a> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Array {
     arr: VecDeque<Val>,
     dict: HashMap<DictKey, Val>,
@@ -183,33 +183,6 @@ impl Array {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum ValOrRef<'a> {
-    Val(Val),
-    Ref(&'a Val),
-}
-
-impl<'a> ValOrRef<'a> {
-    pub fn as_ref(&self) -> &Val {
-        match self {
-            ValOrRef::Val(v) => &v,
-            ValOrRef::Ref(r) => r,
-        }
-    }
-}
-
-impl<V: Into<Val>> From<V> for ValOrRef<'_> {
-    fn from(v: V) -> Self {
-        ValOrRef::Val(v.into())
-    }
-}
-
-impl<'a> From<&'a Val> for ValOrRef<'a> {
-    fn from(v: &'a Val) -> Self {
-        ValOrRef::Ref(v)
-    }
-}
-
 fn index_string(s: &str, i: usize) -> Result<Val, ValueError> {
     s.chars()
         .nth(i)
@@ -225,10 +198,10 @@ fn index_string_with(s: &str, val: &Val) -> Result<Val, ValueError> {
 }
 
 impl Val {
-    pub fn index(&self, val: &Val) -> Result<ValOrRef, ValueError> {
+    pub fn index<'a>(&'a self, val: &Val) -> Result<Cow<'a, Val>, ValueError> {
         match self {
-            Val::String(s) => index_string_with(s, val).map(ValOrRef::Val),
-            Val::Array(a) => a.index(val).map(ValOrRef::Ref),
+            Val::String(s) => index_string_with(s, val).map(Cow::Owned),
+            Val::Array(a) => a.index(val).map(Cow::Borrowed),
             _ => Err(ValueError::NotIndexable),
         }
     }
@@ -262,10 +235,10 @@ impl Val {
 }
 
 impl Val {
-    pub fn decay(&self) -> ValOrRef {
+    pub fn decay(&self) -> Cow<'_, Val> {
         match self {
-            Val::Array(a) => Val::Number(a.len() as f64).into(),
-            v => ValOrRef::Ref(v),
+            Val::Array(a) => Cow::Owned(Val::Number(a.len() as f64)),
+            v => Cow::Borrowed(v),
         }
     }
 
@@ -280,24 +253,27 @@ impl Val {
         }
     }
 
-    fn cmp_coerced<'a>(&'a self, other: &'a Val) -> Option<(ValOrRef<'a>, ValOrRef<'a>)> {
+    fn cmp_coerced<'a>(&'a self, other: &'a Val) -> Option<(Cow<'a, Val>, Cow<'a, Val>)> {
         if discriminant(self) == discriminant(other) {
-            Some((self.into(), other.into()))
+            Some((Cow::Borrowed(self), Cow::Borrowed(other)))
         } else {
             match self {
-                Val::Undefined => Some((self.into(), other.into())),
-                Val::Array(_) => Some((self.into(), other.into())),
+                Val::Undefined => Some((Cow::Borrowed(self), Cow::Borrowed(other))),
+                Val::Array(_) => Some((Cow::Borrowed(self), Cow::Borrowed(other))),
 
                 Val::Null => other.cmp_coerced(self).map(|x| (x.1, x.0)),
 
                 Val::Boolean(_) => match other {
-                    Val::Null => Some((self.into(), Val::Boolean(false).into())),
+                    Val::Null => Some((Cow::Borrowed(self), Cow::Owned(Val::Boolean(false)))),
                     _ => other.cmp_coerced(self).map(|x| (x.1, x.0)),
                 },
 
                 Val::Number(_) => match other {
-                    Val::Boolean(_) => Some((Val::Boolean(self.is_truthy()).into(), other.into())),
-                    Val::Null => Some((self.into(), Val::Number(0.0).into())),
+                    Val::Boolean(_) => Some((
+                        Cow::Owned(Val::Boolean(self.is_truthy())),
+                        Cow::Borrowed(other),
+                    )),
+                    Val::Null => Some((Cow::Borrowed(self), Cow::Owned(Val::Number(0.0)))),
                     _ => other.cmp_coerced(self).map(|x| (x.1, x.0)),
                 },
 
@@ -305,9 +281,12 @@ impl Val {
                     Val::Number(_) => s
                         .parse::<f64>()
                         .ok()
-                        .map(|n| (Val::Number(n).into(), other.into())),
-                    Val::Boolean(_) => Some((Val::Boolean(!s.is_empty()).into(), other.into())),
-                    _ => Some((self.into(), other.into())),
+                        .map(|n| (Cow::Owned(Val::Number(n)), Cow::Borrowed(other))),
+                    Val::Boolean(_) => Some((
+                        Cow::Owned(Val::Boolean(!s.is_empty())),
+                        Cow::Borrowed(other),
+                    )),
+                    _ => Some((Cow::Borrowed(self), Cow::Borrowed(other))),
                 },
             }
         }
@@ -360,24 +339,28 @@ impl Val {
         }
     }
 
-    fn plus_coerced<'a>(&'a self, other: &'a Val) -> (ValOrRef<'a>, ValOrRef<'a>) {
+    fn plus_coerced<'a>(&'a self, other: &'a Val) -> (Cow<'a, Val>, Cow<'a, Val>) {
         match (self, other) {
-            (Val::String(_), Val::Undefined) => (self.into(), Val::from("mysterious").into()),
-            (Val::String(_), Val::Null) => (self.into(), Val::from("null").into()),
+            (Val::String(_), Val::Undefined) => {
+                (Cow::Borrowed(self), Cow::Owned("mysterious".into()))
+            }
+            (Val::String(_), Val::Null) => (Cow::Borrowed(self), Cow::Owned("null".into())),
             (Val::String(_), Val::Boolean(b)) => (
-                self.into(),
-                Val::from(if *b { "true" } else { "false" }).into(),
+                Cow::Borrowed(self),
+                Cow::Owned(if *b { "true" } else { "false" }.into()),
             ),
-            (Val::String(_), Val::Number(n)) => (self.into(), Val::from(n.to_string()).into()),
+            (Val::String(_), Val::Number(n)) => {
+                (Cow::Borrowed(self), Cow::Owned(n.to_string().into()))
+            }
 
-            (Val::String(_), Val::String(_)) => (self.into(), other.into()),
+            (Val::String(_), Val::String(_)) => (Cow::Borrowed(self), Cow::Borrowed(other)),
 
             (_, Val::String(_)) => {
                 let (o, s) = other.plus_coerced(self);
                 (s, o)
             }
 
-            _ => (self.into(), other.into()),
+            _ => (Cow::Borrowed(self), Cow::Borrowed(other)),
         }
     }
 
