@@ -4,6 +4,7 @@ use self::{environment::EnvironmentError, val::ValueError};
 
 pub mod environment;
 pub mod interpreter;
+pub mod produce_val;
 pub mod sym_table;
 pub mod val;
 

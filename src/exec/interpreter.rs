@@ -1,7 +1,4 @@
-use crate::{
-    analysis::visit::{combine_all, Result, Visit, VisitExpr, VisitProgram},
-    frontend::ast::*,
-};
+use crate::analysis::visit::Visit;
 
 use super::{environment::Environment, RuntimeError};
 
