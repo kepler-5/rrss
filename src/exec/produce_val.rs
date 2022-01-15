@@ -42,11 +42,8 @@ impl<'a> VisitExpr for ProduceVal<'a> {
         Ok(Val::Number(p.compute_value()).into())
     }
 
-    fn visit_array_push_rhs(&mut self, a: &ArrayPushRHS) -> visit::Result<Self> {
-        match a {
-            ArrayPushRHS::ExpressionList(e) => self.visit_expression_list(e),
-            ArrayPushRHS::PoeticNumberLiteral(p) => self.visit_poetic_number_literal(p),
-        }
+    fn visit_array_push_rhs(&mut self, _: &ArrayPushRHS) -> visit::Result<Self> {
+        unimplemented!("expression list arm must be handled by EvalStmt")
     }
 
     fn visit_binary_expression(&mut self, e: &BinaryExpression) -> visit::Result<Self> {
@@ -95,9 +92,11 @@ impl<'a> VisitExpr for ProduceVal<'a> {
     }
 
     fn visit_unary_expression(&mut self, e: &UnaryExpression) -> visit::Result<Self> {
-        Ok(self
-            .visit_unary_operator(e.operator)?
-            .combine(self.visit_expression(&e.operand)?))
+        let operand = self.visit_expression(&e.operand)?.0;
+        Ok(ProduceValOutput(match e.operator {
+            UnaryOperator::Minus => operand.negate()?,
+            UnaryOperator::Not => Val::Boolean(!operand.is_truthy()),
+        }))
     }
 
     fn visit_array_subsript(&mut self, a: &ArraySubscript) -> visit::Result<Self> {
@@ -119,10 +118,7 @@ impl<'a> VisitExpr for ProduceVal<'a> {
     }
 
     fn visit_function_call(&mut self, f: &FunctionCall) -> visit::Result<Self> {
-        crate::analysis::visit::combine_all(
-            std::iter::once(self.visit_variable_name(f.name.as_ref()))
-                .chain(f.args.iter().map(|e| self.visit_primary_expression(e))),
-        )
+        todo!("statement execution not yet supported!")
     }
 
     fn visit_pronoun(&mut self, _: SourceRange) -> visit::Result<Self> {

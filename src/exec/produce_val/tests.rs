@@ -76,3 +76,12 @@ fn produce_binary_expr_val() {
     assert_eq!(expr_val(&e, "16 < 60"), Ok(Val::Boolean(true)));
     assert_eq!(expr_val(&e, "16 <= 60"), Ok(Val::Boolean(true)));
 }
+
+#[test]
+fn produce_unary_expr_val() {
+    let e = RefCell::new(Environment::new());
+    *e.borrow_mut()
+        .create_var(&SimpleIdentifier("foo".into()).into()) = Val::Number(3.0);
+    assert_eq!(expr_val(&e, "-foo"), Ok(Val::Number(-3.0)));
+    assert_eq!(expr_val(&e, "not foo"), Ok(Val::Boolean(false)));
+}
