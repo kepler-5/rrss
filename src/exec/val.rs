@@ -5,6 +5,7 @@ use std::{
     hash::{Hash, Hasher},
     hint::unreachable_unchecked,
     mem::discriminant,
+    rc::Rc,
 };
 
 use derive_more::IsVariant;
@@ -33,8 +34,8 @@ pub enum Val {
     Null,
     Boolean(bool),
     Number(f64),
-    String(String),
-    Array(Box<Array>),
+    String(Rc<String>),
+    Array(Rc<Array>),
 }
 
 impl Default for Val {
@@ -45,13 +46,13 @@ impl Default for Val {
 
 impl<S: Into<String>> From<S> for Val {
     fn from(s: S) -> Self {
-        Val::String(s.into())
+        Val::String(Rc::new(s.into()))
     }
 }
 
 impl From<Array> for Val {
     fn from(a: Array) -> Self {
-        Val::Array(Box::new(a))
+        Val::Array(Rc::new(a))
     }
 }
 
@@ -161,7 +162,7 @@ impl Array {
             Val::Undefined => Ok(self.index_dict_or_insert(DictKey::Undefined)),
             Val::Null => Ok(self.index_dict_or_insert(DictKey::Null)),
             Val::Boolean(b) => Ok(self.index_dict_or_insert(DictKey::Boolean(*b))),
-            Val::String(s) => Ok(self.index_dict_or_insert(DictKey::String(s.clone()))),
+            Val::String(s) => Ok(self.index_dict_or_insert(DictKey::String((**s).clone()))),
             Val::Array(_) => Err(ValueError::InvalidKey),
         }
     }
@@ -211,7 +212,7 @@ impl Val {
             *self = Array::new().into();
         }
         match self {
-            Val::Array(a) => a.index_or_insert(val),
+            Val::Array(a) => Rc::make_mut(a).index_or_insert(val),
             Val::String(_) => Err(ValueError::IndexNotAssignable),
             _ => Err(ValueError::NotIndexable),
         }
@@ -222,13 +223,13 @@ impl Val {
             *self = Array::new().into();
         }
         match self {
-            Val::Array(a) => Ok(a.push(val)),
+            Val::Array(a) => Ok(Rc::make_mut(a).push(val)),
             _ => Err(ValueError::InvalidOperationForType),
         }
     }
     pub fn pop(&mut self) -> Result<Val, ValueError> {
         match self {
-            Val::Array(a) => a.pop(),
+            Val::Array(a) => Rc::make_mut(a).pop(),
             _ => Err(ValueError::InvalidOperationForType),
         }
     }

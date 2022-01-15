@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 use derive_more::From;
 
 use crate::frontend::ast::VariableName;

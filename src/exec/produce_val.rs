@@ -114,7 +114,7 @@ impl<'a> VisitExpr for ProduceVal<'a> {
             LiteralExpression::Boolean(b) => Ok(Val::Boolean(*b).into()),
             LiteralExpression::Null => Ok(Val::Null.into()),
             LiteralExpression::Number(n) => Ok(Val::Number(*n).into()),
-            LiteralExpression::String(s) => Ok(Val::String(s.clone()).into()),
+            LiteralExpression::String(s) => Ok(Val::from(s.clone()).into()),
         }
     }
 
