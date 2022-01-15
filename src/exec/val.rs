@@ -403,6 +403,13 @@ impl Val {
         }
     }
 
+    pub fn negate(&self) -> Result<Val, ValueError> {
+        match self {
+            Val::Number(n) => Ok(Val::Number(-n)),
+            _ => Err(ValueError::InvalidOperationForType),
+        }
+    }
+
     pub fn round_up(&mut self) -> Result<(), ValueError> {
         match self {
             Val::Number(f) => {

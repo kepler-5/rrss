@@ -484,6 +484,33 @@ fn divide() {
 }
 
 #[test]
+fn negate() {
+    assert_eq!(
+        Val::Undefined.negate(),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(Val::Null.negate(), Err(ValueError::InvalidOperationForType));
+    assert_eq!(
+        Val::Boolean(false).negate(),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        Val::from("").negate(),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        Val::from(Array::new()).negate(),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(Val::Number(1.5).negate(), Ok(Val::Number(-1.5)));
+    assert_eq!(Val::Number(-1.5).negate(), Ok(Val::Number(1.5)));
+    assert_eq!(
+        Val::Number(1.5).negate().and_then(|v| v.negate()),
+        Ok(Val::Number(1.5))
+    );
+}
+
+#[test]
 fn round() {
     let round_up = |mut val: Val| {
         val.round_up()?;
