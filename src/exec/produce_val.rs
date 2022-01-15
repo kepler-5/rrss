@@ -100,9 +100,11 @@ impl<'a> VisitExpr for ProduceVal<'a> {
     }
 
     fn visit_array_subsript(&mut self, a: &ArraySubscript) -> visit::Result<Self> {
-        Ok(self
-            .visit_primary_expression(&a.array)?
-            .combine(self.visit_primary_expression(&a.subscript)?))
+        let array = self.visit_primary_expression(&a.array)?.0;
+        let subscript = self.visit_primary_expression(&a.subscript)?.0;
+        Ok(array
+            .index(&subscript)
+            .map(|cow| ProduceValOutput(cow.into_owned()))?)
     }
 
     fn visit_literal_expression(
@@ -117,7 +119,7 @@ impl<'a> VisitExpr for ProduceVal<'a> {
         }
     }
 
-    fn visit_function_call(&mut self, f: &FunctionCall) -> visit::Result<Self> {
+    fn visit_function_call(&mut self, _: &FunctionCall) -> visit::Result<Self> {
         todo!("statement execution not yet supported!")
     }
 

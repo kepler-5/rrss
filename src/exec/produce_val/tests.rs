@@ -85,3 +85,18 @@ fn produce_unary_expr_val() {
     assert_eq!(expr_val(&e, "-foo"), Ok(Val::Number(-3.0)));
     assert_eq!(expr_val(&e, "not foo"), Ok(Val::Boolean(false)));
 }
+
+#[test]
+fn produce_subscript_val() {
+    let e = RefCell::new(Environment::new());
+    {
+        let mut e = e.borrow_mut();
+        let arr = e.create_var(&SimpleIdentifier("foo".into()).into());
+        assert!(arr.push(Val::Null).is_ok());
+    }
+    assert_eq!(expr_val(&e, "foo at 0"), Ok(Val::Null));
+
+    *e.borrow_mut()
+        .create_var(&SimpleIdentifier("bar".into()).into()) = Val::from("text");
+    assert_eq!(expr_val(&e, "bar at 2"), Ok(Val::from("x")));
+}
