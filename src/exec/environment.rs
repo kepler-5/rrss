@@ -21,14 +21,14 @@ pub enum EnvironmentError {
 #[derive(Debug, PartialEq)]
 pub struct Environment {
     variables: Vec<SymTable>,
-    last_access: RefCell<Option<VariableName>>,
+    last_access: Option<VariableName>,
 }
 
 impl Environment {
     pub fn new() -> Self {
         Self {
             variables: vec![SymTable::new()],
-            last_access: RefCell::new(None),
+            last_access: None,
         }
     }
 
@@ -38,11 +38,15 @@ impl Environment {
     pub fn pop_scope(&mut self) {
         debug_assert!(self.variables.len() > 1);
         self.variables.pop();
-        self.last_access.replace(None);
+        self.last_access = None;
     }
 
-    pub fn lookup_var(&self, name: &VariableName) -> Result<&Val, EnvironmentError> {
-        self.last_access.replace(Some(name.clone()));
+    pub fn lookup_var(&mut self, name: &VariableName) -> Result<&Val, EnvironmentError> {
+        self.last_access = Some(name.clone());
+        self.lookup_var_impl(name)
+    }
+
+    fn lookup_var_impl(&self, name: &VariableName) -> Result<&Val, EnvironmentError> {
         self.variables
             .iter()
             .rev()
@@ -53,8 +57,9 @@ impl Environment {
                 |r| r.map_err(Into::into),
             )
     }
+
     pub fn lookup_var_mut(&mut self, name: &VariableName) -> Result<&mut Val, EnvironmentError> {
-        self.last_access.replace(Some(name.clone()));
+        self.last_access = Some(name.clone());
         self.variables
             .iter_mut()
             .rev()
@@ -66,15 +71,14 @@ impl Environment {
             )
     }
     pub fn create_var(&mut self, name: &VariableName) -> &mut Val {
-        self.last_access.replace(Some(name.clone()));
+        self.last_access = Some(name.clone());
         self.variables.last_mut().unwrap().emplace(name)
     }
 
-    pub fn last_access(&self) -> Result<&Val, EnvironmentError> {
+    pub fn last_access(&mut self) -> Result<&Val, EnvironmentError> {
         self.last_access
-            .borrow()
             .as_ref()
             .ok_or(EnvironmentError::MissingPronounReferent)
-            .and_then(|name| self.lookup_var(name))
+            .and_then(|name| self.lookup_var_impl(name))
     }
 }

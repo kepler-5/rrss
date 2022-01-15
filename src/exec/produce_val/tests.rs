@@ -8,15 +8,15 @@ fn parse_expr(code: &str) -> Expression {
     Parser::for_source_code(code).parse_expression().unwrap()
 }
 
-fn expr_val(e: &Environment, code: &str) -> Result<Val, RuntimeError> {
+fn expr_val(e: &RefCell<Environment>, code: &str) -> Result<Val, RuntimeError> {
     ProduceVal::new(e)
         .visit_expression(&parse_expr(code))
-        .map(|pvo| pvo.0.into_owned())
+        .map(|pvo| pvo.0)
 }
 
 #[test]
 fn produce_literal_val() {
-    let e = Environment::new();
+    let e = RefCell::new(Environment::new());
     assert_eq!(expr_val(&e, "42"), Ok(Val::Number(42.0)));
     assert_eq!(expr_val(&e, "null"), Ok(Val::Null));
     assert_eq!(expr_val(&e, "false"), Ok(Val::Boolean(false)));
@@ -27,8 +27,9 @@ fn produce_literal_val() {
 
 #[test]
 fn produce_named_val() {
-    let mut e = Environment::new();
-    e.create_var(&SimpleIdentifier("foo".into()).into());
+    let e = RefCell::new(Environment::new());
+    e.borrow_mut()
+        .create_var(&SimpleIdentifier("foo".into()).into());
     assert_eq!(expr_val(&e, "foo"), Ok(Val::Undefined));
     assert_eq!(
         expr_val(&e, "bar"),
@@ -40,9 +41,23 @@ fn produce_named_val() {
 }
 
 #[test]
+fn produce_pronoun_val() {
+    let e = RefCell::new(Environment::new());
+    assert_eq!(
+        expr_val(&e, "it"),
+        Err(EnvironmentError::MissingPronounReferent.into())
+    );
+    e.borrow_mut()
+        .create_var(&SimpleIdentifier("foo".into()).into());
+    assert_eq!(expr_val(&e, "foo"), Ok(Val::Undefined));
+    assert_eq!(expr_val(&e, "it"), Ok(Val::Undefined));
+}
+
+#[test]
 fn produce_binary_expr_val() {
-    let mut e = Environment::new();
-    *e.create_var(&SimpleIdentifier("foo".into()).into()) = Val::Number(3.0);
+    let e = RefCell::new(Environment::new());
+    *e.borrow_mut()
+        .create_var(&SimpleIdentifier("foo".into()).into()) = Val::Number(3.0);
     assert_eq!(expr_val(&e, "foo + foo"), Ok(Val::Number(6.0)));
     assert_eq!(expr_val(&e, "foo - foo"), Ok(Val::Number(0.0)));
     assert_eq!(expr_val(&e, "foo * foo"), Ok(Val::Number(9.0)));

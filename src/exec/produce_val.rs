@@ -1,6 +1,6 @@
-use std::{borrow::Cow, cmp::Ordering, iter::once};
+use std::{cell::RefCell, cmp::Ordering, iter::once};
 
-use derive_more::Constructor;
+use derive_more::{Constructor, From};
 
 use crate::{
     analysis::visit::{self, Combine, Visit, VisitExpr},
@@ -14,31 +14,32 @@ mod tests;
 
 #[derive(Constructor)]
 pub struct ProduceVal<'a> {
-    env: &'a Environment,
+    env: &'a RefCell<Environment>,
 }
 
-pub struct ProduceValOutput<'a>(pub Cow<'a, Val>);
+#[derive(Debug, From, PartialEq)]
+pub struct ProduceValOutput(pub Val);
 
-impl<'a> Combine for ProduceValOutput<'a> {
+impl<'a> Combine for ProduceValOutput {
     fn combine(self, _: Self) -> Self {
         unimplemented!()
     }
 }
 
-impl<'a> Default for ProduceValOutput<'a> {
+impl<'a> Default for ProduceValOutput {
     fn default() -> Self {
         unimplemented!()
     }
 }
 
 impl<'a> Visit for ProduceVal<'a> {
-    type Output = ProduceValOutput<'a>;
+    type Output = ProduceValOutput;
     type Error = RuntimeError;
 }
 
 impl<'a> VisitExpr for ProduceVal<'a> {
     fn visit_poetic_number_literal(&mut self, p: &PoeticNumberLiteral) -> visit::Result<Self> {
-        Ok(ProduceValOutput(Cow::Owned(Val::Number(p.compute_value()))))
+        Ok(Val::Number(p.compute_value()).into())
     }
 
     fn visit_array_push_rhs(&mut self, a: &ArrayPushRHS) -> visit::Result<Self> {
@@ -88,7 +89,7 @@ impl<'a> VisitExpr for ProduceVal<'a> {
                         .unwrap_or(false),
                 )),
             }
-            .map(|val| ProduceValOutput(Cow::Owned(val)))
+            .map(ProduceValOutput)
         };
         rhs.try_fold(lhs, op)
     }
@@ -110,12 +111,10 @@ impl<'a> VisitExpr for ProduceVal<'a> {
         e: &WithRange<LiteralExpression>,
     ) -> visit::Result<Self> {
         match &e.0 {
-            LiteralExpression::Boolean(b) => Ok(ProduceValOutput(Cow::Owned(Val::Boolean(*b)))),
-            LiteralExpression::Null => Ok(ProduceValOutput(Cow::Owned(Val::Null))),
-            LiteralExpression::Number(n) => Ok(ProduceValOutput(Cow::Owned(Val::Number(*n)))),
-            LiteralExpression::String(s) => {
-                Ok(ProduceValOutput(Cow::Owned(Val::String(s.clone()))))
-            }
+            LiteralExpression::Boolean(b) => Ok(Val::Boolean(*b).into()),
+            LiteralExpression::Null => Ok(Val::Null.into()),
+            LiteralExpression::Number(n) => Ok(Val::Number(*n).into()),
+            LiteralExpression::String(s) => Ok(Val::String(s.clone()).into()),
         }
     }
 
@@ -128,18 +127,17 @@ impl<'a> VisitExpr for ProduceVal<'a> {
 
     fn visit_pronoun(&mut self, _: SourceRange) -> visit::Result<Self> {
         self.env
+            .borrow_mut()
             .last_access()
-            .map(|val| ProduceValOutput(Cow::Borrowed(val)))
+            .map(|val| val.clone().into())
             .map_err(Into::into)
     }
 
-    fn visit_variable_name(
-        &mut self,
-        n: WithRange<&VariableName>,
-    ) -> std::result::Result<ProduceValOutput<'a>, Self::Error> {
+    fn visit_variable_name(&mut self, n: WithRange<&VariableName>) -> visit::Result<Self> {
         self.env
+            .borrow_mut()
             .lookup_var(n.0)
-            .map(|val| ProduceValOutput(Cow::Borrowed(val)))
+            .map(|val| val.clone().into())
             .map_err(Into::into)
     }
 }
