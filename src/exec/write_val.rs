@@ -4,7 +4,12 @@ use derive_more::{Constructor, From};
 
 use crate::{
     analysis::visit::{self, Combine, Visit, VisitExpr},
-    exec::{environment::Environment, produce_val::ProduceVal, val::Val, RuntimeError},
+    exec::{
+        environment::Environment,
+        produce_val::ProduceVal,
+        val::{Val, ValueError},
+        RuntimeError,
+    },
     frontend::{ast::*, source_range::SourceRange},
 };
 
@@ -17,7 +22,7 @@ pub enum WriteValError {
 pub mod tests;
 
 #[derive(Constructor)]
-pub struct WriteVal<'a, W: Fn(&mut Val) -> ()> {
+pub struct WriteVal<'a, W: Fn(&mut Val) -> Result<(), ValueError>> {
     env: &'a RefCell<Environment>,
     write: W,
 }
@@ -42,7 +47,7 @@ impl<'a> Default for WriteValOutput {
     }
 }
 
-impl<'a, W: Fn(&mut Val) -> ()> Visit for WriteVal<'a, W> {
+impl<'a, W: Fn(&mut Val) -> Result<(), ValueError>> Visit for WriteVal<'a, W> {
     type Output = WriteValOutput;
     type Error = ();
 }
@@ -66,7 +71,7 @@ fn subscript_val(e: &RefCell<Environment>, a: &ArraySubscript) -> Result<Val, Ru
     Ok(ProduceVal::new(e).visit_primary_expression(&a.subscript)?.0)
 }
 
-impl<'a, W: Fn(&mut Val) -> ()> VisitExpr for WriteVal<'a, W> {
+impl<'a, W: Fn(&mut Val) -> Result<(), ValueError>> VisitExpr for WriteVal<'a, W> {
     fn visit_array_subsript(&mut self, a: &ArraySubscript) -> visit::Result<Self> {
         wrap(|| {
             // drill down through nested subscripts until we find a stopping point (an identifier)
@@ -83,7 +88,7 @@ impl<'a, W: Fn(&mut Val) -> ()> VisitExpr for WriteVal<'a, W> {
                         while let Some(back) = subscripts.pop() {
                             var = var.index_or_insert(&back)?;
                         }
-                        return Ok((self.write)(var));
+                        return Ok((self.write)(var)?);
                     }
                     PrimaryExpression::ArraySubscript(a) => {
                         subscripts.push(subscript_val(self.env, a)?);
@@ -96,13 +101,13 @@ impl<'a, W: Fn(&mut Val) -> ()> VisitExpr for WriteVal<'a, W> {
     }
 
     fn visit_pronoun(&mut self, _: SourceRange) -> visit::Result<Self> {
-        wrap(|| Ok((self.write)(self.env.borrow_mut().last_access_mut()?)))
+        wrap(|| Ok((self.write)(self.env.borrow_mut().last_access_mut()?)?))
     }
 
     fn visit_variable_name(&mut self, n: WithRange<&VariableName>) -> visit::Result<Self> {
         wrap(|| {
             let mut e = self.env.borrow_mut();
-            Ok((self.write)(lookup_or_create!(e, &n.0)))
+            Ok((self.write)(lookup_or_create!(e, &n.0))?)
         })
     }
 }
