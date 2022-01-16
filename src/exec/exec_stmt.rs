@@ -11,7 +11,7 @@ use crate::{
     exec::{
         environment::Environment,
         produce_val::{binary_operator_fold, ProduceVal},
-        val::{Val, ValueError},
+        val::{Array, Val, ValueError},
         write_val::WriteVal,
         RuntimeError,
     },
@@ -111,6 +111,17 @@ impl<'a, I: Read, O: Write> ExecStmt<'a, I, O> {
     ) -> visit::Result<Self> {
         self.raw_writer(|val| val.inc(amount))
             .visit_identifier(&dest)
+            .unwrap()
+            .0
+    }
+
+    fn array_push_helper(
+        &mut self,
+        array: &PrimaryExpression,
+        vals: impl Iterator<Item = Val> + Clone,
+    ) -> visit::Result<Self> {
+        self.raw_writer(|arr| arr.push(vals.clone()))
+            .visit_primary_expression(array)
             .unwrap()
             .0
     }
@@ -259,7 +270,30 @@ impl<'a, I: Read, O: Write> VisitProgram for ExecStmt<'a, I, O> {
     }
 
     fn visit_array_push(&mut self, a: &ArrayPush) -> visit::Result<Self> {
-        todo!()
+        match &a.value {
+            Some(rhs) => match rhs {
+                ArrayPushRHS::ExpressionList(el) => {
+                    let values = {
+                        let mut vs = Vec::with_capacity(el.len());
+                        for e in el.iter() {
+                            vs.push(self.producer().visit_expression(e)?.0);
+                        }
+                        vs
+                    };
+                    self.array_push_helper(&a.array, values.into_iter())
+                }
+                ArrayPushRHS::PoeticNumberLiteral(lit) => self.array_push_helper(
+                    &a.array,
+                    once(self.producer().visit_poetic_number_literal(lit)?.0),
+                ),
+            },
+            None => {
+                self.writer(Val::from(Array::new()))
+                    .visit_primary_expression(&a.array)
+                    .unwrap()
+                    .0
+            }
+        }
     }
 
     fn visit_array_pop(&mut self, a: &ArrayPop) -> visit::Result<Self> {

@@ -176,8 +176,8 @@ impl Array {
         self.dict.entry(k).or_default()
     }
 
-    fn push(&mut self, val: Val) {
-        self.arr.push_back(val)
+    fn push(&mut self, vals: impl Iterator<Item = Val>) {
+        self.arr.extend(vals)
     }
     fn pop(&mut self) -> Result<Val, ValueError> {
         self.arr.pop_front().ok_or(ValueError::PopOnEmptyArray)
@@ -218,12 +218,12 @@ impl Val {
         }
     }
 
-    pub fn push(&mut self, val: Val) -> Result<(), ValueError> {
+    pub fn push(&mut self, vals: impl Iterator<Item = Val>) -> Result<(), ValueError> {
         if self.is_undefined() {
             *self = Array::new().into();
         }
         match self {
-            Val::Array(a) => Ok(Rc::make_mut(a).push(val)),
+            Val::Array(a) => Ok(Rc::make_mut(a).push(vals)),
             _ => Err(ValueError::InvalidOperationForType),
         }
     }

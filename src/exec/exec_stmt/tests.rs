@@ -429,3 +429,68 @@ fn input() {
         "worldhello\n"
     );
 }
+
+#[test]
+fn array_push() {
+    let capture_output = |code| {
+        let mut output = Vec::new();
+        let e = Environment::refcell_raw(stdin(), &mut output);
+        assert!(exec(&e, code).is_ok());
+        std::str::from_utf8(&output).unwrap().to_owned()
+    };
+
+    assert_eq!(
+        capture_output(
+            "
+    rock the array
+    shout the array
+    "
+        ),
+        "0\n"
+    );
+    assert_eq!(
+        capture_output(
+            "
+    rock the array with 1
+    shout the array
+    "
+        ),
+        "1\n"
+    );
+    assert_eq!(
+        capture_output(
+            "
+    rock the array with 12
+    shout the array
+    shout the array at 0
+    "
+        ),
+        "1\n12\n"
+    );
+    assert_eq!(
+        capture_output(
+            "
+    rock the array with 12
+    shout the array
+    shout the array at 0
+    rock the array with 13
+    shout the array
+    shout the array at 0
+    shout the array at 1
+    "
+        ),
+        "1\n12\n2\n12\n13\n"
+    );
+    assert_eq!(
+        capture_output(
+            "
+    rock the array with 1, 2, 3
+    shout the array
+    shout the array at 0
+    shout the array at 1
+    shout the array at 2
+    "
+        ),
+        "3\n1\n2\n3\n"
+    );
+}

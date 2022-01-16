@@ -92,7 +92,7 @@ fn produce_subscript_val() {
     {
         let mut e = e.borrow_mut();
         let arr = e.create_var(&SimpleIdentifier("foo".into()).into());
-        assert!(arr.push(Val::Null).is_ok());
+        assert!(arr.push(once(Val::Null)).is_ok());
     }
     assert_eq!(expr_val(&e, "foo at 0"), Ok(Val::Null));
 

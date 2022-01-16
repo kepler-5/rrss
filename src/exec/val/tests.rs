@@ -1,5 +1,7 @@
 use super::*;
 
+use std::iter::once;
+
 #[test]
 fn array_index() {
     let mut arr = Val::from(Array::new());
@@ -73,14 +75,14 @@ fn string_index() {
 fn array_push_pop() {
     let mut arr = Val::Undefined;
 
-    let ok = arr.push(Val::Null);
+    let ok = arr.push(once(Val::Null));
     assert!(ok.is_ok());
     assert!(arr.is_array());
 
     assert_eq!(arr.index(&Val::Number(0.0)).unwrap().as_ref(), &Val::Null);
     assert_eq!(arr.decay(), Cow::Owned(Val::Number(1.0)));
 
-    let ok = arr.push(Val::Boolean(true));
+    let ok = arr.push(once(Val::Boolean(true)));
     assert!(ok.is_ok());
     assert_eq!(arr.index(&Val::Number(0.0)).unwrap().as_ref(), &Val::Null);
     assert_eq!(
@@ -104,8 +106,17 @@ fn array_push_pop() {
     let err = arr.pop();
     assert_eq!(err, Err(ValueError::PopOnEmptyArray));
 
+    let ok = arr.push([Val::Null, Val::Boolean(true)].into_iter());
+    assert!(ok.is_ok());
+    assert_eq!(arr.index(&Val::Number(0.0)).unwrap().as_ref(), &Val::Null);
     assert_eq!(
-        Val::Null.push(Val::Null),
+        arr.index(&Val::Number(1.0)).unwrap().as_ref(),
+        &Val::Boolean(true)
+    );
+    assert_eq!(arr.decay(), Cow::Owned(Val::Number(2.0)));
+
+    assert_eq!(
+        Val::Null.push(once(Val::Null)),
         Err(ValueError::InvalidOperationForType)
     );
     assert_eq!(Val::Null.pop(), Err(ValueError::InvalidOperationForType));
@@ -215,10 +226,10 @@ fn equals() {
     commutative_equals!(Val::from(Array::new()), Val::from(Array::new()));
     {
         let mut a0 = Val::from(Array::new());
-        assert!(a0.push(Val::Null).is_ok());
+        assert!(a0.push(once(Val::Null)).is_ok());
         let mut a1 = Val::from(Array::new());
         commutative_notequals!(a0, a1);
-        assert!(a1.push(Val::Null).is_ok());
+        assert!(a1.push(once(Val::Null)).is_ok());
         commutative_equals!(a0, a1);
     }
 
