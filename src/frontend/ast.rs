@@ -298,13 +298,13 @@ pub struct Until {
 #[derive(Debug, PartialEq)]
 pub struct Inc {
     pub dest: WithRange<Identifier>,
-    pub amount: usize,
+    pub amount: isize,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Dec {
     pub dest: WithRange<Identifier>,
-    pub amount: usize,
+    pub amount: isize,
 }
 
 #[derive(Debug, From, PartialEq)]

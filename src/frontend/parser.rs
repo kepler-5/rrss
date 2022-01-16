@@ -921,7 +921,7 @@ impl<'a> Parser<'a> {
         &mut self,
         begin: TokenType,
         suffix: TokenType<'a>,
-    ) -> Result<(WithRange<Identifier>, usize), ParseError<'a>> {
+    ) -> Result<(WithRange<Identifier>, isize), ParseError<'a>> {
         self.consume(begin);
         let dest = self.expect_identifier()?;
         self.expect_token(suffix)?;
