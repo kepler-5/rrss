@@ -206,19 +206,26 @@ impl<'a> VisitProgram for ExecStmt<'a> {
     }
 
     fn visit_input(&mut self, i: &Input) -> visit::Result<Self> {
-        crate::analysis::visit::leaf(i)
+        todo!()
     }
 
     fn visit_output(&mut self, o: &Output) -> visit::Result<Self> {
-        crate::analysis::visit::leaf(o)
+        todo!()
     }
 
     fn visit_mutation(&mut self, m: &Mutation) -> visit::Result<Self> {
-        self.visit_mutation_operator(m.operator)
+        todo!()
     }
 
     fn visit_rounding(&mut self, r: &Rounding) -> visit::Result<Self> {
-        self.visit_rounding_direction(r.direction)
+        self.raw_writer(|v| match r.direction {
+            RoundingDirection::Up => v.round_up(),
+            RoundingDirection::Down => v.round_down(),
+            RoundingDirection::Nearest => v.round_nearest(),
+        })
+        .visit_expression(&r.operand)
+        .unwrap()
+        .0
     }
 
     fn visit_continue(&mut self, _: &Continue) -> visit::Result<Self> {
@@ -234,30 +241,22 @@ impl<'a> VisitProgram for ExecStmt<'a> {
     }
 
     fn visit_array_push(&mut self, a: &ArrayPush) -> visit::Result<Self> {
-        crate::analysis::visit::leaf(a)
+        todo!()
     }
 
     fn visit_array_pop(&mut self, a: &ArrayPop) -> visit::Result<Self> {
-        crate::analysis::visit::leaf(a)
+        todo!()
     }
 
     fn visit_return(&mut self, r: &Return) -> visit::Result<Self> {
-        crate::analysis::visit::leaf(r)
+        todo!()
     }
 
     fn visit_function(&mut self, f: &Function) -> visit::Result<Self> {
-        self.visit_block(&f.body)
+        todo!()
     }
 
     fn visit_function_call_statement(&mut self, f: &FunctionCall) -> visit::Result<Self> {
-        crate::analysis::visit::leaf(f)
-    }
-
-    fn visit_mutation_operator(&mut self, o: MutationOperator) -> visit::Result<Self> {
-        crate::analysis::visit::leaf(o)
-    }
-
-    fn visit_rounding_direction(&mut self, r: RoundingDirection) -> visit::Result<Self> {
-        crate::analysis::visit::leaf(r)
+        todo!()
     }
 }

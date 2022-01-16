@@ -310,3 +310,35 @@ fn inc_dec() {
     .is_ok());
     assert_eq!(expr_val(&e, "x"), Ok(Val::Number(-1.0)));
 }
+
+#[test]
+fn rounding() {
+    let e = Environment::refcell();
+    assert!(exec(
+        &e,
+        "
+    x is 1.5
+    turn it up
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(2.0)));
+    assert!(exec(
+        &e,
+        "
+    x is 1.5
+    turn it down
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(1.0)));
+    assert!(exec(
+        &e,
+        "
+    x is 1.7
+    turn it around
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(2.0)));
+}
