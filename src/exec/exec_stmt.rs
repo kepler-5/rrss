@@ -1,5 +1,7 @@
 use std::{cell::RefCell, iter::once};
 
+use derive_more::IsVariant;
+
 use crate::{
     analysis::visit::{self, Visit, VisitExpr, VisitProgram},
     exec::{
@@ -20,7 +22,7 @@ pub enum ExecError {
     NonCompoundAssignmentExpressionListInvalid,
 }
 
-#[derive(Debug)]
+#[derive(Debug, IsVariant)]
 enum ControlFlowState {
     Normal,
     Breaking,
@@ -29,7 +31,7 @@ enum ControlFlowState {
 }
 
 impl ControlFlowState {
-    fn breaking_out(&self) -> bool {
+    fn skip_rest_of_block(&self) -> bool {
         match self {
             ControlFlowState::Breaking => true,
             ControlFlowState::Continuing => true,
@@ -78,8 +80,11 @@ impl<'a> ExecStmt<'a> {
 
             match self.control_flow_state {
                 ControlFlowState::Normal => {}
-                ControlFlowState::Continuing => {}
-                ControlFlowState::Breaking => break,
+                ControlFlowState::Continuing => self.control_flow_state = ControlFlowState::Normal,
+                ControlFlowState::Breaking => {
+                    self.control_flow_state = ControlFlowState::Normal;
+                    break;
+                }
                 ControlFlowState::Returning => break,
             }
         }
@@ -99,7 +104,7 @@ impl<'a> VisitProgram for ExecStmt<'a> {
             Block::NonEmpty(statements) => {
                 for s in statements {
                     self.visit_statement(s)?;
-                    if self.control_flow_state.breaking_out() {
+                    if self.control_flow_state.skip_rest_of_block() {
                         break;
                     }
                 }
@@ -198,12 +203,16 @@ impl<'a> VisitProgram for ExecStmt<'a> {
         self.visit_rounding_direction(r.direction)
     }
 
-    fn visit_continue(&mut self, c: &Continue) -> visit::Result<Self> {
-        crate::analysis::visit::leaf(c)
+    fn visit_continue(&mut self, _: &Continue) -> visit::Result<Self> {
+        debug_assert!(self.control_flow_state.is_normal());
+        self.control_flow_state = ControlFlowState::Continuing;
+        Ok(())
     }
 
-    fn visit_break(&mut self, b: &Break) -> visit::Result<Self> {
-        crate::analysis::visit::leaf(b)
+    fn visit_break(&mut self, _: &Break) -> visit::Result<Self> {
+        debug_assert!(self.control_flow_state.is_normal());
+        self.control_flow_state = ControlFlowState::Breaking;
+        Ok(())
     }
 
     fn visit_array_push(&mut self, a: &ArrayPush) -> visit::Result<Self> {

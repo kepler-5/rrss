@@ -177,3 +177,104 @@ fn loop_statement() {
         .into())
     );
 }
+
+#[test]
+fn continue_statement() {
+    let e = Environment::refcell();
+    assert!(exec(
+        &e,
+        "
+    x is 0
+    y is 0
+    while x is smaller than 10
+    let x be plus 1
+    continue
+    let y be plus 1
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(10.0)));
+    assert_eq!(expr_val(&e, "y"), Ok(Val::Number(0.0)));
+    assert!(exec(
+        &e,
+        "
+    x is 0
+    y is 0
+    while x is smaller than 10
+    let x be plus 1
+    if x is not 5
+    continue
+
+    y is 1
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(10.0)));
+    assert_eq!(expr_val(&e, "y"), Ok(Val::Number(1.0)));
+    assert!(exec(
+        &e,
+        "
+    x is 0
+    while x is smaller than 10
+    let x be plus 1
+    put x + 5 into y
+    while x is smaller than y
+    let x be plus 5
+    continue
+    let x be plus 1
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(12.0)));
+}
+
+#[test]
+fn break_statement() {
+    let e = Environment::refcell();
+    assert!(exec(
+        &e,
+        "
+    x is 0
+    y is 0
+    while x is smaller than 10
+    let x be plus 1
+    break
+    let y be plus 1
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(1.0)));
+    assert_eq!(expr_val(&e, "y"), Ok(Val::Number(0.0)));
+    assert!(exec(
+        &e,
+        "
+    x is 0
+    y is 0
+    while x is smaller than 10
+    let x be plus 1
+    if x is 5
+    break
+
+    let y be with 1
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(5.0)));
+    assert_eq!(expr_val(&e, "y"), Ok(Val::Number(4.0)));
+    assert!(exec(
+        &e,
+        "
+    x is 0
+    y is 0
+    while x is smaller than 10
+    let x be plus 1
+    while true
+    break
+
+    let y be plus 1
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(10.0)));
+    assert_eq!(expr_val(&e, "y"), Ok(Val::Number(10.0)));
+}
