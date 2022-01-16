@@ -1,7 +1,7 @@
 use super::*;
 
 use crate::{
-    exec::val::Val,
+    exec::{environment::EnvironmentError, sym_table::SymTableError, val::Val},
     frontend::parser::{self, Parser},
 };
 
@@ -106,4 +106,31 @@ fn if_statement() {
     )
     .is_ok());
     assert_eq!(expr_val(&e, "x"), Ok(Val::Number(1.0)));
+
+    assert!(exec(
+        &e,
+        "
+    x is 0
+    if x is 0
+    put 1 into y
+    else
+    put 2 into z
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(0.0)));
+    assert_eq!(
+        expr_val(&e, "y"),
+        Err(EnvironmentError::from(SymTableError::NameNotFound(
+            SimpleIdentifier("y".into()).into()
+        ))
+        .into())
+    );
+    assert_eq!(
+        expr_val(&e, "z"),
+        Err(EnvironmentError::from(SymTableError::NameNotFound(
+            SimpleIdentifier("z".into()).into()
+        ))
+        .into())
+    );
 }
