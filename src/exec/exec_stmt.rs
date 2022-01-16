@@ -212,7 +212,17 @@ impl<'a, I: Read, O: Write> VisitProgram for ExecStmt<'a, I, O> {
     }
 
     fn visit_input(&mut self, i: &Input) -> visit::Result<Self> {
-        todo!()
+        let input = self.env.borrow_mut().input()?;
+        match &i.dest {
+            InputDest::Some(dest) => {
+                self.writer(Val::from(input))
+                    .visit_assignment_lhs(dest)
+                    .unwrap()
+                    .0?;
+            }
+            InputDest::None(_) => {}
+        }
+        Ok(())
     }
 
     fn visit_output(&mut self, o: &Output) -> visit::Result<Self> {

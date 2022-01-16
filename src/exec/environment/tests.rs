@@ -51,3 +51,12 @@ fn output() {
         "helloworld"
     );
 }
+
+#[test]
+fn input() {
+    let input = "hello\nworld";
+    let mut e = Environment::raw(input.as_bytes(), stdout());
+    assert_eq!(e.input(), Ok("hello".into()));
+    assert_eq!(e.input(), Ok("world".into()));
+    assert_eq!(e.input(), Ok("".into()));
+}

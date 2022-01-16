@@ -385,3 +385,47 @@ fn output() {
         "5"
     );
 }
+
+#[test]
+fn input() {
+    let capture_output = |code, input: &str| {
+        let mut output = Vec::new();
+        let e = Environment::refcell_raw(input.as_bytes(), &mut output);
+        assert!(exec(&e, code).is_ok());
+        std::str::from_utf8(&output).unwrap().to_owned()
+    };
+
+    assert_eq!(capture_output("", ""), "");
+    assert_eq!(
+        capture_output(
+            "
+    listen to your heart
+    shout your heart
+    ",
+            "hello\nworld"
+        ),
+        "hello"
+    );
+    assert_eq!(
+        capture_output(
+            "
+    listen
+    listen to your heart
+    shout your heart
+    ",
+            "hello\nworld"
+        ),
+        "world"
+    );
+    assert_eq!(
+        capture_output(
+            "
+    listen to my heart
+    listen to your heart
+    shout your heart with my heart
+    ",
+            "hello\nworld"
+        ),
+        "worldhello"
+    );
+}

@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    io::{stdin, stdout, Read, Stdin, Stdout, Write},
+    io::{stdin, stdout, BufRead, BufReader, Read, Stdin, Stdout, Write},
 };
 
 use derive_more::From;
@@ -22,11 +22,11 @@ pub enum EnvironmentError {
     IOError(String),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct Environment<In, Out> {
     variables: Vec<SymTable>,
     last_access: Option<VariableName>,
-    input_buf: In,
+    input_buf: BufReader<In>,
     output_buf: Out,
 }
 
@@ -35,7 +35,7 @@ impl<In: Read, Out: Write> Environment<In, Out> {
         Self {
             variables: vec![SymTable::new()],
             last_access: None,
-            input_buf,
+            input_buf: BufReader::new(input_buf),
             output_buf,
         }
     }
@@ -49,6 +49,17 @@ impl<In: Read, Out: Write> Environment<In, Out> {
             .write(text.as_bytes())
             .map(|_| ())
             .map_err(|e| EnvironmentError::IOError(e.to_string()))
+    }
+
+    pub fn input(&mut self) -> Result<String, EnvironmentError> {
+        let mut buf = String::new();
+        self.input_buf
+            .read_line(&mut buf)
+            .map_err(|e| EnvironmentError::IOError(e.to_string()))?;
+        if buf.ends_with('\n') {
+            buf.pop();
+        }
+        Ok(buf)
     }
 }
 
