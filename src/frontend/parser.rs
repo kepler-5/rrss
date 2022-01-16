@@ -434,11 +434,16 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_primary_expression(&mut self) -> Result<PrimaryExpression, ParseError<'a>> {
-        let expr: PrimaryExpression = self
-            .parse_identifier_or_function_call()?
+    fn parse_non_subscript_primary_expression(
+        &mut self,
+    ) -> Result<PrimaryExpression, ParseError<'a>> {
+        self.parse_identifier_or_function_call()?
             .or_else(|| self.parse_literal_expression().map(Into::into))
-            .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedPrimaryExpression))?;
+            .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedPrimaryExpression))
+    }
+
+    fn parse_primary_expression(&mut self) -> Result<PrimaryExpression, ParseError<'a>> {
+        let expr = self.parse_non_subscript_primary_expression()?;
         self.parse_array_subscript_after(expr)
     }
 
@@ -448,12 +453,12 @@ impl<'a> Parser<'a> {
     ) -> Result<As, ParseError<'a>> {
         if let Some(subscript) = self
             .match_and_consume(TokenType::At)
-            .map(|_| self.parse_primary_expression())
+            .map(|_| self.parse_non_subscript_primary_expression())
             .transpose()?
         {
             let array = boxed_expr(expr);
             let subscript = boxed_expr(subscript);
-            Ok(ArraySubscript { array, subscript }.into())
+            self.parse_array_subscript_after(ArraySubscript { array, subscript })
         } else {
             Ok(expr.into())
         }

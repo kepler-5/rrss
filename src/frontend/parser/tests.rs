@@ -1025,6 +1025,22 @@ fn parse_assignment() {
 }
 
 #[test]
+fn array_subscript_left_associativity() {
+    let parse = |text| Parser::for_source_code(text).parse_expression();
+    assert_eq!(
+        parse("x at y at z"),
+        Ok(ArraySubscript {
+            array: boxed_expr(ArraySubscript {
+                array: boxed_expr(WithRange(SimpleIdentifier("x".into()), line_range(0, 1))),
+                subscript: boxed_expr(WithRange(SimpleIdentifier("y".into()), line_range(5, 6))),
+            }),
+            subscript: boxed_expr(WithRange(SimpleIdentifier("z".into()), line_range(10, 11))),
+        }
+        .into())
+    )
+}
+
+#[test]
 fn parse_assignment_errors() {
     let parse = |text| {
         Parser::for_source_code(text)
