@@ -12,8 +12,8 @@ use crate::{
 mod tests;
 
 #[derive(Constructor)]
-pub struct ProduceVal<'a> {
-    env: &'a RefCell<Environment>,
+pub struct ProduceVal<'a, I, O> {
+    env: &'a RefCell<Environment<I, O>>,
 }
 
 #[derive(Debug, From, PartialEq)]
@@ -31,12 +31,12 @@ impl<'a> Default for ProduceValOutput {
     }
 }
 
-impl<'a> Visit for ProduceVal<'a> {
+impl<'a, I, O> Visit for ProduceVal<'a, I, O> {
     type Output = ProduceValOutput;
     type Error = RuntimeError;
 }
 
-impl<'a> VisitExpr for ProduceVal<'a> {
+impl<'a, I, O> VisitExpr for ProduceVal<'a, I, O> {
     fn visit_poetic_number_literal(&mut self, p: &PoeticNumberLiteral) -> visit::Result<Self> {
         Ok(Val::Number(p.compute_value()).into())
     }

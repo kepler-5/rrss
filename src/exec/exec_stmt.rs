@@ -41,14 +41,14 @@ impl ControlFlowState {
     }
 }
 
-pub struct ExecStmt<'a> {
-    env: &'a RefCell<Environment>,
+pub struct ExecStmt<'a, I, O> {
+    env: &'a RefCell<Environment<I, O>>,
     control_flow_state: ControlFlowState,
     return_val: Val,
 }
 
-impl<'a> ExecStmt<'a> {
-    pub fn new(env: &'a RefCell<Environment>) -> Self {
+impl<'a, I, O> ExecStmt<'a, I, O> {
+    pub fn new(env: &'a RefCell<Environment<I, O>>) -> Self {
         Self {
             env,
             control_flow_state: ControlFlowState::Normal,
@@ -60,18 +60,18 @@ impl<'a> ExecStmt<'a> {
         self.return_val
     }
 
-    fn producer(&self) -> ProduceVal {
+    fn producer(&self) -> ProduceVal<I, O> {
         ProduceVal::new(self.env)
     }
 
-    fn writer(&self, val: Val) -> WriteVal<impl Fn(&mut Val) -> Result<(), ValueError>> {
+    fn writer(&self, val: Val) -> WriteVal<impl Fn(&mut Val) -> Result<(), ValueError>, I, O> {
         self.raw_writer(move |v| {
             *v = val.clone();
             Ok(())
         })
     }
 
-    fn raw_writer<W: Fn(&mut Val) -> Result<(), ValueError>>(&self, w: W) -> WriteVal<W> {
+    fn raw_writer<W: Fn(&mut Val) -> Result<(), ValueError>>(&self, w: W) -> WriteVal<W, I, O> {
         WriteVal::new(self.env, w)
     }
 
@@ -110,12 +110,12 @@ impl<'a> ExecStmt<'a> {
     }
 }
 
-impl<'a> Visit for ExecStmt<'a> {
+impl<'a, I, O> Visit for ExecStmt<'a, I, O> {
     type Output = ();
     type Error = RuntimeError;
 }
 
-impl<'a> VisitProgram for ExecStmt<'a> {
+impl<'a, I, O> VisitProgram for ExecStmt<'a, I, O> {
     fn visit_block(&mut self, b: &Block) -> visit::Result<Self> {
         match b {
             Block::Empty(_) => Ok(()),

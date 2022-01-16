@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use derive_more::{Constructor, From};
+use derive_more::From;
 
 use crate::{
     analysis::visit::{self, Combine, Visit, VisitExpr},
@@ -21,10 +21,15 @@ pub enum WriteValError {
 #[cfg(test)]
 pub mod tests;
 
-#[derive(Constructor)]
-pub struct WriteVal<'a, W: Fn(&mut Val) -> Result<(), ValueError>> {
-    env: &'a RefCell<Environment>,
+pub struct WriteVal<'a, W, I, O> {
+    env: &'a RefCell<Environment<I, O>>,
     write: W,
+}
+
+impl<'a, W: Fn(&mut Val) -> Result<(), ValueError>, I, O> WriteVal<'a, W, I, O> {
+    pub fn new(env: &'a RefCell<Environment<I, O>>, write: W) -> Self {
+        Self { env, write }
+    }
 }
 
 #[must_use = "may contain error that must be propagated"]
@@ -47,7 +52,7 @@ impl<'a> Default for WriteValOutput {
     }
 }
 
-impl<'a, W: Fn(&mut Val) -> Result<(), ValueError>> Visit for WriteVal<'a, W> {
+impl<'a, W, I, O> Visit for WriteVal<'a, W, I, O> {
     type Output = WriteValOutput;
     type Error = ();
 }
@@ -67,11 +72,14 @@ macro_rules! lookup_or_create {
     };
 }
 
-fn subscript_val(e: &RefCell<Environment>, a: &ArraySubscript) -> Result<Val, RuntimeError> {
+fn subscript_val<I, O>(
+    e: &RefCell<Environment<I, O>>,
+    a: &ArraySubscript,
+) -> Result<Val, RuntimeError> {
     Ok(ProduceVal::new(e).visit_primary_expression(&a.subscript)?.0)
 }
 
-impl<'a, W: Fn(&mut Val) -> Result<(), ValueError>> VisitExpr for WriteVal<'a, W> {
+impl<'a, W: Fn(&mut Val) -> Result<(), ValueError>, I, O> VisitExpr for WriteVal<'a, W, I, O> {
     fn visit_array_subsript(&mut self, a: &ArraySubscript) -> visit::Result<Self> {
         wrap(|| {
             // drill down through nested subscripts until we find a stopping point (an identifier)

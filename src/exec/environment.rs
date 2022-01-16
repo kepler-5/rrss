@@ -1,4 +1,7 @@
-use std::cell::RefCell;
+use std::{
+    cell::RefCell,
+    io::{stdin, stdout, Read, Stdin, Stdout, Write},
+};
 
 use derive_more::From;
 
@@ -19,23 +22,39 @@ pub enum EnvironmentError {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Environment {
+pub struct Environment<In, Out> {
     variables: Vec<SymTable>,
     last_access: Option<VariableName>,
+    input_buf: In,
+    output_buf: Out,
 }
 
-impl Environment {
-    pub fn new() -> Self {
+impl<In: Read, Out: Write> Environment<In, Out> {
+    pub fn raw(input_buf: In, output_buf: Out) -> Self {
         Self {
             variables: vec![SymTable::new()],
             last_access: None,
+            input_buf,
+            output_buf,
         }
+    }
+
+    pub fn refcell_raw(input_buf: In, output_buf: Out) -> RefCell<Self> {
+        RefCell::new(Self::raw(input_buf, output_buf))
+    }
+}
+
+impl Environment<Stdin, Stdout> {
+    pub fn new() -> Self {
+        Self::raw(stdin(), stdout())
     }
 
     pub fn refcell() -> RefCell<Self> {
         RefCell::new(Self::new())
     }
+}
 
+impl<I, O> Environment<I, O> {
     pub fn push_scope(&mut self) {
         self.variables.push(SymTable::new())
     }

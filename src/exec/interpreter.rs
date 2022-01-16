@@ -1,24 +1,17 @@
-use crate::analysis::visit::Visit;
-
-use super::{environment::Environment, RuntimeError};
+// use super::environment::Environment;
 
 #[cfg(test)]
 mod tests;
 
-#[derive(Debug, PartialEq)]
-pub struct Interpreter {
-    env: Environment,
-}
+// #[derive(Debug, PartialEq)]
+// pub struct Interpreter {
+//     env: Environment<Stdin, Stdout>,
+// }
 
-impl Interpreter {
-    pub fn new() -> Self {
-        Self {
-            env: Environment::new(),
-        }
-    }
-}
-
-impl Visit for Interpreter {
-    type Output = ();
-    type Error = RuntimeError;
-}
+// impl<I, O> Interpreter<I, O> {
+//     pub fn new() -> Self {
+//         Self {
+//             env: Environment::new(),
+//         }
+//     }
+// }

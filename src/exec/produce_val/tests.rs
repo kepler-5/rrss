@@ -8,7 +8,7 @@ fn parse_expr(code: &str) -> Expression {
     Parser::for_source_code(code).parse_expression().unwrap()
 }
 
-fn expr_val(e: &RefCell<Environment>, code: &str) -> Result<Val, RuntimeError> {
+fn expr_val<I, O>(e: &RefCell<Environment<I, O>>, code: &str) -> Result<Val, RuntimeError> {
     ProduceVal::new(e)
         .visit_expression(&parse_expr(code))
         .map(|pvo| pvo.0)
