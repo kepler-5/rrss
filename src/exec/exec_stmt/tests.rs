@@ -68,3 +68,42 @@ fn poetic_string_assignment() {
     assert!(exec(&e, "x says somethin or  other").is_ok());
     assert_eq!(expr_val(&e, "x"), Ok(Val::from("somethin or  other")));
 }
+
+#[test]
+fn if_statement() {
+    let e = Environment::refcell();
+    assert!(exec(
+        &e,
+        "
+    x is 0
+    if x ain't 0
+    put 1 into x
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(0.0)));
+    assert!(exec(
+        &e,
+        "
+    x is 0
+    if x ain't 0
+    put 1 into x
+    else
+    put 2 into x
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(2.0)));
+    assert!(exec(
+        &e,
+        "
+    x is 0
+    if x is 0
+    put 1 into x
+    else
+    put 2 into x
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(1.0)));
+}

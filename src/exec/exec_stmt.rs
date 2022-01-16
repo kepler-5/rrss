@@ -98,7 +98,19 @@ impl<'a> VisitProgram for ExecStmt<'a> {
     }
 
     fn visit_if(&mut self, i: &If) -> visit::Result<Self> {
-        todo!()
+        let condition = self
+            .producer()
+            .visit_expression(&i.condition)?
+            .0
+            .is_truthy();
+        self.env.borrow_mut().push_scope();
+        if condition {
+            self.visit_block(&i.then_block)?;
+        } else if let Some(else_block) = &i.else_block {
+            self.visit_block(else_block)?;
+        }
+        self.env.borrow_mut().pop_scope();
+        Ok(())
     }
 
     fn visit_while(&mut self, w: &While) -> visit::Result<Self> {
