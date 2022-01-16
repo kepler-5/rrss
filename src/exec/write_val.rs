@@ -17,9 +17,9 @@ pub enum WriteValError {
 pub mod tests;
 
 #[derive(Constructor)]
-pub struct WriteVal<'a> {
+pub struct WriteVal<'a, W: Fn(&mut Val) -> ()> {
     env: &'a RefCell<Environment>,
-    val: Val,
+    write: W,
 }
 
 #[must_use = "may contain error that must be propagated"]
@@ -42,12 +42,12 @@ impl<'a> Default for WriteValOutput {
     }
 }
 
-impl<'a> Visit for WriteVal<'a> {
+impl<'a, W: Fn(&mut Val) -> ()> Visit for WriteVal<'a, W> {
     type Output = WriteValOutput;
     type Error = ();
 }
 
-fn wrap<'a, F: Fn() -> Result<(), RuntimeError>>(f: F) -> visit::Result<WriteVal<'a>> {
+fn wrap<'a, F: Fn() -> Result<(), RuntimeError>>(f: F) -> Result<WriteValOutput, ()> {
     Ok(WriteValOutput(f()))
 }
 
@@ -66,7 +66,7 @@ fn subscript_val(e: &RefCell<Environment>, a: &ArraySubscript) -> Result<Val, Ru
     Ok(ProduceVal::new(e).visit_primary_expression(&a.subscript)?.0)
 }
 
-impl<'a> VisitExpr for WriteVal<'a> {
+impl<'a, W: Fn(&mut Val) -> ()> VisitExpr for WriteVal<'a, W> {
     fn visit_array_subsript(&mut self, a: &ArraySubscript) -> visit::Result<Self> {
         wrap(|| {
             // drill down through nested subscripts until we find a stopping point (an identifier)
@@ -83,7 +83,7 @@ impl<'a> VisitExpr for WriteVal<'a> {
                         while let Some(back) = subscripts.pop() {
                             var = var.index_or_insert(&back)?;
                         }
-                        return Ok(*var = self.val.clone());
+                        return Ok((self.write)(var));
                     }
                     PrimaryExpression::ArraySubscript(a) => {
                         subscripts.push(subscript_val(self.env, a)?);
@@ -96,13 +96,13 @@ impl<'a> VisitExpr for WriteVal<'a> {
     }
 
     fn visit_pronoun(&mut self, _: SourceRange) -> visit::Result<Self> {
-        wrap(|| Ok(*self.env.borrow_mut().last_access_mut()? = self.val.clone()))
+        wrap(|| Ok((self.write)(self.env.borrow_mut().last_access_mut()?)))
     }
 
     fn visit_variable_name(&mut self, n: WithRange<&VariableName>) -> visit::Result<Self> {
         wrap(|| {
             let mut e = self.env.borrow_mut();
-            Ok(*lookup_or_create!(e, &n.0) = self.val.clone())
+            Ok((self.write)(lookup_or_create!(e, &n.0)))
         })
     }
 }

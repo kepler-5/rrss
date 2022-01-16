@@ -64,8 +64,12 @@ impl<'a> ExecStmt<'a> {
         ProduceVal::new(self.env)
     }
 
-    fn writer(&self, val: Val) -> WriteVal {
-        WriteVal::new(self.env, val)
+    fn writer(&self, val: Val) -> WriteVal<impl Fn(&mut Val) -> ()> {
+        self.raw_writer(move |v| *v = val.clone())
+    }
+
+    fn raw_writer<W: Fn(&mut Val) -> ()>(&self, w: W) -> WriteVal<W> {
+        WriteVal::new(self.env, w)
     }
 
     fn visit_loop<const INVERT: bool>(

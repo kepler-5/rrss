@@ -23,7 +23,7 @@ fn write_then_read(
     code: &str,
     new_val: Val,
 ) -> Result<Val, RuntimeError> {
-    WriteVal::new(e, new_val)
+    WriteVal::new(e, |val| *val = new_val.clone())
         .visit_expression(&parse_expr(code))
         .unwrap()
         .0?;
