@@ -7,6 +7,7 @@ use crate::{
     exec::{
         environment::Environment,
         produce_val::{binary_operator_fold, ProduceVal},
+        val::Val,
         write_val::WriteVal,
         RuntimeError,
     },
@@ -24,6 +25,16 @@ pub mod tests;
 #[derive(Constructor)]
 pub struct ExecStmt<'a> {
     env: &'a RefCell<Environment>,
+}
+
+impl<'a> ExecStmt<'a> {
+    fn producer(&self) -> ProduceVal {
+        ProduceVal::new(self.env)
+    }
+
+    fn writer(&self, val: Val) -> WriteVal {
+        WriteVal::new(self.env, val)
+    }
 }
 
 impl<'a> Visit for ExecStmt<'a> {
@@ -46,12 +57,12 @@ impl<'a> VisitProgram for ExecStmt<'a> {
 
     fn visit_assignment(&mut self, a: &Assignment) -> visit::Result<Self> {
         if let Some(op) = a.operator {
-            let lhs = ProduceVal::new(self.env).visit_assignment_lhs(&a.dest)?.0;
+            let lhs = self.producer().visit_assignment_lhs(&a.dest)?.0;
             let rhs = once(&a.value.first)
                 .chain(a.value.rest.iter())
-                .map(|e| ProduceVal::new(self.env).visit_expression(e).map(|p| p.0));
+                .map(|e| self.producer().visit_expression(e).map(|p| p.0));
             let new_val = binary_operator_fold(op, lhs, rhs)?;
-            WriteVal::new(self.env, new_val)
+            self.writer(new_val)
                 .visit_assignment_lhs(&a.dest)
                 .unwrap()
                 .0?;
@@ -59,21 +70,9 @@ impl<'a> VisitProgram for ExecStmt<'a> {
         } else if a.value.has_multiple() {
             Err(ExecError::NonCompoundAssignmentExpressionListInvalid.into())
         } else {
-            let rhs = ProduceVal::new(self.env)
-                .visit_expression(&a.value.first)?
-                .0;
-            WriteVal::new(self.env, rhs)
-                .visit_assignment_lhs(&a.dest)
-                .unwrap()
-                .0?;
+            let rhs = self.producer().visit_expression(&a.value.first)?.0;
+            self.writer(rhs).visit_assignment_lhs(&a.dest).unwrap().0?;
             Ok(())
-        }
-    }
-
-    fn visit_poetic_assignment(&mut self, p: &PoeticAssignment) -> visit::Result<Self> {
-        match p {
-            PoeticAssignment::Number(a) => self.visit_poetic_number_assignment(a),
-            PoeticAssignment::String(a) => self.visit_poetic_string_assignment(a),
         }
     }
 
@@ -81,14 +80,21 @@ impl<'a> VisitProgram for ExecStmt<'a> {
         &mut self,
         a: &PoeticNumberAssignment,
     ) -> visit::Result<Self> {
-        crate::analysis::visit::leaf(a)
+        let val = self
+            .producer()
+            .visit_poetic_number_assignment_rhs(&a.rhs)?
+            .0;
+        self.writer(val).visit_assignment_lhs(&a.dest).unwrap().0
     }
 
     fn visit_poetic_string_assignment(
         &mut self,
         a: &PoeticStringAssignment,
     ) -> visit::Result<Self> {
-        crate::analysis::visit::leaf(a)
+        self.writer(Val::from(a.rhs.clone()))
+            .visit_assignment_lhs(&a.dest)
+            .unwrap()
+            .0
     }
 
     fn visit_if(&mut self, i: &If) -> visit::Result<Self> {

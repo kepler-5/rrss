@@ -24,7 +24,7 @@ fn exec(e: &RefCell<Environment>, code: &str) -> Result<(), RuntimeError> {
 }
 
 #[test]
-fn exec_assignment() {
+fn assignment() {
     let e = Environment::refcell();
     assert!(exec(&e, "let x be 5").is_ok());
     assert_eq!(expr_val(&e, "x"), Ok(Val::Number(5.0)));
@@ -43,4 +43,28 @@ fn exec_assignment() {
         exec(&e, "let the error be 1, 2, 3"),
         Err(ExecError::NonCompoundAssignmentExpressionListInvalid.into())
     );
+}
+
+#[test]
+fn poetic_number_assignment() {
+    let e = Environment::refcell();
+    assert!(exec(&e, "x is 5").is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(5.0)));
+    assert!(exec(&e, "x is something").is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(9.0)));
+
+    assert!(exec(&e, "y is x").is_ok());
+    assert_eq!(expr_val(&e, "y"), Ok(Val::Number(1.0)));
+    assert!(exec(&e, "let y be without 1").is_ok());
+    assert_eq!(expr_val(&e, "y"), Ok(Val::Number(0.0)));
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(9.0)));
+}
+
+#[test]
+fn poetic_string_assignment() {
+    let e = Environment::refcell();
+    assert!(exec(&e, "x says 5").is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::from("5")));
+    assert!(exec(&e, "x says somethin or  other").is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::from("somethin or  other")));
 }
