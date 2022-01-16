@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use derive_more::From;
 
 use crate::frontend::ast::VariableName;
@@ -28,6 +30,10 @@ impl Environment {
             variables: vec![SymTable::new()],
             last_access: None,
         }
+    }
+
+    pub fn refcell() -> RefCell<Self> {
+        RefCell::new(Self::new())
     }
 
     pub fn push_scope(&mut self) {

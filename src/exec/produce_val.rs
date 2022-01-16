@@ -4,10 +4,9 @@ use derive_more::{Constructor, From};
 
 use crate::{
     analysis::visit::{self, Combine, Visit, VisitExpr},
+    exec::{environment::Environment, val::Val, RuntimeError},
     frontend::{ast::*, source_range::SourceRange},
 };
-
-use super::{environment::Environment, val::Val, RuntimeError};
 
 #[cfg(test)]
 mod tests;
@@ -43,52 +42,15 @@ impl<'a> VisitExpr for ProduceVal<'a> {
     }
 
     fn visit_array_push_rhs(&mut self, _: &ArrayPushRHS) -> visit::Result<Self> {
-        unimplemented!("expression list arm must be handled by EvalStmt")
+        unimplemented!("expression list arm must be handled by ExecStmt")
     }
 
     fn visit_binary_expression(&mut self, e: &BinaryExpression) -> visit::Result<Self> {
-        let lhs = self.visit_expression(&e.lhs)?;
-        let mut rhs = once(&e.rhs.first)
+        let lhs = self.visit_expression(&e.lhs)?.0;
+        let rhs = once(&e.rhs.first)
             .chain(e.rhs.rest.iter())
-            .map(|e| self.visit_expression(e));
-        let op = |a: ProduceValOutput, b: visit::Result<Self>| {
-            match e.operator {
-                BinaryOperator::Plus => Ok(a.0.plus(&b?.0)?),
-                BinaryOperator::Minus => Ok(a.0.subtract(&b?.0)?),
-                BinaryOperator::Multiply => Ok(a.0.multiply(&b?.0)?),
-                BinaryOperator::Divide => Ok(a.0.divide(&b?.0)?),
-
-                BinaryOperator::And => Ok(Val::Boolean(a.0.is_truthy() && b?.0.is_truthy())),
-                BinaryOperator::Or => Ok(Val::Boolean(a.0.is_truthy() || b?.0.is_truthy())),
-                BinaryOperator::Nor => Ok(Val::Boolean(!a.0.is_truthy() && !b?.0.is_truthy())),
-
-                BinaryOperator::Eq => Ok(Val::Boolean(a.0.equals(&b?.0))),
-                BinaryOperator::NotEq => Ok(Val::Boolean(!a.0.equals(&b?.0))),
-
-                BinaryOperator::Greater => Ok(Val::Boolean(
-                    a.0.compare(&b?.0)?
-                        .map(|o| o == Ordering::Greater)
-                        .unwrap_or(false),
-                )),
-                BinaryOperator::GreaterEq => Ok(Val::Boolean(
-                    a.0.compare(&b?.0)?
-                        .map(|o| o != Ordering::Less)
-                        .unwrap_or(false),
-                )),
-                BinaryOperator::Less => Ok(Val::Boolean(
-                    a.0.compare(&b?.0)?
-                        .map(|o| o == Ordering::Less)
-                        .unwrap_or(false),
-                )),
-                BinaryOperator::LessEq => Ok(Val::Boolean(
-                    a.0.compare(&b?.0)?
-                        .map(|o| o != Ordering::Greater)
-                        .unwrap_or(false),
-                )),
-            }
-            .map(ProduceValOutput)
-        };
-        rhs.try_fold(lhs, op)
+            .map(|e| self.visit_expression(e).map(|p| p.0));
+        binary_operator_fold(e.operator, lhs, rhs).map(ProduceValOutput)
     }
 
     fn visit_unary_expression(&mut self, e: &UnaryExpression) -> visit::Result<Self> {
@@ -138,4 +100,46 @@ impl<'a> VisitExpr for ProduceVal<'a> {
             .map(|val| val.clone().into())
             .map_err(Into::into)
     }
+}
+
+pub fn binary_operator_fold(
+    operator: BinaryOperator,
+    lhs: Val,
+    mut rhs: impl Iterator<Item = Result<Val, RuntimeError>>,
+) -> Result<Val, RuntimeError> {
+    let op = |a: Val, b: Result<Val, RuntimeError>| match operator {
+        BinaryOperator::Plus => Ok(a.plus(&b?)?),
+        BinaryOperator::Minus => Ok(a.subtract(&b?)?),
+        BinaryOperator::Multiply => Ok(a.multiply(&b?)?),
+        BinaryOperator::Divide => Ok(a.divide(&b?)?),
+
+        BinaryOperator::And => Ok(Val::Boolean(a.is_truthy() && b?.is_truthy())),
+        BinaryOperator::Or => Ok(Val::Boolean(a.is_truthy() || b?.is_truthy())),
+        BinaryOperator::Nor => Ok(Val::Boolean(!a.is_truthy() && !b?.is_truthy())),
+
+        BinaryOperator::Eq => Ok(Val::Boolean(a.equals(&b?))),
+        BinaryOperator::NotEq => Ok(Val::Boolean(!a.equals(&b?))),
+
+        BinaryOperator::Greater => Ok(Val::Boolean(
+            a.compare(&b?)?
+                .map(|o| o == Ordering::Greater)
+                .unwrap_or(false),
+        )),
+        BinaryOperator::GreaterEq => Ok(Val::Boolean(
+            a.compare(&b?)?
+                .map(|o| o != Ordering::Less)
+                .unwrap_or(false),
+        )),
+        BinaryOperator::Less => Ok(Val::Boolean(
+            a.compare(&b?)?
+                .map(|o| o == Ordering::Less)
+                .unwrap_or(false),
+        )),
+        BinaryOperator::LessEq => Ok(Val::Boolean(
+            a.compare(&b?)?
+                .map(|o| o != Ordering::Greater)
+                .unwrap_or(false),
+        )),
+    };
+    rhs.try_fold(lhs, op)
 }

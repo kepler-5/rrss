@@ -24,7 +24,7 @@ pub struct WriteVal<'a> {
 
 #[must_use = "may contain error that must be propagated"]
 #[derive(Debug, From, PartialEq)]
-pub struct WriteValOutput(Result<(), RuntimeError>);
+pub struct WriteValOutput(pub Result<(), RuntimeError>);
 
 fn not_writable_error() -> Result<(), RuntimeError> {
     Err(WriteValError::ValueNotWritable.into()).into()
