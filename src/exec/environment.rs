@@ -44,6 +44,11 @@ impl Environment {
         self.lookup_var_impl(name)
     }
 
+    pub fn lookup_var_mut(&mut self, name: &VariableName) -> Result<&mut Val, EnvironmentError> {
+        self.last_access = Some(name.clone());
+        self.lookup_var_mut_impl(name)
+    }
+
     fn lookup_var_impl(&self, name: &VariableName) -> Result<&Val, EnvironmentError> {
         self.variables
             .iter()
@@ -56,8 +61,7 @@ impl Environment {
             )
     }
 
-    pub fn lookup_var_mut(&mut self, name: &VariableName) -> Result<&mut Val, EnvironmentError> {
-        self.last_access = Some(name.clone());
+    fn lookup_var_mut_impl(&mut self, name: &VariableName) -> Result<&mut Val, EnvironmentError> {
         self.variables
             .iter_mut()
             .rev()
@@ -68,6 +72,7 @@ impl Environment {
                 |r| r.map_err(Into::into),
             )
     }
+
     pub fn create_var(&mut self, name: &VariableName) -> &mut Val {
         self.last_access = Some(name.clone());
         self.variables.last_mut().unwrap().emplace(name)
@@ -78,5 +83,12 @@ impl Environment {
             .as_ref()
             .ok_or(EnvironmentError::MissingPronounReferent)
             .and_then(|name| self.lookup_var_impl(name))
+    }
+
+    pub fn last_access_mut(&mut self) -> Result<&mut Val, EnvironmentError> {
+        self.last_access
+            .clone() // TODO
+            .ok_or(EnvironmentError::MissingPronounReferent)
+            .and_then(|name| self.lookup_var_mut_impl(&name))
     }
 }
