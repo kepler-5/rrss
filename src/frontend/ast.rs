@@ -1,4 +1,4 @@
-use std::{hint::unreachable_unchecked, iter::Peekable};
+use std::{hint::unreachable_unchecked, iter::once, iter::Peekable};
 
 use crate::frontend::source_range::SourceRange;
 
@@ -205,6 +205,14 @@ pub struct ExpressionList {
 impl ExpressionList {
     pub fn has_multiple(&self) -> bool {
         !self.rest.is_empty()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Expression> {
+        once(&self.first).chain(self.rest.iter())
+    }
+
+    pub fn len(&self) -> usize {
+        1 + self.rest.len()
     }
 }
 

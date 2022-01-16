@@ -29,6 +29,57 @@ fn poetic_number_literal_iterator() {
 }
 
 #[test]
+fn expression_list_iter() {
+    let bogus = || SourceRange::from(((0, 0), (0, 0)));
+    assert_eq!(
+        ExpressionList {
+            first: WithRange(LiteralExpression::Null, bogus()).into(),
+            rest: vec![]
+        }
+        .len(),
+        1
+    );
+    assert_eq!(
+        ExpressionList {
+            first: WithRange(LiteralExpression::Null, bogus()).into(),
+            rest: vec![]
+        }
+        .iter()
+        .cloned()
+        .collect::<Vec<_>>(),
+        [WithRange(LiteralExpression::Null, bogus()).into()]
+    );
+    assert_eq!(
+        ExpressionList {
+            first: WithRange(LiteralExpression::Null, bogus()).into(),
+            rest: vec![
+                WithRange(LiteralExpression::Number(0.0), bogus()).into(),
+                WithRange(LiteralExpression::Number(1.0), bogus()).into()
+            ]
+        }
+        .iter()
+        .cloned()
+        .collect::<Vec<_>>(),
+        [
+            WithRange(LiteralExpression::Null, bogus()).into(),
+            WithRange(LiteralExpression::Number(0.0), bogus()).into(),
+            WithRange(LiteralExpression::Number(1.0), bogus()).into()
+        ]
+    );
+    assert_eq!(
+        ExpressionList {
+            first: WithRange(LiteralExpression::Null, bogus()).into(),
+            rest: vec![
+                WithRange(LiteralExpression::Number(0.0), bogus()).into(),
+                WithRange(LiteralExpression::Number(1.0), bogus()).into()
+            ]
+        }
+        .len(),
+        3
+    );
+}
+
+#[test]
 fn test_find_or_end() {
     assert_eq!(position_or_end(vec![].into_iter(), |x: &i32| *x == 1), 0);
     assert_eq!(position_or_end(vec![1, 2, 3].into_iter(), |x| *x == 1), 0);
