@@ -243,6 +243,21 @@ impl Val {
         }
     }
 
+    pub fn to_string_for_output(&self) -> Cow<'_, str> {
+        let decayed = self.decay();
+        match (&decayed, decayed.as_ref()) {
+            (Cow::Borrowed(Val::String(s)), _) => Cow::Borrowed(&**s),
+
+            (_, Val::Undefined) => Cow::Owned("mysterious".into()),
+            (_, Val::Null) => Cow::Owned("null".into()),
+            (_, Val::Boolean(b)) => Cow::Owned(if *b { "true" } else { "false" }.into()),
+            (_, Val::Number(n)) => Cow::Owned(n.to_string()),
+            (_, Val::String(s)) => Cow::Owned((**s).clone()),
+
+            (_, Val::Array(_)) => unreachable!(),
+        }
+    }
+
     pub fn is_truthy(&self) -> bool {
         match self {
             Val::Undefined => false,

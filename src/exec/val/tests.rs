@@ -137,6 +137,41 @@ fn decay() {
 }
 
 #[test]
+fn to_string_for_output() {
+    assert_eq!(
+        Val::Undefined.to_string_for_output().into_owned(),
+        "mysterious"
+    );
+    assert_eq!(Val::Null.to_string_for_output().into_owned(), "null");
+    assert_eq!(
+        Val::Boolean(false).to_string_for_output().into_owned(),
+        "false"
+    );
+    assert_eq!(
+        Val::Boolean(true).to_string_for_output().into_owned(),
+        "true"
+    );
+    assert_eq!(Val::Number(0.0).to_string_for_output().into_owned(), "0");
+    assert_eq!(
+        Val::from("foo").to_string_for_output(),
+        Cow::Borrowed("foo")
+    );
+    assert_eq!(
+        Val::from(Array::new()).to_string_for_output().into_owned(),
+        "0"
+    );
+
+    let mut arr = Val::from(Array::new());
+
+    *arr.index_or_insert(&Val::Null).unwrap() = Val::Boolean(true);
+    assert_eq!(arr.to_string_for_output().into_owned(), "1");
+    *arr.index_or_insert(&Val::Boolean(false)).unwrap() = Val::Number(0.0);
+    assert_eq!(arr.to_string_for_output().into_owned(), "2");
+    *arr.index_or_insert(&Val::Number(0.0)).unwrap() = Val::Number(1.0);
+    assert_eq!(arr.to_string_for_output().into_owned(), "3");
+}
+
+#[test]
 fn is_truthy() {
     assert!(!Val::Undefined.is_truthy());
     assert!(!Val::Null.is_truthy());
