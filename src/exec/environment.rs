@@ -19,6 +19,7 @@ mod tests;
 pub enum EnvironmentError {
     SymTableError(SymTableError),
     MissingPronounReferent,
+    IOError(String),
 }
 
 #[derive(Debug, PartialEq)]
@@ -41,6 +42,13 @@ impl<In: Read, Out: Write> Environment<In, Out> {
 
     pub fn refcell_raw(input_buf: In, output_buf: Out) -> RefCell<Self> {
         RefCell::new(Self::raw(input_buf, output_buf))
+    }
+
+    pub fn output(&mut self, text: &str) -> Result<(), EnvironmentError> {
+        self.output_buf
+            .write(text.as_bytes())
+            .map(|_| ())
+            .map_err(|e| EnvironmentError::IOError(e.to_string()))
     }
 }
 

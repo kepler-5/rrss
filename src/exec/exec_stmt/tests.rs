@@ -1,3 +1,5 @@
+use std::io::stdin;
+
 use super::*;
 
 use crate::{
@@ -19,7 +21,7 @@ fn expr_val<I, O>(e: &RefCell<Environment<I, O>>, code: &str) -> Result<Val, Run
         .map(|pvo| pvo.0)
 }
 
-fn exec<I, O>(e: &RefCell<Environment<I, O>>, code: &str) -> Result<(), RuntimeError> {
+fn exec<I: Read, O: Write>(e: &RefCell<Environment<I, O>>, code: &str) -> Result<(), RuntimeError> {
     ExecStmt::new(e).visit_program(&parse(code))
 }
 
@@ -341,4 +343,45 @@ fn rounding() {
     )
     .is_ok());
     assert_eq!(expr_val(&e, "x"), Ok(Val::Number(2.0)));
+}
+
+#[test]
+fn output() {
+    let capture_output = |code| {
+        let mut output = Vec::new();
+        let e = Environment::refcell_raw(stdin(), &mut output);
+        assert!(exec(&e, code).is_ok());
+        std::str::from_utf8(&output).unwrap().to_owned()
+    };
+
+    assert_eq!(capture_output(""), "");
+    assert_eq!(
+        capture_output(
+            "
+    x says hello
+    shout it
+    "
+        ),
+        "hello"
+    );
+    assert_eq!(
+        capture_output(
+            "
+    say 1 + 1
+    "
+        ),
+        "2"
+    );
+    assert_eq!(
+        capture_output(
+            "
+    x is 1
+    if x is 2
+    say x
+    else
+    say x * 5
+    "
+        ),
+        "5"
+    );
 }

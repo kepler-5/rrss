@@ -1,4 +1,8 @@
-use std::{cell::RefCell, iter::once};
+use std::{
+    cell::RefCell,
+    io::{Read, Write},
+    iter::once,
+};
 
 use derive_more::IsVariant;
 
@@ -74,7 +78,9 @@ impl<'a, I, O> ExecStmt<'a, I, O> {
     fn raw_writer<W: Fn(&mut Val) -> Result<(), ValueError>>(&self, w: W) -> WriteVal<W, I, O> {
         WriteVal::new(self.env, w)
     }
+}
 
+impl<'a, I: Read, O: Write> ExecStmt<'a, I, O> {
     fn visit_loop<const INVERT: bool>(
         &mut self,
         condition: &Expression,
@@ -115,7 +121,7 @@ impl<'a, I, O> Visit for ExecStmt<'a, I, O> {
     type Error = RuntimeError;
 }
 
-impl<'a, I, O> VisitProgram for ExecStmt<'a, I, O> {
+impl<'a, I: Read, O: Write> VisitProgram for ExecStmt<'a, I, O> {
     fn visit_block(&mut self, b: &Block) -> visit::Result<Self> {
         match b {
             Block::Empty(_) => Ok(()),
@@ -210,7 +216,9 @@ impl<'a, I, O> VisitProgram for ExecStmt<'a, I, O> {
     }
 
     fn visit_output(&mut self, o: &Output) -> visit::Result<Self> {
-        todo!()
+        let val = self.producer().visit_expression(&o.value)?.0;
+        let out = val.to_string_for_output();
+        self.env.borrow_mut().output(&out).map_err(Into::into)
     }
 
     fn visit_mutation(&mut self, m: &Mutation) -> visit::Result<Self> {
