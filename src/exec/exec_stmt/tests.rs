@@ -134,3 +134,46 @@ fn if_statement() {
         .into())
     );
 }
+
+#[test]
+fn loop_statement() {
+    let e = Environment::refcell();
+    assert!(exec(
+        &e,
+        "
+    x is 0
+    while x is smaller than 10
+    let x be plus 3
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(12.0)));
+    assert!(exec(
+        &e,
+        "
+    x is 0
+    until x is smaller than 10
+    let x be plus 3
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(0.0)));
+    assert!(exec(
+        &e,
+        "
+    x is 0
+    while x is smaller than 10
+    let y be x plus 3
+    x is 50
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(50.0)));
+    assert_eq!(
+        expr_val(&e, "y"),
+        Err(EnvironmentError::from(SymTableError::NameNotFound(
+            SimpleIdentifier("y".into()).into()
+        ))
+        .into())
+    );
+}

@@ -1,7 +1,5 @@
 use std::{cell::RefCell, iter::once};
 
-use derive_more::Constructor;
-
 use crate::{
     analysis::visit::{self, Visit, VisitExpr, VisitProgram},
     exec::{
@@ -14,26 +12,78 @@ use crate::{
     frontend::ast::*,
 };
 
+#[cfg(test)]
+pub mod tests;
+
 #[derive(Debug, PartialEq)]
 pub enum ExecError {
     NonCompoundAssignmentExpressionListInvalid,
 }
 
-#[cfg(test)]
-pub mod tests;
+#[derive(Debug)]
+enum ControlFlowState {
+    Normal,
+    Breaking,
+    Continuing,
+    Returning,
+}
 
-#[derive(Constructor)]
+impl ControlFlowState {
+    fn breaking_out(&self) -> bool {
+        match self {
+            ControlFlowState::Breaking => true,
+            ControlFlowState::Continuing => true,
+            ControlFlowState::Returning => true,
+            _ => false,
+        }
+    }
+}
+
 pub struct ExecStmt<'a> {
     env: &'a RefCell<Environment>,
+    control_flow_state: ControlFlowState,
+    return_val: Val,
 }
 
 impl<'a> ExecStmt<'a> {
+    pub fn new(env: &'a RefCell<Environment>) -> Self {
+        Self {
+            env,
+            control_flow_state: ControlFlowState::Normal,
+            return_val: Val::Undefined,
+        }
+    }
+
+    pub fn return_val(self) -> Val {
+        self.return_val
+    }
+
     fn producer(&self) -> ProduceVal {
         ProduceVal::new(self.env)
     }
 
     fn writer(&self, val: Val) -> WriteVal {
         WriteVal::new(self.env, val)
+    }
+
+    fn visit_loop<const INVERT: bool>(
+        &mut self,
+        condition: &Expression,
+        block: &Block,
+    ) -> visit::Result<Self> {
+        while INVERT ^ self.producer().visit_expression(&condition)?.0.is_truthy() {
+            self.env.borrow_mut().push_scope();
+            self.visit_block(block)?;
+            self.env.borrow_mut().pop_scope();
+
+            match self.control_flow_state {
+                ControlFlowState::Normal => {}
+                ControlFlowState::Continuing => {}
+                ControlFlowState::Breaking => break,
+                ControlFlowState::Returning => break,
+            }
+        }
+        Ok(())
     }
 }
 
@@ -49,6 +99,9 @@ impl<'a> VisitProgram for ExecStmt<'a> {
             Block::NonEmpty(statements) => {
                 for s in statements {
                     self.visit_statement(s)?;
+                    if self.control_flow_state.breaking_out() {
+                        break;
+                    }
                 }
                 Ok(())
             }
@@ -114,11 +167,11 @@ impl<'a> VisitProgram for ExecStmt<'a> {
     }
 
     fn visit_while(&mut self, w: &While) -> visit::Result<Self> {
-        Ok(self.visit_block(&w.block)?)
+        self.visit_loop::<false>(&w.condition, &w.block)
     }
 
     fn visit_until(&mut self, u: &Until) -> visit::Result<Self> {
-        Ok(self.visit_block(&u.block)?)
+        self.visit_loop::<true>(&u.condition, &u.block)
     }
 
     fn visit_inc(&mut self, i: &Inc) -> visit::Result<Self> {
