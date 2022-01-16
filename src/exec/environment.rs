@@ -45,8 +45,7 @@ impl<In: Read, Out: Write> Environment<In, Out> {
     }
 
     pub fn output(&mut self, text: &str) -> Result<(), EnvironmentError> {
-        self.output_buf
-            .write(text.as_bytes())
+        writeln!(self.output_buf, "{}", text)
             .map(|_| ())
             .map_err(|e| EnvironmentError::IOError(e.to_string()))
     }

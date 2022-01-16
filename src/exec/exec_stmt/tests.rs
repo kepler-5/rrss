@@ -362,7 +362,7 @@ fn output() {
     shout it
     "
         ),
-        "hello"
+        "hello\n"
     );
     assert_eq!(
         capture_output(
@@ -370,7 +370,7 @@ fn output() {
     say 1 + 1
     "
         ),
-        "2"
+        "2\n"
     );
     assert_eq!(
         capture_output(
@@ -382,7 +382,7 @@ fn output() {
     say x * 5
     "
         ),
-        "5"
+        "5\n"
     );
 }
 
@@ -404,7 +404,7 @@ fn input() {
     ",
             "hello\nworld"
         ),
-        "hello"
+        "hello\n"
     );
     assert_eq!(
         capture_output(
@@ -415,7 +415,7 @@ fn input() {
     ",
             "hello\nworld"
         ),
-        "world"
+        "world\n"
     );
     assert_eq!(
         capture_output(
@@ -426,6 +426,6 @@ fn input() {
     ",
             "hello\nworld"
         ),
-        "worldhello"
+        "worldhello\n"
     );
 }

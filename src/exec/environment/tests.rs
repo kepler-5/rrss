@@ -44,11 +44,11 @@ fn output() {
     let mut output = Vec::new();
     let mut e = Environment::raw(stdin(), &mut output);
     assert!(e.output("hello").is_ok());
-    // assert_eq!(std::str::from_utf8(&output).unwrap().to_owned(), "hello"); // TODO borrow checker doesn't like this
+    // assert_eq!(std::str::from_utf8(&output).unwrap().to_owned(), "hello\n"); // TODO borrow checker doesn't like this
     assert!(e.output("world").is_ok());
     assert_eq!(
         std::str::from_utf8(&output).unwrap().to_owned(),
-        "helloworld"
+        "hello\nworld\n"
     );
 }
 
