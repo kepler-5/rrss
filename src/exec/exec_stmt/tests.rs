@@ -278,3 +278,35 @@ fn break_statement() {
     assert_eq!(expr_val(&e, "x"), Ok(Val::Number(10.0)));
     assert_eq!(expr_val(&e, "y"), Ok(Val::Number(10.0)));
 }
+
+#[test]
+fn inc_dec() {
+    let e = Environment::refcell();
+    assert!(exec(
+        &e,
+        "
+    x is 0
+    build x up
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(1.0)));
+    assert!(exec(
+        &e,
+        "
+    x is 0
+    build x up, up
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(2.0)));
+    assert!(exec(
+        &e,
+        "
+    x is 0
+    knock x down
+    "
+    )
+    .is_ok());
+    assert_eq!(expr_val(&e, "x"), Ok(Val::Number(-1.0)));
+}

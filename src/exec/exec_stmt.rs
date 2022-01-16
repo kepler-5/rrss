@@ -97,6 +97,17 @@ impl<'a> ExecStmt<'a> {
         }
         Ok(())
     }
+
+    fn visit_inc_dec(
+        &mut self,
+        dest: &WithRange<Identifier>,
+        amount: isize,
+    ) -> visit::Result<Self> {
+        self.raw_writer(|val| val.inc(amount))
+            .visit_identifier(&dest)
+            .unwrap()
+            .0
+    }
 }
 
 impl<'a> Visit for ExecStmt<'a> {
@@ -187,11 +198,11 @@ impl<'a> VisitProgram for ExecStmt<'a> {
     }
 
     fn visit_inc(&mut self, i: &Inc) -> visit::Result<Self> {
-        crate::analysis::visit::leaf(i)
+        self.visit_inc_dec(&i.dest, i.amount)
     }
 
     fn visit_dec(&mut self, d: &Dec) -> visit::Result<Self> {
-        crate::analysis::visit::leaf(d)
+        self.visit_inc_dec(&d.dest, -d.amount)
     }
 
     fn visit_input(&mut self, i: &Input) -> visit::Result<Self> {
