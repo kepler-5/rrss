@@ -1025,6 +1025,17 @@ fn parse_assignment() {
 }
 
 #[test]
+#[ignore = "this doesn't currently pass"]
+fn roll_in_assignments() {
+    let parse = |text| {
+        Parser::for_source_code(text)
+            .parse_statement()
+            .map(|s| s.unwrap())
+    };
+    assert!(parse("let the first be roll ints").is_ok());
+}
+
+#[test]
 fn array_subscript_left_associativity() {
     let parse = |text| Parser::for_source_code(text).parse_expression();
     assert_eq!(

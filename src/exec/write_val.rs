@@ -28,7 +28,7 @@ pub struct WriteVal<'a, W, I, O> {
     write: W,
 }
 
-impl<'a, W: Fn(&mut Val) -> Result<(), ValueError>, I, O> WriteVal<'a, W, I, O> {
+impl<'a, W: FnMut(&mut Val) -> Result<(), ValueError>, I, O> WriteVal<'a, W, I, O> {
     pub fn new(env: &'a RefCell<Environment<I, O>>, write: W) -> Self {
         Self { env, write }
     }
@@ -59,7 +59,7 @@ impl<'a, W, I, O> Visit for WriteVal<'a, W, I, O> {
     type Error = ();
 }
 
-fn wrap<'a, F: Fn() -> Result<(), RuntimeError>>(f: F) -> Result<WriteValOutput, ()> {
+fn wrap<'a, F: FnMut() -> Result<(), RuntimeError>>(mut f: F) -> Result<WriteValOutput, ()> {
     Ok(WriteValOutput(f()))
 }
 
@@ -81,7 +81,7 @@ fn subscript_val<I, O>(
     Ok(ProduceVal::new(e).visit_primary_expression(&a.subscript)?.0)
 }
 
-impl<'a, W: Fn(&mut Val) -> Result<(), ValueError>, I, O> VisitExpr for WriteVal<'a, W, I, O> {
+impl<'a, W: FnMut(&mut Val) -> Result<(), ValueError>, I, O> VisitExpr for WriteVal<'a, W, I, O> {
     fn visit_array_subsript(&mut self, a: &ArraySubscript) -> visit::Result<Self> {
         wrap(|| {
             // drill down through nested subscripts until we find a stopping point (an identifier)

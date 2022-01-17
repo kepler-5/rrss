@@ -493,4 +493,71 @@ fn array_push() {
         ),
         "3\n1\n2\n3\n"
     );
+    assert_eq!(
+        capture_output(
+            "
+    rock the array like the poetic literal
+    shout the array
+    shout the array at 0
+    "
+        ),
+        "1\n367\n"
+    );
+}
+
+#[test]
+fn array_pop() {
+    let capture_output = |code| {
+        let mut output = Vec::new();
+        let e = Environment::refcell_raw(stdin(), &mut output);
+        assert!(exec(&e, code).is_ok());
+        std::str::from_utf8(&output).unwrap().to_owned()
+    };
+
+    assert_eq!(
+        capture_output(
+            "
+        Rock the list with 4, 5, 6
+        Shout the list
+        Roll the list
+        Shout the list
+        Roll the list
+        Shout the list
+        Roll the list
+        Shout the list
+    "
+        ),
+        "3\n2\n1\n0\n"
+    );
+    assert_eq!(
+        capture_output(
+            "
+        Rock the list with 4, 5, 6
+        Roll the list into foo
+        Roll the list into bar
+        Roll the list into baz
+        Shout foo
+        Shout bar
+        Shout baz
+        Shout the list
+    "
+        ),
+        "4\n5\n6\n0\n"
+    );
+
+    assert_eq!(
+        capture_output(
+            "
+        Rock the list with 4, 5, 6
+        Roll the list into the list at 2
+        Shout the list at 2
+        Roll the list into the list at 3
+        Shout the list at 3
+        Shout the list at 2
+        Roll the list into the list
+        Shout the list
+    "
+        ),
+        "4\n5\nmysterious\n6\n"
+    );
 }

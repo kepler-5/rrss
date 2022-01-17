@@ -6,6 +6,7 @@ use std::{
 
 use derive_more::IsVariant;
 use smallvec::SmallVec;
+use unchecked_unwrap::UncheckedUnwrap;
 
 use crate::{
     analysis::visit::{self, Visit, VisitExpr, VisitProgram},
@@ -69,14 +70,14 @@ impl<'a, I, O> ExecStmt<'a, I, O> {
         ProduceVal::new(self.env)
     }
 
-    fn writer(&self, val: Val) -> WriteVal<impl Fn(&mut Val) -> Result<(), ValueError>, I, O> {
+    fn writer(&self, val: Val) -> WriteVal<impl FnMut(&mut Val) -> Result<(), ValueError>, I, O> {
         self.raw_writer(move |v| {
             *v = val.clone();
             Ok(())
         })
     }
 
-    fn raw_writer<W: Fn(&mut Val) -> Result<(), ValueError>>(&self, w: W) -> WriteVal<W, I, O> {
+    fn raw_writer<W: FnMut(&mut Val) -> Result<(), ValueError>>(&self, w: W) -> WriteVal<W, I, O> {
         WriteVal::new(self.env, w)
     }
 }
@@ -298,7 +299,21 @@ impl<'a, I: Read, O: Write> VisitProgram for ExecStmt<'a, I, O> {
     }
 
     fn visit_array_pop(&mut self, a: &ArrayPop) -> visit::Result<Self> {
-        todo!()
+        let mut back = None;
+        self.raw_writer(|val| {
+            back = Some(val.pop()?);
+            Ok(())
+        })
+        .visit_primary_expression(&a.array)
+        .unwrap()
+        .0?;
+        if let Some(dest) = &a.dest {
+            self.writer(unsafe { back.unchecked_unwrap() })
+                .visit_assignment_lhs(dest)
+                .unwrap()
+                .0?
+        }
+        Ok(())
     }
 
     fn visit_return(&mut self, r: &Return) -> visit::Result<Self> {
