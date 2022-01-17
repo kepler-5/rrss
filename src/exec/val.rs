@@ -29,6 +29,10 @@ pub enum ValueError {
     InvalidSplitDelimiter,
     InvalidJoinDelimiter,
     InvalidArrayElementForJoin(Val),
+    ParsingStringAsNumberFailed(String),
+    InvalidStringToIntegerRadix(Val),
+    ConvertingNumberToCharacterFailed(f64),
+    UnexpectedParameterToNumberToCharacterCast(Val),
 }
 
 #[derive(Clone, Debug, IsVariant, PartialEq)]
@@ -541,6 +545,53 @@ impl Val {
                 *self = String::new().into();
                 Ok(())
             }
+            _ => Err(ValueError::InvalidOperationForType),
+        }
+    }
+
+    fn try_to_integer(f: f64, fail: impl FnOnce() -> ValueError) -> Result<i64, ValueError> {
+        let i = f.trunc();
+        (i == f).then(|| i as i64).ok_or_else(fail)
+    }
+
+    pub fn cast(&mut self, param: Option<Val>) -> Result<(), ValueError> {
+        match self {
+            Val::Number(n) => {
+                if let Some(param) = param {
+                    Err(ValueError::UnexpectedParameterToNumberToCharacterCast(
+                        param.clone(),
+                    ))
+                } else {
+                    let err = || ValueError::ConvertingNumberToCharacterFailed(*n);
+                    let i = Self::try_to_integer(*n, err)?;
+                    let c = char::from_u32(i.try_into().map_err(|_| err())?).ok_or_else(err)?;
+                    *self = Val::from(c);
+                    Ok(())
+                }
+            }
+            Val::String(s) => {
+                if let Some(param) = param {
+                    match param {
+                        Val::Number(p) => {
+                            let err = || ValueError::InvalidStringToIntegerRadix(param.clone());
+                            let radix = Self::try_to_integer(p, err)?
+                                .try_into()
+                                .map_err(|_| err())?;
+                            let n = i64::from_str_radix(s, radix).map_err(|_| err())?;
+                            *self = Val::Number(n as f64);
+                            Ok(())
+                        }
+                        _ => Err(ValueError::InvalidStringToIntegerRadix(param.clone())),
+                    }
+                } else {
+                    *self = s
+                        .parse()
+                        .map(Val::Number)
+                        .map_err(|_| ValueError::ParsingStringAsNumberFailed((**s).clone()))?;
+                    Ok(())
+                }
+            }
+
             _ => Err(ValueError::InvalidOperationForType),
         }
     }

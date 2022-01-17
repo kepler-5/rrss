@@ -847,3 +847,72 @@ fn join() {
         Err(ValueError::InvalidOperationForType)
     );
 }
+
+#[test]
+fn cast() {
+    let cast = |val: Val, p| {
+        let mut copy = val.clone();
+        copy.cast(p).map(|_| copy)
+    };
+
+    assert_eq!(cast(Val::Number(65.0), None), Ok(Val::from("A")));
+    assert_eq!(cast(Val::Number(1046.0), None), Ok(Val::from("Ж")));
+    assert_eq!(cast(Val::Number(128175.0), None), Ok(Val::from('💯')));
+    assert_eq!(
+        cast(Val::Number(1046.5), None),
+        Err(ValueError::ConvertingNumberToCharacterFailed(1046.5))
+    );
+
+    assert_eq!(cast(Val::from("123.45"), None), Ok(Val::Number(123.45)));
+    assert_eq!(
+        cast(Val::from("ff"), Some(Val::Number(16.0))),
+        Ok(Val::Number(255.0))
+    );
+    assert_eq!(cast(Val::from("12345"), None), Ok(Val::Number(12345.0)));
+    assert_eq!(
+        cast(Val::from("AA"), Some(Val::Number(16.0))),
+        Ok(Val::Number(170.0))
+    );
+    assert_eq!(
+        cast(Val::from("AA"), Some(Val::Number(16.6))),
+        Err(ValueError::InvalidStringToIntegerRadix(Val::Number(16.6)))
+    );
+
+    assert_eq!(
+        cast(Val::from("AA"), Some(Val::Undefined)),
+        Err(ValueError::InvalidStringToIntegerRadix(Val::Undefined))
+    );
+    assert_eq!(
+        cast(Val::from("AA"), Some(Val::Null)),
+        Err(ValueError::InvalidStringToIntegerRadix(Val::Null))
+    );
+    assert_eq!(
+        cast(Val::from("AA"), Some(Val::Boolean(false))),
+        Err(ValueError::InvalidStringToIntegerRadix(Val::Boolean(false)))
+    );
+    assert_eq!(
+        cast(Val::from("AA"), Some(Val::from(""))),
+        Err(ValueError::InvalidStringToIntegerRadix(Val::from("")))
+    );
+    assert_eq!(
+        cast(Val::from("AA"), Some(Array::new().into())),
+        Err(ValueError::InvalidStringToIntegerRadix(Array::new().into()))
+    );
+
+    assert_eq!(
+        cast(Val::Undefined, None),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        cast(Val::Null, None),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        cast(Val::Boolean(false), None),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        cast(Array::new().into(), None),
+        Err(ValueError::InvalidOperationForType)
+    );
+}
