@@ -10,7 +10,7 @@ use std::{
 
 use derive_more::IsVariant;
 use inner::inner;
-use itertools::repeat_n;
+use itertools::{repeat_n, Itertools};
 use unchecked_unwrap::UncheckedUnwrap;
 
 #[cfg(test)]
@@ -27,6 +27,8 @@ pub enum ValueError {
     PopOnEmptyArray,
     InvalidComparison,
     InvalidSplitDelimiter,
+    InvalidJoinDelimiter,
+    InvalidArrayElementForJoin(Val),
 }
 
 #[derive(Clone, Debug, IsVariant, PartialEq)]
@@ -143,6 +145,10 @@ impl Array {
         }
     }
 
+    fn with_arr_and_dict(arr: VecDeque<Val>, dict: HashMap<DictKey, Val>) -> Self {
+        Self { arr, dict }
+    }
+
     fn len(&self) -> usize {
         self.arr.len() + self.dict.len()
     }
@@ -189,6 +195,14 @@ impl Array {
     }
     fn pop(&mut self) -> Result<Val, ValueError> {
         self.arr.pop_front().ok_or(ValueError::PopOnEmptyArray)
+    }
+
+    fn val_iter(&self) -> impl Iterator<Item = &Val> {
+        self.arr.iter().chain(self.dict.values())
+    }
+
+    fn is_empty(&self) -> bool {
+        self.arr.is_empty() && self.dict.is_empty()
     }
 }
 
@@ -486,6 +500,45 @@ impl Val {
                     }
                 }
                 *self = Array::new().into();
+                Ok(())
+            }
+            _ => Err(ValueError::InvalidOperationForType),
+        }
+    }
+
+    pub fn join(&mut self, delim: Option<Val>) -> Result<(), ValueError> {
+        match self {
+            Val::Array(a) if !a.is_empty() => {
+                let delim = match &delim {
+                    Some(d) => match &d {
+                        Val::String(s) => s,
+                        _ => return Err(ValueError::InvalidJoinDelimiter),
+                    },
+                    None => "",
+                };
+                for val in a.val_iter() {
+                    match val {
+                        Val::String(_) => {}
+                        _ => return Err(ValueError::InvalidArrayElementForJoin(val.clone())),
+                    }
+                }
+                let string = a
+                    .val_iter()
+                    .map(|val| match val {
+                        Val::String(s) => s,
+                        _ => unsafe { unreachable_unchecked() },
+                    })
+                    .join(delim);
+                *self = string.into();
+                Ok(())
+            }
+            Val::Array(a) if a.is_empty() => {
+                if let Some(d) = &delim {
+                    if !d.is_string() {
+                        return Err(ValueError::InvalidJoinDelimiter);
+                    }
+                }
+                *self = String::new().into();
                 Ok(())
             }
             _ => Err(ValueError::InvalidOperationForType),

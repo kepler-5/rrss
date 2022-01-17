@@ -746,3 +746,104 @@ fn split() {
         Err(ValueError::InvalidOperationForType)
     );
 }
+
+#[test]
+fn join() {
+    let join = |val: Val, p| {
+        let mut copy = val.clone();
+        copy.join(p).map(|_| copy)
+    };
+
+    assert_eq!(join(Array::new().into(), None), Ok(Val::from("")));
+    assert_eq!(
+        join(
+            Array::with_arr(['1', '2', '3'].into_iter().map(Val::from).collect()).into(),
+            Some(Val::from(", "))
+        ),
+        Ok(Val::from("1, 2, 3"))
+    );
+    assert_eq!(
+        join(
+            Array::with_arr(['1', '2', '3'].into_iter().map(Val::from).collect()).into(),
+            None
+        ),
+        Ok(Val::from("123"))
+    );
+    assert_eq!(
+        join(
+            Array::with_arr(
+                [Val::from('1'), Val::Number(2.0), Val::from('3')]
+                    .into_iter()
+                    .collect()
+            )
+            .into(),
+            None
+        ),
+        Err(ValueError::InvalidArrayElementForJoin(Val::Number(2.0)))
+    );
+
+    assert_eq!(
+        join(
+            Array::with_arr_and_dict(
+                ['1', '2', '3'].into_iter().map(Val::from).collect(),
+                [(DictKey::Null, Val::from('4'))].into_iter().collect()
+            )
+            .into(),
+            Some(Val::from(", "))
+        ),
+        Ok(Val::from("1, 2, 3, 4"))
+    );
+    assert_eq!(
+        join(
+            Array::with_arr_and_dict(
+                ['1', '2', '3'].into_iter().map(Val::from).collect(),
+                [(DictKey::Null, Val::Number(4.0))].into_iter().collect()
+            )
+            .into(),
+            None
+        ),
+        Err(ValueError::InvalidArrayElementForJoin(Val::Number(4.0)))
+    );
+
+    assert_eq!(
+        join(Array::new().into(), Some(Val::Undefined)),
+        Err(ValueError::InvalidJoinDelimiter)
+    );
+    assert_eq!(
+        join(Array::new().into(), Some(Val::Null)),
+        Err(ValueError::InvalidJoinDelimiter)
+    );
+    assert_eq!(
+        join(Array::new().into(), Some(Val::Boolean(false))),
+        Err(ValueError::InvalidJoinDelimiter)
+    );
+    assert_eq!(
+        join(Array::new().into(), Some(Val::Number(0.0))),
+        Err(ValueError::InvalidJoinDelimiter)
+    );
+    assert_eq!(
+        join(Array::new().into(), Some(Array::new().into())),
+        Err(ValueError::InvalidJoinDelimiter)
+    );
+
+    assert_eq!(
+        join(Val::Undefined, Some(Val::Undefined)),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        join(Val::Null, Some(Val::Undefined)),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        join(Val::Boolean(false), Some(Val::Undefined)),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        join(Val::Number(0.0), Some(Val::Undefined)),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        join(Val::from(""), Some(Val::Undefined)),
+        Err(ValueError::InvalidOperationForType)
+    );
+}
