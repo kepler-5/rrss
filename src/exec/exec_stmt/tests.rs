@@ -3,7 +3,9 @@ use std::io::stdin;
 use super::*;
 
 use crate::{
-    exec::{environment::EnvironmentError, sym_table::SymTableError, val::Val},
+    exec::{
+        environment::EnvironmentError, sym_table::SymTableError, val::Val, write_val::WriteValError,
+    },
     frontend::parser::{self, Parser},
 };
 
@@ -559,5 +561,119 @@ fn array_pop() {
     "
         ),
         "4\n5\nmysterious\n6\n"
+    );
+}
+
+#[test]
+fn split() {
+    let exec = |code| {
+        let mut output = Vec::new();
+        let e = Environment::refcell_raw(stdin(), &mut output);
+        exec(&e, code).map(|_| output)
+    };
+    let capture_output = |code| {
+        let output = exec(code).unwrap();
+        std::str::from_utf8(&output).unwrap().to_owned()
+    };
+
+    assert_eq!(
+        capture_output(
+            "
+            Split \"a,b,c\" into the array
+            shout the array at 0
+            shout the array at 1
+            shout the array at 2
+
+            Split \"a,b,c\" into the array with \",\"
+            shout the array at 0
+            shout the array at 1
+            shout the array at 2
+    "
+        ),
+        "a\n,\nb\na\nb\nc\n"
+    );
+}
+
+#[test]
+fn join() {
+    let exec = |code| {
+        let mut output = Vec::new();
+        let e = Environment::refcell_raw(stdin(), &mut output);
+        exec(&e, code).map(|_| output)
+    };
+    let capture_output = |code| {
+        let output = exec(code).unwrap();
+        std::str::from_utf8(&output).unwrap().to_owned()
+    };
+
+    assert_eq!(
+        capture_output(
+            "
+            Let the string be \"abcde\"
+            Split the string into tokens
+            Join tokens with \";\"
+            shout tokens
+    "
+        ),
+        "a;b;c;d;e\n"
+    );
+    assert_eq!(
+        capture_output(
+            "
+            The input says hey now hey now now
+            Split the input into words with \" \"
+            Unite words into the output with \"! \"
+            shout the output plus \"!\"
+    "
+        ),
+        "hey! now! hey! now! now!\n"
+    );
+}
+
+#[test]
+fn cast() {
+    let exec = |code| {
+        let mut output = Vec::new();
+        let e = Environment::refcell_raw(stdin(), &mut output);
+        exec(&e, code).map(|_| output)
+    };
+    let capture_output = |code| {
+        let output = exec(code).unwrap();
+        std::str::from_utf8(&output).unwrap().to_owned()
+    };
+
+    assert_eq!(
+        capture_output(
+            "
+            Let the string be \"abcde\"
+            Split the string into tokens
+            Join tokens with \";\"
+            shout tokens
+    "
+        ),
+        "a;b;c;d;e\n"
+    );
+    assert_eq!(
+        capture_output(
+            "
+            Let X be \"123.45\"
+            shout X
+            Cast X
+            shout X
+            Let X be \"ff\"
+            shout X
+            Cast X with 16
+            shout X
+            Cast \"12345\" into result
+            shout result
+            shout X
+            Cast \"aa\" into result with 16
+            shout result
+            Cast X into result
+            shout X
+            shout result
+    "
+        ),
+        "123.45\n123.45\nff\n255\n12345\n255\n170\n255\nÿ\n"
     );
 }

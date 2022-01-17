@@ -127,6 +127,31 @@ impl<'a, I: Read, O: Write> ExecStmt<'a, I, O> {
             .unwrap()
             .0
     }
+
+    fn mutation_helper<M: Fn(&mut Val, Option<Val>) -> Result<(), ValueError>>(
+        &mut self,
+        m: &Mutation,
+        mutate: M,
+    ) -> visit::Result<Self> {
+        let param = m
+            .param
+            .as_ref()
+            .map(|e| self.producer().visit_expression(&e))
+            .transpose()?
+            .map(|p| p.0);
+        if let Some(dest) = &m.dest {
+            let mut val = self.producer().visit_primary_expression(&m.operand)?.0;
+            mutate(&mut val, param)?;
+            self.writer(val).visit_assignment_lhs(dest).unwrap().0?;
+            Ok(())
+        } else {
+            self.raw_writer(|val| mutate(val, param.clone()))
+                .visit_primary_expression(&m.operand)
+                .unwrap()
+                .0?;
+            Ok(())
+        }
+    }
 }
 
 impl<'a, I, O> Visit for ExecStmt<'a, I, O> {
@@ -245,7 +270,11 @@ impl<'a, I: Read, O: Write> VisitProgram for ExecStmt<'a, I, O> {
     }
 
     fn visit_mutation(&mut self, m: &Mutation) -> visit::Result<Self> {
-        todo!()
+        self.mutation_helper(m, |val, param| match m.operator {
+            MutationOperator::Cut => val.split(param),
+            MutationOperator::Join => val.join(param),
+            MutationOperator::Cast => val.cast(param),
+        })
     }
 
     fn visit_rounding(&mut self, r: &Rounding) -> visit::Result<Self> {
