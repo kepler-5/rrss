@@ -96,7 +96,7 @@ impl<I, O> Environment<I, O> {
         self.variables
             .iter()
             .rev()
-            .map(|table| table.lookup(name))
+            .map(|table| table.lookup_var(name))
             .find(|r| r.is_ok())
             .map_or_else(
                 || Err(SymTableError::NameNotFound(name.clone()).into()),
@@ -108,7 +108,7 @@ impl<I, O> Environment<I, O> {
         self.variables
             .iter_mut()
             .rev()
-            .map(|table| table.lookup_mut(name))
+            .map(|table| table.lookup_var_mut(name))
             .find(|r| r.is_ok())
             .map_or_else(
                 || Err(SymTableError::NameNotFound(name.clone()).into()),
@@ -118,7 +118,7 @@ impl<I, O> Environment<I, O> {
 
     pub fn create_var(&mut self, name: &VariableName) -> &mut Val {
         self.last_access = Some(name.clone());
-        self.variables.last_mut().unwrap().emplace(name)
+        self.variables.last_mut().unwrap().emplace_var(name)
     }
 
     pub fn last_access(&mut self) -> Result<&Val, EnvironmentError> {

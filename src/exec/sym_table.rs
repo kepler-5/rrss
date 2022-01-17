@@ -1,11 +1,16 @@
 use std::{
     collections::{BTreeMap, HashMap},
     hash::Hash,
+    sync::Arc,
 };
+
+use derive_more::From;
 
 use crate::{
     exec::val::Val,
-    frontend::ast::{CommonIdentifier, ProperIdentifier, SimpleIdentifier, VariableName},
+    frontend::ast::{
+        CommonIdentifier, FunctionData, ProperIdentifier, SimpleIdentifier, VariableName,
+    },
 };
 
 #[cfg(test)]
@@ -14,13 +19,42 @@ mod tests;
 #[derive(Debug, PartialEq)]
 pub enum SymTableError {
     NameNotFound(VariableName),
+    ExpectedVarFoundFunc(VariableName),
+    ExpectedFuncFoundVar(VariableName),
+}
+
+#[derive(Debug, From, PartialEq)]
+enum SymTableEntry {
+    Var(Val),
+    Func(Arc<FunctionData>),
+}
+
+impl SymTableEntry {
+    fn as_var(&self) -> Option<&Val> {
+        match self {
+            SymTableEntry::Var(v) => Some(v),
+            SymTableEntry::Func(_) => None,
+        }
+    }
+    fn as_var_mut(&mut self) -> Option<&mut Val> {
+        match self {
+            SymTableEntry::Var(v) => Some(v),
+            SymTableEntry::Func(_) => None,
+        }
+    }
+    fn as_func(&self) -> Option<&FunctionData> {
+        match self {
+            SymTableEntry::Var(_) => None,
+            SymTableEntry::Func(f) => Some(&f),
+        }
+    }
 }
 
 #[derive(Debug, Default, PartialEq)]
 pub struct SymTable {
-    simple: HashMap<SimpleIdentifier, Val>,
-    common: HashMap<CommonIdentifier, Val>,
-    proper: BTreeMap<ProperIdentifier, Val>,
+    simple: HashMap<SimpleIdentifier, SymTableEntry>,
+    common: HashMap<CommonIdentifier, SymTableEntry>,
+    proper: BTreeMap<ProperIdentifier, SymTableEntry>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -105,36 +139,43 @@ impl ToLowercase for ProperIdentifier {
 }
 
 trait Lookup<T> {
-    fn lookup(&self, name: &T) -> Result<&Val, SymTableError>;
-    fn lookup_mut(&mut self, name: &T) -> Result<&mut Val, SymTableError>;
-    fn emplace(&mut self, name: &T) -> &mut Val;
+    fn lookup(&self, name: &T) -> Result<&SymTableEntry, SymTableError>;
+    fn lookup_mut(&mut self, name: &T) -> Result<&mut SymTableEntry, SymTableError>;
+    fn emplace(&mut self, name: &T, entry: SymTableEntry) -> &mut SymTableEntry;
 }
 
-impl<T: Clone + Eq + Hash + ToLowercase + Into<VariableName>> Lookup<T> for HashMap<T, Val> {
-    fn lookup(&self, name: &T) -> Result<&Val, SymTableError> {
+impl<T> Lookup<T> for HashMap<T, SymTableEntry>
+where
+    T: Clone + Eq + Hash + ToLowercase + Into<VariableName>,
+{
+    fn lookup(&self, name: &T) -> Result<&SymTableEntry, SymTableError> {
         self.get(name.to_lowercase().as_ref())
             .ok_or_else(|| SymTableError::NameNotFound(name.clone().into()))
     }
-    fn lookup_mut(&mut self, name: &T) -> Result<&mut Val, SymTableError> {
+    fn lookup_mut(&mut self, name: &T) -> Result<&mut SymTableEntry, SymTableError> {
         self.get_mut(name.to_lowercase().as_ref())
             .ok_or_else(|| SymTableError::NameNotFound(name.clone().into()))
     }
-    fn emplace(&mut self, name: &T) -> &mut Val {
-        self.entry(name.to_lowercase().take()).or_default()
+    fn emplace(&mut self, name: &T, entry: SymTableEntry) -> &mut SymTableEntry {
+        let key = name.to_lowercase().take();
+        debug_assert!(!self.contains_key(&key));
+        self.entry(key).or_insert(entry)
     }
 }
 
-impl Lookup<ProperIdentifier> for BTreeMap<ProperIdentifier, Val> {
-    fn lookup(&self, name: &ProperIdentifier) -> Result<&Val, SymTableError> {
+impl Lookup<ProperIdentifier> for BTreeMap<ProperIdentifier, SymTableEntry> {
+    fn lookup(&self, name: &ProperIdentifier) -> Result<&SymTableEntry, SymTableError> {
         self.get(name.to_lowercase().as_ref())
             .ok_or_else(|| SymTableError::NameNotFound(name.clone().into()))
     }
-    fn lookup_mut(&mut self, name: &ProperIdentifier) -> Result<&mut Val, SymTableError> {
+    fn lookup_mut(&mut self, name: &ProperIdentifier) -> Result<&mut SymTableEntry, SymTableError> {
         self.get_mut(name.to_lowercase().as_ref())
             .ok_or_else(|| SymTableError::NameNotFound(name.clone().into()))
     }
-    fn emplace(&mut self, name: &ProperIdentifier) -> &mut Val {
-        self.entry(name.to_lowercase().take()).or_default()
+    fn emplace(&mut self, name: &ProperIdentifier, entry: SymTableEntry) -> &mut SymTableEntry {
+        let key = name.to_lowercase().take();
+        debug_assert!(!self.contains_key(&key));
+        self.entry(key).or_insert(entry)
     }
 }
 
@@ -143,25 +184,55 @@ impl SymTable {
         Default::default()
     }
 
-    pub fn lookup(&self, name: &VariableName) -> Result<&Val, SymTableError> {
+    fn lookup(&self, name: &VariableName) -> Result<&SymTableEntry, SymTableError> {
         match name {
             VariableName::Simple(name) => self.simple.lookup(name),
             VariableName::Common(name) => self.common.lookup(name),
             VariableName::Proper(name) => self.proper.lookup(name),
         }
     }
-    pub fn lookup_mut(&mut self, name: &VariableName) -> Result<&mut Val, SymTableError> {
+    fn lookup_mut(&mut self, name: &VariableName) -> Result<&mut SymTableEntry, SymTableError> {
         match name {
             VariableName::Simple(name) => self.simple.lookup_mut(name),
             VariableName::Common(name) => self.common.lookup_mut(name),
             VariableName::Proper(name) => self.proper.lookup_mut(name),
         }
     }
-    pub fn emplace(&mut self, name: &VariableName) -> &mut Val {
+    pub fn emplace_var(&mut self, name: &VariableName) -> &mut Val {
+        let val = Val::default().into();
         match name {
-            VariableName::Simple(name) => self.simple.emplace(name),
-            VariableName::Common(name) => self.common.emplace(name),
-            VariableName::Proper(name) => self.proper.emplace(name),
+            VariableName::Simple(name) => self.simple.emplace(name, val),
+            VariableName::Common(name) => self.common.emplace(name, val),
+            VariableName::Proper(name) => self.proper.emplace(name, val),
         }
+        .as_var_mut()
+        .unwrap()
+    }
+    pub fn emplace_func(&mut self, name: &VariableName, func: Arc<FunctionData>) -> &FunctionData {
+        let func = func.into();
+        match name {
+            VariableName::Simple(name) => self.simple.emplace(name, func),
+            VariableName::Common(name) => self.common.emplace(name, func),
+            VariableName::Proper(name) => self.proper.emplace(name, func),
+        }
+        .as_func()
+        .unwrap()
+    }
+
+    pub fn lookup_var(&self, name: &VariableName) -> Result<&Val, SymTableError> {
+        self.lookup(name)?
+            .as_var()
+            .ok_or_else(|| SymTableError::ExpectedVarFoundFunc(name.clone()))
+    }
+    pub fn lookup_var_mut(&mut self, name: &VariableName) -> Result<&mut Val, SymTableError> {
+        self.lookup_mut(name)?
+            .as_var_mut()
+            .ok_or_else(|| SymTableError::ExpectedVarFoundFunc(name.clone()))
+    }
+
+    pub fn lookup_func(&self, name: &VariableName) -> Result<&FunctionData, SymTableError> {
+        self.lookup(name)?
+            .as_func()
+            .ok_or_else(|| SymTableError::ExpectedFuncFoundVar(name.clone()))
     }
 }
