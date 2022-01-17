@@ -2,6 +2,7 @@ use std::{
     cell::RefCell,
     io::{Read, Write},
     iter::once,
+    sync::Arc,
 };
 
 use derive_more::IsVariant;
@@ -350,7 +351,10 @@ impl<'a, I: Read, O: Write> VisitProgram for ExecStmt<'a, I, O> {
     }
 
     fn visit_function(&mut self, f: &Function) -> visit::Result<Self> {
-        todo!()
+        self.env
+            .borrow_mut()
+            .create_func(&f.name.0, Arc::clone(&f.data))?;
+        Ok(())
     }
 
     fn visit_function_call_statement(&mut self, f: &FunctionCall) -> visit::Result<Self> {

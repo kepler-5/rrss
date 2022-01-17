@@ -675,3 +675,24 @@ fn cast() {
         "123.45\n123.45\nff\n255\n12345\n255\n170\n255\nÿ\n"
     );
 }
+
+#[test]
+fn function() {
+    let e = Environment::refcell();
+    assert!(e
+        .borrow()
+        .lookup_func(&SimpleIdentifier("polly".into()).into())
+        .is_err());
+    assert!(exec(
+        &e,
+        "
+    polly wants a cracker
+    give a cracker back
+    "
+    )
+    .is_ok());
+    assert!(e
+        .borrow()
+        .lookup_func(&SimpleIdentifier("polly".into()).into())
+        .is_ok());
+}

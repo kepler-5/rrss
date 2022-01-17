@@ -133,7 +133,7 @@ impl<I, O> Environment<I, O> {
             .map_err(Into::into)
     }
 
-    pub fn lookup_func(&mut self, name: &VariableName) -> Result<&FunctionData, EnvironmentError> {
+    pub fn lookup_func(&self, name: &VariableName) -> Result<&FunctionData, EnvironmentError> {
         self.symbols
             .iter()
             .rev()
