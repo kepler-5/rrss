@@ -4,6 +4,8 @@ use derive_more::From;
 
 use smallvec::{smallvec, SmallVec};
 
+use unchecked_unwrap::UncheckedUnwrap;
+
 use crate::{
     analysis::visit::{self, Combine, Visit, VisitExpr},
     exec::{
@@ -69,7 +71,7 @@ macro_rules! lookup_or_create {
         if let Ok(var) = $e.lookup_var_mut($name) {
             var
         } else {
-            $e.create_var($name)
+            unsafe { $e.create_var($name).unchecked_unwrap() }
         }
     };
 }

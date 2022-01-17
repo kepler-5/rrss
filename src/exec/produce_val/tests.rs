@@ -28,8 +28,10 @@ fn produce_literal_val() {
 #[test]
 fn produce_named_val() {
     let e = RefCell::new(Environment::new());
-    e.borrow_mut()
-        .create_var(&SimpleIdentifier("foo".into()).into());
+    assert!(e
+        .borrow_mut()
+        .create_var(&SimpleIdentifier("foo".into()).into())
+        .is_ok());
     assert_eq!(expr_val(&e, "foo"), Ok(Val::Undefined));
     assert_eq!(
         expr_val(&e, "bar"),
@@ -47,8 +49,10 @@ fn produce_pronoun_val() {
         expr_val(&e, "it"),
         Err(EnvironmentError::MissingPronounReferent.into())
     );
-    e.borrow_mut()
-        .create_var(&SimpleIdentifier("foo".into()).into());
+    assert!(e
+        .borrow_mut()
+        .create_var(&SimpleIdentifier("foo".into()).into())
+        .is_ok());
     assert_eq!(expr_val(&e, "foo"), Ok(Val::Undefined));
     assert_eq!(expr_val(&e, "it"), Ok(Val::Undefined));
 }
@@ -57,7 +61,8 @@ fn produce_pronoun_val() {
 fn produce_binary_expr_val() {
     let e = RefCell::new(Environment::new());
     *e.borrow_mut()
-        .create_var(&SimpleIdentifier("foo".into()).into()) = Val::Number(3.0);
+        .create_var(&SimpleIdentifier("foo".into()).into())
+        .unwrap() = Val::Number(3.0);
     assert_eq!(expr_val(&e, "foo + foo"), Ok(Val::Number(6.0)));
     assert_eq!(expr_val(&e, "foo - foo"), Ok(Val::Number(0.0)));
     assert_eq!(expr_val(&e, "foo * foo"), Ok(Val::Number(9.0)));
@@ -81,7 +86,8 @@ fn produce_binary_expr_val() {
 fn produce_unary_expr_val() {
     let e = RefCell::new(Environment::new());
     *e.borrow_mut()
-        .create_var(&SimpleIdentifier("foo".into()).into()) = Val::Number(3.0);
+        .create_var(&SimpleIdentifier("foo".into()).into())
+        .unwrap() = Val::Number(3.0);
     assert_eq!(expr_val(&e, "-foo"), Ok(Val::Number(-3.0)));
     assert_eq!(expr_val(&e, "not foo"), Ok(Val::Boolean(false)));
 }
@@ -91,12 +97,15 @@ fn produce_subscript_val() {
     let e = RefCell::new(Environment::new());
     {
         let mut e = e.borrow_mut();
-        let arr = e.create_var(&SimpleIdentifier("foo".into()).into());
+        let arr = e
+            .create_var(&SimpleIdentifier("foo".into()).into())
+            .unwrap();
         assert!(arr.push(once(Val::Null)).is_ok());
     }
     assert_eq!(expr_val(&e, "foo at 0"), Ok(Val::Null));
 
     *e.borrow_mut()
-        .create_var(&SimpleIdentifier("bar".into()).into()) = Val::from("text");
+        .create_var(&SimpleIdentifier("bar".into()).into())
+        .unwrap() = Val::from("text");
     assert_eq!(expr_val(&e, "bar at 2"), Ok(Val::from("x")));
 }

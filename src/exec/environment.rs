@@ -1,11 +1,12 @@
 use std::{
     cell::RefCell,
     io::{stdin, stdout, BufRead, BufReader, Read, Stdin, Stdout, Write},
+    sync::Arc,
 };
 
 use derive_more::From;
 
-use crate::frontend::ast::VariableName;
+use crate::frontend::ast::{FunctionData, VariableName};
 
 use super::{
     sym_table::{SymTable, SymTableError},
@@ -24,7 +25,7 @@ pub enum EnvironmentError {
 
 #[derive(Debug)]
 pub struct Environment<In, Out> {
-    variables: Vec<SymTable>,
+    symbols: Vec<SymTable>,
     last_access: Option<VariableName>,
     input_buf: BufReader<In>,
     output_buf: Out,
@@ -33,7 +34,7 @@ pub struct Environment<In, Out> {
 impl<In: Read, Out: Write> Environment<In, Out> {
     pub fn raw(input_buf: In, output_buf: Out) -> Self {
         Self {
-            variables: vec![SymTable::new()],
+            symbols: vec![SymTable::new()],
             last_access: None,
             input_buf: BufReader::new(input_buf),
             output_buf,
@@ -74,11 +75,11 @@ impl Environment<Stdin, Stdout> {
 
 impl<I, O> Environment<I, O> {
     pub fn push_scope(&mut self) {
-        self.variables.push(SymTable::new())
+        self.symbols.push(SymTable::new())
     }
     pub fn pop_scope(&mut self) {
-        debug_assert!(self.variables.len() > 1);
-        self.variables.pop();
+        debug_assert!(self.symbols.len() > 1);
+        self.symbols.pop();
         self.last_access = None;
     }
 
@@ -93,7 +94,7 @@ impl<I, O> Environment<I, O> {
     }
 
     fn lookup_var_impl(&self, name: &VariableName) -> Result<&Val, EnvironmentError> {
-        self.variables
+        self.symbols
             .iter()
             .rev()
             .map(|table| table.lookup_var(name))
@@ -105,7 +106,7 @@ impl<I, O> Environment<I, O> {
     }
 
     fn lookup_var_mut_impl(&mut self, name: &VariableName) -> Result<&mut Val, EnvironmentError> {
-        self.variables
+        self.symbols
             .iter_mut()
             .rev()
             .map(|table| table.lookup_var_mut(name))
@@ -116,9 +117,25 @@ impl<I, O> Environment<I, O> {
             )
     }
 
-    pub fn create_var(&mut self, name: &VariableName) -> &mut Val {
+    pub fn create_var(&mut self, name: &VariableName) -> Result<&mut Val, EnvironmentError> {
         self.last_access = Some(name.clone());
-        self.variables.last_mut().unwrap().emplace_var(name)
+        self.symbols
+            .last_mut()
+            .unwrap()
+            .emplace_var(name)
+            .map_err(Into::into)
+    }
+
+    pub fn create_func(
+        &mut self,
+        name: &VariableName,
+        data: Arc<FunctionData>,
+    ) -> Result<&FunctionData, EnvironmentError> {
+        self.symbols
+            .last_mut()
+            .unwrap()
+            .emplace_func(name, data)
+            .map_err(Into::into)
     }
 
     pub fn last_access(&mut self) -> Result<&Val, EnvironmentError> {

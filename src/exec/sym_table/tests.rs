@@ -78,7 +78,9 @@ fn to_lowercase() {
 #[test]
 fn emplace_and_lookup_var() {
     let mut table = SymTable::new();
-    table.emplace_var(&SimpleIdentifier("FOO".into()).into());
+    assert!(table
+        .emplace_var(&SimpleIdentifier("FOO".into()).into())
+        .is_ok());
     assert_eq!(
         table.lookup_var(&SimpleIdentifier("foO".into()).into()),
         Ok(&Val::Undefined)
@@ -90,7 +92,9 @@ fn emplace_and_lookup_var() {
         ))
     );
 
-    *table.emplace_var(&CommonIdentifier("baR".into(), "bAz".into()).into()) = Val::Null;
+    *table
+        .emplace_var(&CommonIdentifier("baR".into(), "bAz".into()).into())
+        .unwrap() = Val::Null;
     assert_eq!(
         table.lookup_var(&SimpleIdentifier("foO".into()).into()),
         Ok(&Val::Undefined)
@@ -105,8 +109,9 @@ fn emplace_and_lookup_var() {
             SimpleIdentifier("bAr".into()).into()
         ))
     );
-    *table.emplace_var(&ProperIdentifier(vec!["baR".into(), "bAz".into()]).into()) =
-        Val::Boolean(false);
+    *table
+        .emplace_var(&ProperIdentifier(vec!["baR".into(), "bAz".into()]).into())
+        .unwrap() = Val::Boolean(false);
     assert_eq!(
         table.lookup_var(&SimpleIdentifier("foO".into()).into()),
         Ok(&Val::Undefined)
@@ -126,10 +131,12 @@ fn emplace_and_lookup_var() {
         ))
     );
 
-    table.emplace_func(
-        &SimpleIdentifier("func".into()).into(),
-        Arc::new(some_func_data()),
-    );
+    assert!(table
+        .emplace_func(
+            &SimpleIdentifier("func".into()).into(),
+            Arc::new(some_func_data()),
+        )
+        .is_ok());
     assert_eq!(
         table.lookup_var(&SimpleIdentifier("func".into()).into()),
         Err(SymTableError::ExpectedVarFoundFunc(
@@ -141,18 +148,22 @@ fn emplace_and_lookup_var() {
 #[test]
 fn emplace_and_lookup_func() {
     let mut table = SymTable::new();
-    table.emplace_func(
-        &SimpleIdentifier("func".into()).into(),
-        Arc::new(some_func_data()),
-    );
+    assert!(table
+        .emplace_func(
+            &SimpleIdentifier("func".into()).into(),
+            Arc::new(some_func_data()),
+        )
+        .is_ok());
     assert_eq!(
         table.lookup_func(&SimpleIdentifier("func".into()).into()),
         Ok(&some_func_data())
     );
-    table.emplace_func(
-        &SimpleIdentifier("func2".into()).into(),
-        Arc::new(other_func_data()),
-    );
+    assert!(table
+        .emplace_func(
+            &SimpleIdentifier("func2".into()).into(),
+            Arc::new(other_func_data()),
+        )
+        .is_ok());
     assert_eq!(
         table.lookup_func(&SimpleIdentifier("func2".into()).into()),
         Ok(&other_func_data())
@@ -162,7 +173,9 @@ fn emplace_and_lookup_func() {
         Ok(&some_func_data())
     );
 
-    table.emplace_var(&SimpleIdentifier("var".into()).into());
+    assert!(table
+        .emplace_var(&SimpleIdentifier("var".into()).into())
+        .is_ok());
     assert_eq!(
         table.lookup_func(&SimpleIdentifier("var".into()).into()),
         Err(SymTableError::ExpectedFuncFoundVar(

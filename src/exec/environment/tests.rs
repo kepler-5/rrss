@@ -9,7 +9,7 @@ fn lookup() {
         e.lookup_var(&SimpleIdentifier("foo".into()).into()),
         Err(SymTableError::NameNotFound(SimpleIdentifier("foo".into()).into()).into())
     );
-    e.create_var(&SimpleIdentifier("foo".into()).into());
+    assert!(e.create_var(&SimpleIdentifier("foo".into()).into()).is_ok());
     assert_eq!(
         e.lookup_var(&SimpleIdentifier("foo".into()).into()),
         Ok(&Val::Undefined)
@@ -19,7 +19,7 @@ fn lookup() {
         e.lookup_var(&SimpleIdentifier("foo".into()).into()),
         Ok(&Val::Undefined)
     );
-    e.create_var(&SimpleIdentifier("bar".into()).into());
+    assert!(e.create_var(&SimpleIdentifier("bar".into()).into()).is_ok());
     assert_eq!(
         e.lookup_var(&SimpleIdentifier("foo".into()).into()),
         Ok(&Val::Undefined)

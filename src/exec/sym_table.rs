@@ -5,6 +5,7 @@ use std::{
 };
 
 use derive_more::From;
+use unchecked_unwrap::UncheckedUnwrap;
 
 use crate::{
     exec::val::Val,
@@ -21,10 +22,11 @@ pub enum SymTableError {
     NameNotFound(VariableName),
     ExpectedVarFoundFunc(VariableName),
     ExpectedFuncFoundVar(VariableName),
+    DuplicateSymbol(VariableName),
 }
 
 #[derive(Debug, From, PartialEq)]
-enum SymTableEntry {
+pub enum SymTableEntry {
     Var(Val),
     Func(Arc<FunctionData>),
 }
@@ -141,7 +143,11 @@ impl ToLowercase for ProperIdentifier {
 trait Lookup<T> {
     fn lookup(&self, name: &T) -> Result<&SymTableEntry, SymTableError>;
     fn lookup_mut(&mut self, name: &T) -> Result<&mut SymTableEntry, SymTableError>;
-    fn emplace(&mut self, name: &T, entry: SymTableEntry) -> &mut SymTableEntry;
+    fn emplace(
+        &mut self,
+        name: &T,
+        entry: SymTableEntry,
+    ) -> Result<&mut SymTableEntry, SymTableError>;
 }
 
 impl<T> Lookup<T> for HashMap<T, SymTableEntry>
@@ -156,10 +162,21 @@ where
         self.get_mut(name.to_lowercase().as_ref())
             .ok_or_else(|| SymTableError::NameNotFound(name.clone().into()))
     }
-    fn emplace(&mut self, name: &T, entry: SymTableEntry) -> &mut SymTableEntry {
+    fn emplace(
+        &mut self,
+        name: &T,
+        entry: SymTableEntry,
+    ) -> Result<&mut SymTableEntry, SymTableError> {
         let key = name.to_lowercase().take();
-        debug_assert!(!self.contains_key(&key));
-        self.entry(key).or_insert(entry)
+
+        // unstable :/
+        // self.try_insert(key, entry)
+        //     .map_err(|_| SymTableError::DuplicateSymbol(name.clone().into()))
+        if self.contains_key(&key) {
+            Err(SymTableError::DuplicateSymbol(name.clone().into()))
+        } else {
+            Ok(self.entry(key).or_insert(entry))
+        }
     }
 }
 
@@ -172,10 +189,21 @@ impl Lookup<ProperIdentifier> for BTreeMap<ProperIdentifier, SymTableEntry> {
         self.get_mut(name.to_lowercase().as_ref())
             .ok_or_else(|| SymTableError::NameNotFound(name.clone().into()))
     }
-    fn emplace(&mut self, name: &ProperIdentifier, entry: SymTableEntry) -> &mut SymTableEntry {
+    fn emplace(
+        &mut self,
+        name: &ProperIdentifier,
+        entry: SymTableEntry,
+    ) -> Result<&mut SymTableEntry, SymTableError> {
         let key = name.to_lowercase().take();
-        debug_assert!(!self.contains_key(&key));
-        self.entry(key).or_insert(entry)
+
+        // unstable :/
+        // self.try_insert(key, entry)
+        //     .map_err(|_| SymTableError::DuplicateSymbol(name.clone().into()))
+        if self.contains_key(&key) {
+            Err(SymTableError::DuplicateSymbol(name.clone().into()))
+        } else {
+            Ok(self.entry(key).or_insert(entry))
+        }
     }
 }
 
@@ -198,25 +226,29 @@ impl SymTable {
             VariableName::Proper(name) => self.proper.lookup_mut(name),
         }
     }
-    pub fn emplace_var(&mut self, name: &VariableName) -> &mut Val {
+    pub fn emplace_var(&mut self, name: &VariableName) -> Result<&mut Val, SymTableError> {
         let val = Val::default().into();
-        match name {
+        let entry = match name {
             VariableName::Simple(name) => self.simple.emplace(name, val),
             VariableName::Common(name) => self.common.emplace(name, val),
             VariableName::Proper(name) => self.proper.emplace(name, val),
-        }
-        .as_var_mut()
-        .unwrap()
+        }?
+        .as_var_mut();
+        Ok(unsafe { entry.unchecked_unwrap() })
     }
-    pub fn emplace_func(&mut self, name: &VariableName, func: Arc<FunctionData>) -> &FunctionData {
+    pub fn emplace_func(
+        &mut self,
+        name: &VariableName,
+        func: Arc<FunctionData>,
+    ) -> Result<&FunctionData, SymTableError> {
         let func = func.into();
-        match name {
+        let entry = match name {
             VariableName::Simple(name) => self.simple.emplace(name, func),
             VariableName::Common(name) => self.common.emplace(name, func),
             VariableName::Proper(name) => self.proper.emplace(name, func),
-        }
-        .as_func()
-        .unwrap()
+        }?
+        .as_func();
+        Ok(unsafe { entry.unchecked_unwrap() })
     }
 
     pub fn lookup_var(&self, name: &VariableName) -> Result<&Val, SymTableError> {
