@@ -1338,6 +1338,24 @@ fn parse_poetic_assignment() {
 }
 
 #[test]
+#[ignore = "currently fails, and causes unreachable code to be reached during exec"]
+fn poetic_literal_negative_bug() {
+    let parse = |text| {
+        Parser::for_source_code(text)
+            .parse_statement()
+            .map(|s| s.unwrap())
+    };
+    assert_eq!(
+        parse("Variable is -1"),
+        Ok(PoeticNumberAssignment {
+            dest: WithRange(SimpleIdentifier("Variable".into()), line_range(0, 8)).into(),
+            rhs: WithRange(LiteralExpression::Number(-1.0), line_range(12, 13)).into(),
+        }
+        .into())
+    );
+}
+
+#[test]
 fn parse_poetic_string_assignment() {
     let parse = |text| {
         Parser::for_source_code(text)
@@ -2775,6 +2793,41 @@ Give Back X minus 1
                         }
                         .into()
                     ])
+                })
+            }
+            .into()
+        ))
+    );
+}
+
+#[test]
+#[ignore = "fails because a comma is currently required after X before 'and', but shouldn't be"]
+fn parse_function_args_and_without_commas() {
+    let parse = |text| Parser::for_source_code(text).parse_statement();
+    assert_eq!(
+        parse(
+            "
+Multiply taking X and Y
+return X
+    "
+        ),
+        Ok(Some(
+            Function {
+                name: WithRange(
+                    SimpleIdentifier("Multiply".into()),
+                    range_on_line(1, (0, 8))
+                )
+                .into(),
+                data: Arc::new(FunctionData {
+                    params: vec![
+                        WithRange(SimpleIdentifier("X".into()), range_on_line(1, (15, 16))).into(),
+                        WithRange(SimpleIdentifier("B".into()), range_on_line(1, (21, 22))).into()
+                    ],
+                    body: Block::NonEmpty(vec![Return {
+                        value: WithRange(SimpleIdentifier("X".into()), range_on_line(2, (7, 8)))
+                            .into()
+                    }
+                    .into()])
                 })
             }
             .into()
