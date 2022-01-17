@@ -26,6 +26,7 @@ pub enum ValueError {
     InvalidOperationForType,
     PopOnEmptyArray,
     InvalidComparison,
+    InvalidSplitDelimiter,
 }
 
 #[derive(Clone, Debug, IsVariant, PartialEq)]
@@ -131,6 +132,13 @@ impl Array {
     pub fn new() -> Self {
         Self {
             arr: VecDeque::new(),
+            dict: HashMap::new(),
+        }
+    }
+
+    pub fn with_arr(arr: VecDeque<Val>) -> Self {
+        Self {
+            arr,
             dict: HashMap::new(),
         }
     }
@@ -447,6 +455,37 @@ impl Val {
         match self {
             Val::Number(f) => {
                 *f = f.round();
+                Ok(())
+            }
+            _ => Err(ValueError::InvalidOperationForType),
+        }
+    }
+
+    pub fn split(&mut self, delim: Option<Val>) -> Result<(), ValueError> {
+        match self {
+            Val::String(s) if !s.is_empty() => {
+                let delim = match &delim {
+                    Some(d) => match &d {
+                        Val::String(d) => d,
+                        _ => return Err(ValueError::InvalidSplitDelimiter),
+                    },
+                    None => "",
+                };
+                let splitted = if delim.is_empty() {
+                    s.chars().map(Val::from).collect()
+                } else {
+                    s.split(delim).map(Val::from).collect()
+                };
+                *self = Array::with_arr(splitted).into();
+                Ok(())
+            }
+            Val::String(s) if s.is_empty() => {
+                if let Some(d) = &delim {
+                    if !d.is_string() {
+                        return Err(ValueError::InvalidSplitDelimiter);
+                    }
+                }
+                *self = Array::new().into();
                 Ok(())
             }
             _ => Err(ValueError::InvalidOperationForType),

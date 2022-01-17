@@ -646,3 +646,103 @@ fn round() {
     assert_eq!(round_nearest(Val::Number(-1.5)), Ok(Val::Number(-2.0)));
     assert_eq!(round_nearest(Val::Number(-1.7)), Ok(Val::Number(-2.0)));
 }
+
+#[test]
+fn split() {
+    let split = |val: Val, p| {
+        let mut copy = val.clone();
+        copy.split(p).map(|_| copy)
+    };
+
+    assert_eq!(split(Val::from(""), None), Ok(Array::new().into()));
+    assert_eq!(
+        split(Val::from(""), Some(Val::from(','))),
+        Ok(Array::new().into())
+    );
+    assert_eq!(
+        split(Val::from("a,b,c"), Some(Val::from(','))),
+        Ok(Array::with_arr(['a', 'b', 'c'].into_iter().map(Val::from).collect()).into())
+    );
+    assert_eq!(
+        split(Val::from("a,b,c"), Some(Val::from(""))),
+        Ok(Array::with_arr(
+            ['a', ',', 'b', ',', 'c']
+                .into_iter()
+                .map(Val::from)
+                .collect()
+        )
+        .into())
+    );
+    assert_eq!(
+        split(Val::from("a,b,c"), None),
+        Ok(Array::with_arr(
+            ['a', ',', 'b', ',', 'c']
+                .into_iter()
+                .map(Val::from)
+                .collect()
+        )
+        .into())
+    );
+
+    assert_eq!(
+        split(Val::from(""), Some(Val::Undefined)),
+        Err(ValueError::InvalidSplitDelimiter)
+    );
+    assert_eq!(
+        split(Val::from("x"), Some(Val::Undefined)),
+        Err(ValueError::InvalidSplitDelimiter)
+    );
+    assert_eq!(
+        split(Val::from(""), Some(Val::Null)),
+        Err(ValueError::InvalidSplitDelimiter)
+    );
+    assert_eq!(
+        split(Val::from("x"), Some(Val::Null)),
+        Err(ValueError::InvalidSplitDelimiter)
+    );
+    assert_eq!(
+        split(Val::from(""), Some(Val::Boolean(false))),
+        Err(ValueError::InvalidSplitDelimiter)
+    );
+    assert_eq!(
+        split(Val::from("x"), Some(Val::Boolean(false))),
+        Err(ValueError::InvalidSplitDelimiter)
+    );
+    assert_eq!(
+        split(Val::from(""), Some(Val::Number(0.0))),
+        Err(ValueError::InvalidSplitDelimiter)
+    );
+    assert_eq!(
+        split(Val::from("x"), Some(Val::Number(0.0))),
+        Err(ValueError::InvalidSplitDelimiter)
+    );
+    assert_eq!(
+        split(Val::from(""), Some(Array::new().into())),
+        Err(ValueError::InvalidSplitDelimiter)
+    );
+    assert_eq!(
+        split(Val::from("x"), Some(Array::new().into())),
+        Err(ValueError::InvalidSplitDelimiter)
+    );
+
+    assert_eq!(
+        split(Val::Undefined, Some(Val::Undefined)),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        split(Val::Null, Some(Val::Undefined)),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        split(Val::Boolean(false), Some(Val::Undefined)),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        split(Val::Number(0.0), Some(Val::Undefined)),
+        Err(ValueError::InvalidOperationForType)
+    );
+    assert_eq!(
+        split(Array::new().into(), Some(Val::Undefined)),
+        Err(ValueError::InvalidOperationForType)
+    );
+}
