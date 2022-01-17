@@ -2,6 +2,8 @@ use std::cell::RefCell;
 
 use derive_more::From;
 
+use smallvec::{smallvec, SmallVec};
+
 use crate::{
     analysis::visit::{self, Combine, Visit, VisitExpr},
     exec::{
@@ -83,7 +85,7 @@ impl<'a, W: Fn(&mut Val) -> Result<(), ValueError>, I, O> VisitExpr for WriteVal
     fn visit_array_subsript(&mut self, a: &ArraySubscript) -> visit::Result<Self> {
         wrap(|| {
             // drill down through nested subscripts until we find a stopping point (an identifier)
-            let mut subscripts = vec![subscript_val(self.env, a)?];
+            let mut subscripts: SmallVec<[Val; 8]> = smallvec![subscript_val(self.env, a)?];
             let mut arr: &PrimaryExpression = &a.array;
             loop {
                 match arr {

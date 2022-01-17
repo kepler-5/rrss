@@ -14,3 +14,4 @@ more-asserts = "0.2.2"
 clap = "3.0.1"
 colored = "2.0.0"
 unchecked_unwrap = "3.0.0"
+smallvec = { version = "1.8.0", features = ["union"] }

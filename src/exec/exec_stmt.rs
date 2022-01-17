@@ -5,6 +5,7 @@ use std::{
 };
 
 use derive_more::IsVariant;
+use smallvec::SmallVec;
 
 use crate::{
     analysis::visit::{self, Visit, VisitExpr, VisitProgram},
@@ -274,7 +275,7 @@ impl<'a, I: Read, O: Write> VisitProgram for ExecStmt<'a, I, O> {
             Some(rhs) => match rhs {
                 ArrayPushRHS::ExpressionList(el) => {
                     let values = {
-                        let mut vs = Vec::with_capacity(el.len());
+                        let mut vs = SmallVec::<[Val; 8]>::with_capacity(el.len());
                         for e in el.iter() {
                             vs.push(self.producer().visit_expression(e)?.0);
                         }
