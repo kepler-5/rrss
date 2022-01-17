@@ -93,12 +93,19 @@ impl<I, O> Environment<I, O> {
         self.lookup_var_mut_impl(name)
     }
 
+    fn stop_searching<T>(r: &Result<T, SymTableError>) -> bool {
+        match r {
+            Ok(_) => true,
+            Err(e) => !e.is_name_not_found(),
+        }
+    }
+
     fn lookup_var_impl(&self, name: &VariableName) -> Result<&Val, EnvironmentError> {
         self.symbols
             .iter()
             .rev()
             .map(|table| table.lookup_var(name))
-            .find(|r| r.is_ok())
+            .find(Self::stop_searching)
             .map_or_else(
                 || Err(SymTableError::NameNotFound(name.clone()).into()),
                 |r| r.map_err(Into::into),
@@ -110,7 +117,7 @@ impl<I, O> Environment<I, O> {
             .iter_mut()
             .rev()
             .map(|table| table.lookup_var_mut(name))
-            .find(|r| r.is_ok())
+            .find(Self::stop_searching)
             .map_or_else(
                 || Err(SymTableError::NameNotFound(name.clone()).into()),
                 |r| r.map_err(Into::into),
@@ -124,6 +131,18 @@ impl<I, O> Environment<I, O> {
             .unwrap()
             .emplace_var(name)
             .map_err(Into::into)
+    }
+
+    pub fn lookup_func(&mut self, name: &VariableName) -> Result<&FunctionData, EnvironmentError> {
+        self.symbols
+            .iter()
+            .rev()
+            .map(|table| table.lookup_func(name))
+            .find(Self::stop_searching)
+            .map_or_else(
+                || Err(SymTableError::NameNotFound(name.clone()).into()),
+                |r| r.map_err(Into::into),
+            )
     }
 
     pub fn create_func(

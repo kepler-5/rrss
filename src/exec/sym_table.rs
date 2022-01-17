@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use derive_more::From;
+use derive_more::{From, IsVariant};
 use unchecked_unwrap::UncheckedUnwrap;
 
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, IsVariant, PartialEq)]
 pub enum SymTableError {
     NameNotFound(VariableName),
     ExpectedVarFoundFunc(VariableName),

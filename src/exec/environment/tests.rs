@@ -1,6 +1,23 @@
-use crate::frontend::ast::SimpleIdentifier;
+use crate::frontend::ast::{Block, Continue, SimpleIdentifier, WithRange};
 
 use super::*;
+
+fn some_func_data() -> FunctionData {
+    FunctionData {
+        params: vec![],
+        body: Block::Empty((0, 0).into()),
+    }
+}
+fn other_func_data() -> FunctionData {
+    let bogus_range = || ((0, 0), (0, 0)).into();
+    FunctionData {
+        params: ["foo", "bar"]
+            .into_iter()
+            .map(|s| WithRange(SimpleIdentifier(s.into()).into(), bogus_range()))
+            .collect(),
+        body: Block::NonEmpty(vec![Continue(bogus_range()).into()]),
+    }
+}
 
 #[test]
 fn lookup() {
@@ -10,16 +27,50 @@ fn lookup() {
         Err(SymTableError::NameNotFound(SimpleIdentifier("foo".into()).into()).into())
     );
     assert!(e.create_var(&SimpleIdentifier("foo".into()).into()).is_ok());
+    assert!(e
+        .create_func(
+            &SimpleIdentifier("func".into()).into(),
+            Arc::new(some_func_data())
+        )
+        .is_ok());
     assert_eq!(
         e.lookup_var(&SimpleIdentifier("foo".into()).into()),
         Ok(&Val::Undefined)
+    );
+    assert_eq!(
+        e.lookup_func(&SimpleIdentifier("func".into()).into()),
+        Ok(&some_func_data())
     );
     e.push_scope();
     assert_eq!(
         e.lookup_var(&SimpleIdentifier("foo".into()).into()),
         Ok(&Val::Undefined)
     );
+    assert_eq!(
+        e.lookup_func(&SimpleIdentifier("func".into()).into()),
+        Ok(&some_func_data())
+    );
     assert!(e.create_var(&SimpleIdentifier("bar".into()).into()).is_ok());
+    assert!(e
+        .create_func(
+            &SimpleIdentifier("func".into()).into(),
+            Arc::new(other_func_data())
+        )
+        .is_ok());
+    assert_eq!(
+        e.lookup_func(&SimpleIdentifier("func".into()).into()),
+        Ok(&other_func_data())
+    );
+    assert!(e
+        .create_func(
+            &SimpleIdentifier("func2".into()).into(),
+            Arc::new(other_func_data())
+        )
+        .is_ok());
+    assert_eq!(
+        e.lookup_func(&SimpleIdentifier("func2".into()).into()),
+        Ok(&other_func_data())
+    );
     assert_eq!(
         e.lookup_var(&SimpleIdentifier("foo".into()).into()),
         Ok(&Val::Undefined)
@@ -34,8 +85,38 @@ fn lookup() {
         Ok(&Val::Undefined)
     );
     assert_eq!(
+        e.lookup_func(&SimpleIdentifier("func".into()).into()),
+        Ok(&some_func_data())
+    );
+    assert_eq!(
         e.lookup_var(&SimpleIdentifier("bar".into()).into()),
         Err(SymTableError::NameNotFound(SimpleIdentifier("bar".into()).into()).into())
+    );
+    assert_eq!(
+        e.lookup_func(&SimpleIdentifier("func2".into()).into()),
+        Err(SymTableError::NameNotFound(SimpleIdentifier("func2".into()).into()).into())
+    );
+}
+
+#[test]
+fn lookup_wrong_type() {
+    let mut e = Environment::new();
+
+    assert!(e.create_var(&SimpleIdentifier("foo".into()).into()).is_ok());
+    assert!(e
+        .create_func(
+            &SimpleIdentifier("func".into()).into(),
+            Arc::new(some_func_data())
+        )
+        .is_ok());
+
+    assert_eq!(
+        e.lookup_func(&SimpleIdentifier("foo".into()).into()),
+        Err(SymTableError::ExpectedFuncFoundVar(SimpleIdentifier("foo".into()).into()).into())
+    );
+    assert_eq!(
+        e.lookup_var(&SimpleIdentifier("func".into()).into()),
+        Err(SymTableError::ExpectedVarFoundFunc(SimpleIdentifier("func".into()).into()).into())
     );
 }
 
