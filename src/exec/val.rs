@@ -136,20 +136,13 @@ pub struct Array {
 
 impl Array {
     pub fn new() -> Self {
-        Self {
-            arr: VecDeque::new(),
-            dict: HashMap::new(),
-        }
+        Self::with_arr_and_dict(VecDeque::new(), HashMap::new())
     }
 
     pub fn with_arr(arr: VecDeque<Val>) -> Self {
-        Self {
-            arr,
-            dict: HashMap::new(),
-        }
+        Self::with_arr_and_dict(arr, HashMap::new())
     }
 
-    #[allow(dead_code)]
     fn with_arr_and_dict(arr: VecDeque<Val>, dict: HashMap<DictKey, Val>) -> Self {
         Self { arr, dict }
     }
