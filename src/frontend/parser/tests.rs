@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::frontend::source_range::SourceRange;
 
 use super::*;
@@ -2624,13 +2626,18 @@ say X
         Ok(Some(
             Function {
                 name: WithRange(SimpleIdentifier("Echo".into()), range_on_line(1, (0, 4))).into(),
-                params: vec![
-                    WithRange(SimpleIdentifier("X".into()), range_on_line(1, (11, 12))).into()
-                ],
-                body: Block::NonEmpty(vec![Output {
-                    value: WithRange(SimpleIdentifier("X".into()), range_on_line(2, (4, 5))).into()
-                }
-                .into()])
+                data: Arc::new(FunctionData {
+                    params: vec![WithRange(
+                        SimpleIdentifier("X".into()),
+                        range_on_line(1, (11, 12))
+                    )
+                    .into()],
+                    body: Block::NonEmpty(vec![Output {
+                        value: WithRange(SimpleIdentifier("X".into()), range_on_line(2, (4, 5)))
+                            .into()
+                    }
+                    .into()])
+                })
             }
             .into()
         ))
@@ -2649,13 +2656,18 @@ say X
                     range_on_line(1, (0, 8))
                 )
                 .into(),
-                params: vec![
-                    WithRange(SimpleIdentifier("X".into()), range_on_line(1, (15, 16))).into()
-                ],
-                body: Block::NonEmpty(vec![Output {
-                    value: WithRange(SimpleIdentifier("X".into()), range_on_line(2, (4, 5))).into()
-                }
-                .into()])
+                data: Arc::new(FunctionData {
+                    params: vec![WithRange(
+                        SimpleIdentifier("X".into()),
+                        range_on_line(1, (15, 16))
+                    )
+                    .into()],
+                    body: Block::NonEmpty(vec![Output {
+                        value: WithRange(SimpleIdentifier("X".into()), range_on_line(2, (4, 5)))
+                            .into()
+                    }
+                    .into()])
+                })
             }
             .into()
         ))
@@ -2674,15 +2686,18 @@ say X
                     range_on_line(1, (0, 10))
                 )
                 .into(),
-                params: vec![WithRange(
-                    CommonIdentifier("my".into(), "body".into()),
-                    range_on_line(1, (17, 24))
-                )
-                .into()],
-                body: Block::NonEmpty(vec![Output {
-                    value: WithRange(SimpleIdentifier("X".into()), range_on_line(2, (4, 5))).into()
-                }
-                .into()])
+                data: Arc::new(FunctionData {
+                    params: vec![WithRange(
+                        CommonIdentifier("my".into(), "body".into()),
+                        range_on_line(1, (17, 24))
+                    )
+                    .into()],
+                    body: Block::NonEmpty(vec![Output {
+                        value: WithRange(SimpleIdentifier("X".into()), range_on_line(2, (4, 5)))
+                            .into()
+                    }
+                    .into()])
+                })
             }
             .into()
         ))
@@ -2706,59 +2721,61 @@ Give Back X minus 1
                     range_on_line(1, (0, 8))
                 )
                 .into(),
-                params: vec![
-                    WithRange(SimpleIdentifier("X".into()), range_on_line(1, (15, 16))).into(),
-                    WithRange(SimpleIdentifier("B".into()), range_on_line(1, (22, 23))).into()
-                ],
-                body: Block::NonEmpty(vec![
-                    If {
-                        condition: WithRange(
-                            SimpleIdentifier("B".into()),
-                            range_on_line(2, (3, 4))
-                        )
+                data: Arc::new(FunctionData {
+                    params: vec![
+                        WithRange(SimpleIdentifier("X".into()), range_on_line(1, (15, 16))).into(),
+                        WithRange(SimpleIdentifier("B".into()), range_on_line(1, (22, 23))).into()
+                    ],
+                    body: Block::NonEmpty(vec![
+                        If {
+                            condition: WithRange(
+                                SimpleIdentifier("B".into()),
+                                range_on_line(2, (3, 4))
+                            )
+                            .into(),
+                            then_block: Block::NonEmpty(vec![Return {
+                                value: BinaryExpression {
+                                    operator: BinaryOperator::Plus,
+                                    lhs: boxed_expr(WithRange(
+                                        SimpleIdentifier("X".into()),
+                                        range_on_line(3, (10, 11))
+                                    )),
+                                    rhs: boxed_expr(WithRange(
+                                        LiteralExpression::Number(1.0),
+                                        range_on_line(3, (17, 18))
+                                    ))
+                                }
+                                .into()
+                            }
+                            .into()]),
+                            else_block: None,
+                        }
                         .into(),
-                        then_block: Block::NonEmpty(vec![Return {
+                        Output {
+                            value: WithRange(
+                                LiteralExpression::String("else".into()),
+                                range_on_line(5, (4, 10))
+                            )
+                            .into()
+                        }
+                        .into(),
+                        Return {
                             value: BinaryExpression {
-                                operator: BinaryOperator::Plus,
+                                operator: BinaryOperator::Minus,
                                 lhs: boxed_expr(WithRange(
                                     SimpleIdentifier("X".into()),
-                                    range_on_line(3, (10, 11))
+                                    range_on_line(6, (10, 11))
                                 )),
                                 rhs: boxed_expr(WithRange(
                                     LiteralExpression::Number(1.0),
-                                    range_on_line(3, (17, 18))
+                                    range_on_line(6, (18, 19))
                                 ))
                             }
                             .into()
                         }
-                        .into()]),
-                        else_block: None,
-                    }
-                    .into(),
-                    Output {
-                        value: WithRange(
-                            LiteralExpression::String("else".into()),
-                            range_on_line(5, (4, 10))
-                        )
                         .into()
-                    }
-                    .into(),
-                    Return {
-                        value: BinaryExpression {
-                            operator: BinaryOperator::Minus,
-                            lhs: boxed_expr(WithRange(
-                                SimpleIdentifier("X".into()),
-                                range_on_line(6, (10, 11))
-                            )),
-                            rhs: boxed_expr(WithRange(
-                                LiteralExpression::Number(1.0),
-                                range_on_line(6, (18, 19))
-                            ))
-                        }
-                        .into()
-                    }
-                    .into()
-                ])
+                    ])
+                })
             }
             .into()
         ))

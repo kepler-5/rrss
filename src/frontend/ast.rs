@@ -1,4 +1,4 @@
-use std::{hint::unreachable_unchecked, iter::once, iter::Peekable};
+use std::{hint::unreachable_unchecked, iter::once, iter::Peekable, sync::Arc};
 
 use crate::frontend::source_range::SourceRange;
 
@@ -395,10 +395,15 @@ pub struct Return {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Function {
-    pub name: WithRange<VariableName>,
+pub struct FunctionData {
     pub params: Vec<WithRange<VariableName>>,
     pub body: Block,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Function {
+    pub name: WithRange<VariableName>,
+    pub data: Arc<FunctionData>,
 }
 
 #[derive(Debug, PartialEq)]

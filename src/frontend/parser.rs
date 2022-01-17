@@ -1,4 +1,4 @@
-use std::hint::unreachable_unchecked;
+use std::{hint::unreachable_unchecked, sync::Arc};
 
 use derive_more::{Constructor, From};
 use itertools::Itertools;
@@ -870,7 +870,8 @@ impl<'a> Parser<'a> {
         let params = self.parse_parameter_list(|p| p.expect_variable_name())?;
         self.expect_eol()?;
         let body = self.parse_block()?;
-        Ok(Function { name, params, body })
+        let data = Arc::new(FunctionData { params, body });
+        Ok(Function { name, data })
     }
 
     fn parse_statement_starting_with_word(&mut self) -> Result<Statement, ParseError<'a>> {

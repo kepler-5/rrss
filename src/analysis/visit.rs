@@ -254,6 +254,9 @@ pub trait VisitProgram: Visit {
         leaf(r)
     }
     fn visit_function(&mut self, f: &Function) -> Result<Self> {
+        self.visit_function_data(&f.data)
+    }
+    fn visit_function_data(&mut self, f: &FunctionData) -> Result<Self> {
         self.visit_block(&f.body)
     }
     fn visit_function_call_statement(&mut self, f: &FunctionCall) -> Result<Self> {
@@ -464,15 +467,19 @@ impl<T: VisitExpr> VisitProgram for ExprVisitorRunner<T> {
         self.visit_expression(&r.value)
     }
     fn visit_function(&mut self, f: &Function) -> Result<Self> {
+        Ok(self
+            .visit_variable_name(f.name.as_ref())?
+            .combine(self.visit_function_data(&f.data)?))
+    }
+    fn visit_function_data(&mut self, f: &FunctionData) -> Result<Self> {
         Ok(combine_all(
-            iter::once(self.visit_variable_name(f.name.as_ref())).chain(
-                f.params
-                    .iter()
-                    .map(|p| self.visit_variable_name(p.as_ref())),
-            ),
+            f.params
+                .iter()
+                .map(|p| self.visit_variable_name(p.as_ref())),
         )?
         .combine(self.visit_block(&f.body)?))
     }
+
     fn visit_function_call_statement(&mut self, f: &FunctionCall) -> Result<Self> {
         self.visit_function_call(f)
     }
