@@ -149,6 +149,7 @@ impl Array {
         }
     }
 
+    #[allow(dead_code)]
     fn with_arr_and_dict(arr: VecDeque<Val>, dict: HashMap<DictKey, Val>) -> Self {
         Self { arr, dict }
     }

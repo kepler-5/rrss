@@ -3,9 +3,7 @@ use std::io::stdin;
 use super::*;
 
 use crate::{
-    exec::{
-        environment::EnvironmentError, sym_table::SymTableError, val::Val, write_val::WriteValError,
-    },
+    exec::{environment::EnvironmentError, sym_table::SymTableError, val::Val},
     frontend::parser::{self, Parser},
 };
 
