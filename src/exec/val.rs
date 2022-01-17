@@ -17,7 +17,7 @@ use unchecked_unwrap::UncheckedUnwrap;
 mod tests;
 
 #[derive(Debug, PartialEq)]
-pub enum ValueError {
+pub enum ValError {
     NotIndexable,
     InvalidKey,
     NoValueForKey,
@@ -158,31 +158,31 @@ impl Array {
         self.arr.len() + self.dict.len()
     }
 
-    fn index(&self, val: &Val) -> Result<&Val, ValueError> {
+    fn index(&self, val: &Val) -> Result<&Val, ValError> {
         match val {
             Val::Number(n) => self.index_arr(*n as usize),
             Val::Undefined => self.index_dict(&DictKeyRef::Undefined),
             Val::Null => self.index_dict(&DictKeyRef::Null),
             Val::Boolean(b) => self.index_dict(&DictKeyRef::Boolean(*b)),
             Val::String(s) => self.index_dict(&DictKeyRef::String(s)),
-            Val::Array(_) => Err(ValueError::InvalidKey),
+            Val::Array(_) => Err(ValError::InvalidKey),
         }
     }
-    fn index_arr(&self, i: usize) -> Result<&Val, ValueError> {
-        self.arr.get(i).ok_or(ValueError::IndexOutOfBounds)
+    fn index_arr(&self, i: usize) -> Result<&Val, ValError> {
+        self.arr.get(i).ok_or(ValError::IndexOutOfBounds)
     }
-    fn index_dict(&self, k: &dyn Key) -> Result<&Val, ValueError> {
-        self.dict.get(k).ok_or(ValueError::NoValueForKey)
+    fn index_dict(&self, k: &dyn Key) -> Result<&Val, ValError> {
+        self.dict.get(k).ok_or(ValError::NoValueForKey)
     }
 
-    fn index_or_insert(&mut self, val: &Val) -> Result<&mut Val, ValueError> {
+    fn index_or_insert(&mut self, val: &Val) -> Result<&mut Val, ValError> {
         match val {
             Val::Number(n) => Ok(self.index_arr_or_insert(*n as usize)),
             Val::Undefined => Ok(self.index_dict_or_insert(DictKey::Undefined)),
             Val::Null => Ok(self.index_dict_or_insert(DictKey::Null)),
             Val::Boolean(b) => Ok(self.index_dict_or_insert(DictKey::Boolean(*b))),
             Val::String(s) => Ok(self.index_dict_or_insert(DictKey::String((**s).clone()))),
-            Val::Array(_) => Err(ValueError::InvalidKey),
+            Val::Array(_) => Err(ValError::InvalidKey),
         }
     }
     fn index_arr_or_insert(&mut self, i: usize) -> &mut Val {
@@ -198,8 +198,8 @@ impl Array {
     fn push(&mut self, vals: impl Iterator<Item = Val>) {
         self.arr.extend(vals)
     }
-    fn pop(&mut self) -> Result<Val, ValueError> {
-        self.arr.pop_front().ok_or(ValueError::PopOnEmptyArray)
+    fn pop(&mut self) -> Result<Val, ValError> {
+        self.arr.pop_front().ok_or(ValError::PopOnEmptyArray)
     }
 
     fn val_iter(&self) -> impl Iterator<Item = &Val> {
@@ -211,53 +211,53 @@ impl Array {
     }
 }
 
-fn index_string(s: &str, i: usize) -> Result<Val, ValueError> {
+fn index_string(s: &str, i: usize) -> Result<Val, ValError> {
     s.chars()
         .nth(i)
-        .ok_or(ValueError::IndexOutOfBounds)
+        .ok_or(ValError::IndexOutOfBounds)
         .map(Into::into)
 }
 
-fn index_string_with(s: &str, val: &Val) -> Result<Val, ValueError> {
+fn index_string_with(s: &str, val: &Val) -> Result<Val, ValError> {
     match val {
         Val::Number(n) => index_string(s, *n as usize),
-        _ => Err(ValueError::InvalidKey),
+        _ => Err(ValError::InvalidKey),
     }
 }
 
 impl Val {
-    pub fn index<'a>(&'a self, val: &Val) -> Result<Cow<'a, Val>, ValueError> {
+    pub fn index<'a>(&'a self, val: &Val) -> Result<Cow<'a, Val>, ValError> {
         match self {
             Val::String(s) => index_string_with(s, val).map(Cow::Owned),
             Val::Array(a) => a.index(val).map(Cow::Borrowed),
-            _ => Err(ValueError::NotIndexable),
+            _ => Err(ValError::NotIndexable),
         }
     }
 
-    pub fn index_or_insert(&mut self, val: &Val) -> Result<&mut Val, ValueError> {
+    pub fn index_or_insert(&mut self, val: &Val) -> Result<&mut Val, ValError> {
         if self.is_undefined() {
             *self = Array::new().into();
         }
         match self {
             Val::Array(a) => Rc::make_mut(a).index_or_insert(val),
-            Val::String(_) => Err(ValueError::IndexNotAssignable),
-            _ => Err(ValueError::NotIndexable),
+            Val::String(_) => Err(ValError::IndexNotAssignable),
+            _ => Err(ValError::NotIndexable),
         }
     }
 
-    pub fn push(&mut self, vals: impl Iterator<Item = Val>) -> Result<(), ValueError> {
+    pub fn push(&mut self, vals: impl Iterator<Item = Val>) -> Result<(), ValError> {
         if self.is_undefined() {
             *self = Array::new().into();
         }
         match self {
             Val::Array(a) => Ok(Rc::make_mut(a).push(vals)),
-            _ => Err(ValueError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType),
         }
     }
-    pub fn pop(&mut self) -> Result<Val, ValueError> {
+    pub fn pop(&mut self) -> Result<Val, ValError> {
         match self {
             Val::Array(a) => Rc::make_mut(a).pop(),
-            _ => Err(ValueError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType),
         }
     }
 }
@@ -341,11 +341,11 @@ impl Val {
             .unwrap_or(false)
     }
 
-    pub fn compare(&self, other: &Val) -> Result<Option<Ordering>, ValueError> {
+    pub fn compare(&self, other: &Val) -> Result<Option<Ordering>, ValError> {
         self.cmp_coerced(other)
             .and_then(|(a, b)| {
                 if discriminant(a.as_ref()) != discriminant(b.as_ref()) {
-                    Some(Err(ValueError::InvalidComparison))
+                    Some(Err(ValError::InvalidComparison))
                 } else {
                     match a.as_ref() {
                         Val::Undefined => Some(Ok(Ordering::Equal)),
@@ -354,15 +354,15 @@ impl Val {
                         Val::Number(n) => n.partial_cmp(inner!(b.as_ref(), if Val::Number)).map(Ok),
                         Val::String(s) => Some(Ok(s.cmp(inner!(b.as_ref(), if Val::String)))),
 
-                        Val::Boolean(_) => Some(Err(ValueError::InvalidComparison)),
-                        Val::Array(_) => Some(Err(ValueError::InvalidComparison)),
+                        Val::Boolean(_) => Some(Err(ValError::InvalidComparison)),
+                        Val::Array(_) => Some(Err(ValError::InvalidComparison)),
                     }
                 }
             })
             .transpose()
     }
 
-    pub fn inc(&mut self, x: isize) -> Result<(), ValueError> {
+    pub fn inc(&mut self, x: isize) -> Result<(), ValError> {
         if self.is_null() {
             *self = Val::Number(0.0);
         }
@@ -378,7 +378,7 @@ impl Val {
                 Ok(())
             }
 
-            _ => Err(ValueError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType),
         }
     }
 
@@ -407,7 +407,7 @@ impl Val {
         }
     }
 
-    pub fn plus(&self, other: &Val) -> Result<Val, ValueError> {
+    pub fn plus(&self, other: &Val) -> Result<Val, ValError> {
         let (a, b) = self.plus_coerced(other);
         match (a.as_ref(), b.as_ref()) {
             (Val::String(a), Val::String(b)) => {
@@ -415,11 +415,11 @@ impl Val {
             }
             (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a + b)),
 
-            _ => Err(ValueError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType),
         }
     }
 
-    pub fn multiply(&self, other: &Val) -> Result<Val, ValueError> {
+    pub fn multiply(&self, other: &Val) -> Result<Val, ValError> {
         match (self, other) {
             (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a * b)),
             (Val::String(a), Val::Number(b)) if *b >= 0.0 => Ok(Val::from(
@@ -428,65 +428,65 @@ impl Val {
                     .collect::<String>(),
             )),
 
-            _ => Err(ValueError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType),
         }
     }
 
-    pub fn subtract(&self, other: &Val) -> Result<Val, ValueError> {
+    pub fn subtract(&self, other: &Val) -> Result<Val, ValError> {
         match (self, other) {
             (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a - b)),
-            _ => Err(ValueError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType),
         }
     }
-    pub fn divide(&self, other: &Val) -> Result<Val, ValueError> {
+    pub fn divide(&self, other: &Val) -> Result<Val, ValError> {
         match (self, other) {
             (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a / b)),
-            _ => Err(ValueError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType),
         }
     }
 
-    pub fn negate(&self) -> Result<Val, ValueError> {
+    pub fn negate(&self) -> Result<Val, ValError> {
         match self {
             Val::Number(n) => Ok(Val::Number(-n)),
-            _ => Err(ValueError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType),
         }
     }
 
-    pub fn round_up(&mut self) -> Result<(), ValueError> {
+    pub fn round_up(&mut self) -> Result<(), ValError> {
         match self {
             Val::Number(f) => {
                 *f = f.ceil();
                 Ok(())
             }
-            _ => Err(ValueError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType),
         }
     }
-    pub fn round_down(&mut self) -> Result<(), ValueError> {
+    pub fn round_down(&mut self) -> Result<(), ValError> {
         match self {
             Val::Number(f) => {
                 *f = f.floor();
                 Ok(())
             }
-            _ => Err(ValueError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType),
         }
     }
-    pub fn round_nearest(&mut self) -> Result<(), ValueError> {
+    pub fn round_nearest(&mut self) -> Result<(), ValError> {
         match self {
             Val::Number(f) => {
                 *f = f.round();
                 Ok(())
             }
-            _ => Err(ValueError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType),
         }
     }
 
-    pub fn split(&mut self, delim: Option<Val>) -> Result<(), ValueError> {
+    pub fn split(&mut self, delim: Option<Val>) -> Result<(), ValError> {
         match self {
             Val::String(s) if !s.is_empty() => {
                 let delim = match &delim {
                     Some(d) => match &d {
                         Val::String(d) => d,
-                        _ => return Err(ValueError::InvalidSplitDelimiter),
+                        _ => return Err(ValError::InvalidSplitDelimiter),
                     },
                     None => "",
                 };
@@ -501,30 +501,30 @@ impl Val {
             Val::String(s) if s.is_empty() => {
                 if let Some(d) = &delim {
                     if !d.is_string() {
-                        return Err(ValueError::InvalidSplitDelimiter);
+                        return Err(ValError::InvalidSplitDelimiter);
                     }
                 }
                 *self = Array::new().into();
                 Ok(())
             }
-            _ => Err(ValueError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType),
         }
     }
 
-    pub fn join(&mut self, delim: Option<Val>) -> Result<(), ValueError> {
+    pub fn join(&mut self, delim: Option<Val>) -> Result<(), ValError> {
         match self {
             Val::Array(a) if !a.is_empty() => {
                 let delim = match &delim {
                     Some(d) => match &d {
                         Val::String(s) => s,
-                        _ => return Err(ValueError::InvalidJoinDelimiter),
+                        _ => return Err(ValError::InvalidJoinDelimiter),
                     },
                     None => "",
                 };
                 for val in a.val_iter() {
                     match val {
                         Val::String(_) => {}
-                        _ => return Err(ValueError::InvalidArrayElementForJoin(val.clone())),
+                        _ => return Err(ValError::InvalidArrayElementForJoin(val.clone())),
                     }
                 }
                 let string = a
@@ -540,30 +540,30 @@ impl Val {
             Val::Array(a) if a.is_empty() => {
                 if let Some(d) = &delim {
                     if !d.is_string() {
-                        return Err(ValueError::InvalidJoinDelimiter);
+                        return Err(ValError::InvalidJoinDelimiter);
                     }
                 }
                 *self = String::new().into();
                 Ok(())
             }
-            _ => Err(ValueError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType),
         }
     }
 
-    fn try_to_integer(f: f64, fail: impl FnOnce() -> ValueError) -> Result<i64, ValueError> {
+    fn try_to_integer(f: f64, fail: impl FnOnce() -> ValError) -> Result<i64, ValError> {
         let i = f.trunc();
         (i == f).then(|| i as i64).ok_or_else(fail)
     }
 
-    pub fn cast(&mut self, param: Option<Val>) -> Result<(), ValueError> {
+    pub fn cast(&mut self, param: Option<Val>) -> Result<(), ValError> {
         match self {
             Val::Number(n) => {
                 if let Some(param) = param {
-                    Err(ValueError::UnexpectedParameterToNumberToCharacterCast(
+                    Err(ValError::UnexpectedParameterToNumberToCharacterCast(
                         param.clone(),
                     ))
                 } else {
-                    let err = || ValueError::ConvertingNumberToCharacterFailed(*n);
+                    let err = || ValError::ConvertingNumberToCharacterFailed(*n);
                     let i = Self::try_to_integer(*n, err)?;
                     let c = char::from_u32(i.try_into().map_err(|_| err())?).ok_or_else(err)?;
                     *self = Val::from(c);
@@ -574,7 +574,7 @@ impl Val {
                 if let Some(param) = param {
                     match param {
                         Val::Number(p) => {
-                            let err = || ValueError::InvalidStringToIntegerRadix(param.clone());
+                            let err = || ValError::InvalidStringToIntegerRadix(param.clone());
                             let radix = Self::try_to_integer(p, err)?
                                 .try_into()
                                 .map_err(|_| err())?;
@@ -582,18 +582,18 @@ impl Val {
                             *self = Val::Number(n as f64);
                             Ok(())
                         }
-                        _ => Err(ValueError::InvalidStringToIntegerRadix(param.clone())),
+                        _ => Err(ValError::InvalidStringToIntegerRadix(param.clone())),
                     }
                 } else {
                     *self = s
                         .parse()
                         .map(Val::Number)
-                        .map_err(|_| ValueError::ParsingStringAsNumberFailed((**s).clone()))?;
+                        .map_err(|_| ValError::ParsingStringAsNumberFailed((**s).clone()))?;
                     Ok(())
                 }
             }
 
-            _ => Err(ValueError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType),
         }
     }
 }

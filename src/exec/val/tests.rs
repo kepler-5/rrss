@@ -19,34 +19,34 @@ fn array_index() {
 
     assert_eq!(
         arr.index(&Val::Number(100.0)),
-        Err(ValueError::IndexOutOfBounds)
+        Err(ValError::IndexOutOfBounds)
     );
-    assert_eq!(arr.index(&"100.0".into()), Err(ValueError::NoValueForKey));
+    assert_eq!(arr.index(&"100.0".into()), Err(ValError::NoValueForKey));
 }
 
 #[test]
 fn not_indexable() {
     assert_eq!(
         Val::Null.index(&Val::Number(100.0)),
-        Err(ValueError::NotIndexable)
+        Err(ValError::NotIndexable)
     );
     assert_eq!(
         Val::Boolean(false).index(&Val::Number(100.0)),
-        Err(ValueError::NotIndexable)
+        Err(ValError::NotIndexable)
     );
     assert_eq!(
         Val::Number(100.0).index(&Val::Number(100.0)),
-        Err(ValueError::NotIndexable)
+        Err(ValError::NotIndexable)
     );
     assert_eq!(
         Val::Number(100.0).index(&"100.0".into()),
-        Err(ValueError::NotIndexable)
+        Err(ValError::NotIndexable)
     );
 
     // undefined's become arrays when you write to an index
     let mut und = Val::Undefined;
     assert!(und.is_undefined());
-    assert_eq!(und.index(&Val::Null), Err(ValueError::NotIndexable));
+    assert_eq!(und.index(&Val::Null), Err(ValError::NotIndexable));
     *und.index_or_insert(&Val::Null).unwrap() = Val::Boolean(true);
     assert!(und.is_array());
     assert_eq!(und.index(&Val::Null).unwrap().as_ref(), &Val::Boolean(true));
@@ -59,15 +59,12 @@ fn string_index() {
     assert_eq!(s.index(&Val::Number(0.0)), Ok(Cow::Owned("b".into())));
     assert_eq!(s.index(&Val::Number(1.0)), Ok(Cow::Owned("a".into())));
     assert_eq!(s.index(&Val::Number(2.0)), Ok(Cow::Owned("r".into())));
-    assert_eq!(
-        s.index(&Val::Number(3.0)),
-        Err(ValueError::IndexOutOfBounds)
-    );
-    assert_eq!(s.index(&Val::Null), Err(ValueError::InvalidKey));
+    assert_eq!(s.index(&Val::Number(3.0)), Err(ValError::IndexOutOfBounds));
+    assert_eq!(s.index(&Val::Null), Err(ValError::InvalidKey));
 
     assert_eq!(
         s.index_or_insert(&Val::Null),
-        Err(ValueError::IndexNotAssignable)
+        Err(ValError::IndexNotAssignable)
     );
 }
 
@@ -104,7 +101,7 @@ fn array_push_pop() {
     assert_eq!(arr.decay(), Cow::Owned(Val::Number(0.0)));
 
     let err = arr.pop();
-    assert_eq!(err, Err(ValueError::PopOnEmptyArray));
+    assert_eq!(err, Err(ValError::PopOnEmptyArray));
 
     let ok = arr.push([Val::Null, Val::Boolean(true)].into_iter());
     assert!(ok.is_ok());
@@ -117,9 +114,9 @@ fn array_push_pop() {
 
     assert_eq!(
         Val::Null.push(once(Val::Null)),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
-    assert_eq!(Val::Null.pop(), Err(ValueError::InvalidOperationForType));
+    assert_eq!(Val::Null.pop(), Err(ValError::InvalidOperationForType));
 }
 
 #[test]
@@ -258,8 +255,8 @@ fn equals() {
 fn compare() {
     macro_rules! commutative_invalid {
         ($a:expr, $b:expr) => {
-            assert_eq!($a.compare(&$b), Err(ValueError::InvalidComparison));
-            assert_eq!($b.compare(&$a), Err(ValueError::InvalidComparison));
+            assert_eq!($a.compare(&$b), Err(ValError::InvalidComparison));
+            assert_eq!($b.compare(&$a), Err(ValError::InvalidComparison));
         };
     }
     macro_rules! commutative_less {
@@ -313,11 +310,11 @@ fn inc_dec() {
     };
     assert_eq!(
         inc(Val::Undefined, 1),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         inc(Val::from("foo"), 1),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
 
     assert_eq!(inc(Val::Null, 1), Ok(Val::Number(1.0)));
@@ -336,8 +333,8 @@ fn inc_dec() {
 fn plus() {
     macro_rules! commutative_invalid {
         ($a:expr, $b:expr) => {
-            assert_eq!($a.plus(&$b), Err(ValueError::InvalidOperationForType));
-            assert_eq!($b.plus(&$a), Err(ValueError::InvalidOperationForType));
+            assert_eq!($a.plus(&$b), Err(ValError::InvalidOperationForType));
+            assert_eq!($b.plus(&$a), Err(ValError::InvalidOperationForType));
         };
     }
     commutative_invalid!(Val::Undefined, Val::Null);
@@ -405,8 +402,8 @@ fn plus() {
 fn multiply() {
     macro_rules! commutative_invalid {
         ($a:expr, $b:expr) => {
-            assert_eq!($a.multiply(&$b), Err(ValueError::InvalidOperationForType));
-            assert_eq!($b.multiply(&$a), Err(ValueError::InvalidOperationForType));
+            assert_eq!($a.multiply(&$b), Err(ValError::InvalidOperationForType));
+            assert_eq!($b.multiply(&$a), Err(ValError::InvalidOperationForType));
         };
     }
     commutative_invalid!(Val::Undefined, Val::Null);
@@ -455,8 +452,8 @@ fn multiply() {
 fn subtract() {
     macro_rules! commutative_invalid {
         ($a:expr, $b:expr) => {
-            assert_eq!($a.subtract(&$b), Err(ValueError::InvalidOperationForType));
-            assert_eq!($b.subtract(&$a), Err(ValueError::InvalidOperationForType));
+            assert_eq!($a.subtract(&$b), Err(ValError::InvalidOperationForType));
+            assert_eq!($b.subtract(&$a), Err(ValError::InvalidOperationForType));
         };
     }
     commutative_invalid!(Val::Undefined, Val::Null);
@@ -494,8 +491,8 @@ fn subtract() {
 fn divide() {
     macro_rules! commutative_invalid {
         ($a:expr, $b:expr) => {
-            assert_eq!($a.divide(&$b), Err(ValueError::InvalidOperationForType));
-            assert_eq!($b.divide(&$a), Err(ValueError::InvalidOperationForType));
+            assert_eq!($a.divide(&$b), Err(ValError::InvalidOperationForType));
+            assert_eq!($b.divide(&$a), Err(ValError::InvalidOperationForType));
         };
     }
     commutative_invalid!(Val::Undefined, Val::Null);
@@ -533,20 +530,20 @@ fn divide() {
 fn negate() {
     assert_eq!(
         Val::Undefined.negate(),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
-    assert_eq!(Val::Null.negate(), Err(ValueError::InvalidOperationForType));
+    assert_eq!(Val::Null.negate(), Err(ValError::InvalidOperationForType));
     assert_eq!(
         Val::Boolean(false).negate(),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         Val::from("").negate(),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         Val::from(Array::new()).negate(),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(Val::Number(1.5).negate(), Ok(Val::Number(-1.5)));
     assert_eq!(Val::Number(-1.5).negate(), Ok(Val::Number(1.5)));
@@ -564,23 +561,20 @@ fn round() {
     };
     assert_eq!(
         round_up(Val::Undefined),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
-    assert_eq!(
-        round_up(Val::Null),
-        Err(ValueError::InvalidOperationForType)
-    );
+    assert_eq!(round_up(Val::Null), Err(ValError::InvalidOperationForType));
     assert_eq!(
         round_up(Val::Boolean(false)),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         round_up(Val::from("")),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         round_up(Val::from(Array::new())),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(round_up(Val::Number(1.5)), Ok(Val::Number(2.0)));
     assert_eq!(round_up(Val::Number(2.0)), Ok(Val::Number(2.0)));
@@ -592,23 +586,23 @@ fn round() {
     };
     assert_eq!(
         round_down(Val::Undefined),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         round_down(Val::Null),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         round_down(Val::Boolean(false)),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         round_down(Val::from("")),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         round_down(Val::from(Array::new())),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(round_down(Val::Number(1.5)), Ok(Val::Number(1.0)));
     assert_eq!(round_down(Val::Number(2.0)), Ok(Val::Number(2.0)));
@@ -620,23 +614,23 @@ fn round() {
     };
     assert_eq!(
         round_nearest(Val::Undefined),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         round_nearest(Val::Null),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         round_nearest(Val::Boolean(false)),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         round_nearest(Val::from("")),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         round_nearest(Val::from(Array::new())),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(round_nearest(Val::Number(1.2)), Ok(Val::Number(1.0)));
     assert_eq!(round_nearest(Val::Number(1.5)), Ok(Val::Number(2.0)));
@@ -686,64 +680,64 @@ fn split() {
 
     assert_eq!(
         split(Val::from(""), Some(Val::Undefined)),
-        Err(ValueError::InvalidSplitDelimiter)
+        Err(ValError::InvalidSplitDelimiter)
     );
     assert_eq!(
         split(Val::from("x"), Some(Val::Undefined)),
-        Err(ValueError::InvalidSplitDelimiter)
+        Err(ValError::InvalidSplitDelimiter)
     );
     assert_eq!(
         split(Val::from(""), Some(Val::Null)),
-        Err(ValueError::InvalidSplitDelimiter)
+        Err(ValError::InvalidSplitDelimiter)
     );
     assert_eq!(
         split(Val::from("x"), Some(Val::Null)),
-        Err(ValueError::InvalidSplitDelimiter)
+        Err(ValError::InvalidSplitDelimiter)
     );
     assert_eq!(
         split(Val::from(""), Some(Val::Boolean(false))),
-        Err(ValueError::InvalidSplitDelimiter)
+        Err(ValError::InvalidSplitDelimiter)
     );
     assert_eq!(
         split(Val::from("x"), Some(Val::Boolean(false))),
-        Err(ValueError::InvalidSplitDelimiter)
+        Err(ValError::InvalidSplitDelimiter)
     );
     assert_eq!(
         split(Val::from(""), Some(Val::Number(0.0))),
-        Err(ValueError::InvalidSplitDelimiter)
+        Err(ValError::InvalidSplitDelimiter)
     );
     assert_eq!(
         split(Val::from("x"), Some(Val::Number(0.0))),
-        Err(ValueError::InvalidSplitDelimiter)
+        Err(ValError::InvalidSplitDelimiter)
     );
     assert_eq!(
         split(Val::from(""), Some(Array::new().into())),
-        Err(ValueError::InvalidSplitDelimiter)
+        Err(ValError::InvalidSplitDelimiter)
     );
     assert_eq!(
         split(Val::from("x"), Some(Array::new().into())),
-        Err(ValueError::InvalidSplitDelimiter)
+        Err(ValError::InvalidSplitDelimiter)
     );
 
     assert_eq!(
         split(Val::Undefined, Some(Val::Undefined)),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         split(Val::Null, Some(Val::Undefined)),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         split(Val::Boolean(false), Some(Val::Undefined)),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         split(Val::Number(0.0), Some(Val::Undefined)),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         split(Array::new().into(), Some(Val::Undefined)),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
 }
 
@@ -779,7 +773,7 @@ fn join() {
             .into(),
             None
         ),
-        Err(ValueError::InvalidArrayElementForJoin(Val::Number(2.0)))
+        Err(ValError::InvalidArrayElementForJoin(Val::Number(2.0)))
     );
 
     assert_eq!(
@@ -802,49 +796,49 @@ fn join() {
             .into(),
             None
         ),
-        Err(ValueError::InvalidArrayElementForJoin(Val::Number(4.0)))
+        Err(ValError::InvalidArrayElementForJoin(Val::Number(4.0)))
     );
 
     assert_eq!(
         join(Array::new().into(), Some(Val::Undefined)),
-        Err(ValueError::InvalidJoinDelimiter)
+        Err(ValError::InvalidJoinDelimiter)
     );
     assert_eq!(
         join(Array::new().into(), Some(Val::Null)),
-        Err(ValueError::InvalidJoinDelimiter)
+        Err(ValError::InvalidJoinDelimiter)
     );
     assert_eq!(
         join(Array::new().into(), Some(Val::Boolean(false))),
-        Err(ValueError::InvalidJoinDelimiter)
+        Err(ValError::InvalidJoinDelimiter)
     );
     assert_eq!(
         join(Array::new().into(), Some(Val::Number(0.0))),
-        Err(ValueError::InvalidJoinDelimiter)
+        Err(ValError::InvalidJoinDelimiter)
     );
     assert_eq!(
         join(Array::new().into(), Some(Array::new().into())),
-        Err(ValueError::InvalidJoinDelimiter)
+        Err(ValError::InvalidJoinDelimiter)
     );
 
     assert_eq!(
         join(Val::Undefined, Some(Val::Undefined)),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         join(Val::Null, Some(Val::Undefined)),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         join(Val::Boolean(false), Some(Val::Undefined)),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         join(Val::Number(0.0), Some(Val::Undefined)),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         join(Val::from(""), Some(Val::Undefined)),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
 }
 
@@ -860,7 +854,7 @@ fn cast() {
     assert_eq!(cast(Val::Number(128175.0), None), Ok(Val::from('💯')));
     assert_eq!(
         cast(Val::Number(1046.5), None),
-        Err(ValueError::ConvertingNumberToCharacterFailed(1046.5))
+        Err(ValError::ConvertingNumberToCharacterFailed(1046.5))
     );
 
     assert_eq!(cast(Val::from("123.45"), None), Ok(Val::Number(123.45)));
@@ -875,44 +869,44 @@ fn cast() {
     );
     assert_eq!(
         cast(Val::from("AA"), Some(Val::Number(16.6))),
-        Err(ValueError::InvalidStringToIntegerRadix(Val::Number(16.6)))
+        Err(ValError::InvalidStringToIntegerRadix(Val::Number(16.6)))
     );
 
     assert_eq!(
         cast(Val::from("AA"), Some(Val::Undefined)),
-        Err(ValueError::InvalidStringToIntegerRadix(Val::Undefined))
+        Err(ValError::InvalidStringToIntegerRadix(Val::Undefined))
     );
     assert_eq!(
         cast(Val::from("AA"), Some(Val::Null)),
-        Err(ValueError::InvalidStringToIntegerRadix(Val::Null))
+        Err(ValError::InvalidStringToIntegerRadix(Val::Null))
     );
     assert_eq!(
         cast(Val::from("AA"), Some(Val::Boolean(false))),
-        Err(ValueError::InvalidStringToIntegerRadix(Val::Boolean(false)))
+        Err(ValError::InvalidStringToIntegerRadix(Val::Boolean(false)))
     );
     assert_eq!(
         cast(Val::from("AA"), Some(Val::from(""))),
-        Err(ValueError::InvalidStringToIntegerRadix(Val::from("")))
+        Err(ValError::InvalidStringToIntegerRadix(Val::from("")))
     );
     assert_eq!(
         cast(Val::from("AA"), Some(Array::new().into())),
-        Err(ValueError::InvalidStringToIntegerRadix(Array::new().into()))
+        Err(ValError::InvalidStringToIntegerRadix(Array::new().into()))
     );
 
     assert_eq!(
         cast(Val::Undefined, None),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         cast(Val::Null, None),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         cast(Val::Boolean(false), None),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
     assert_eq!(
         cast(Array::new().into(), None),
-        Err(ValueError::InvalidOperationForType)
+        Err(ValError::InvalidOperationForType)
     );
 }

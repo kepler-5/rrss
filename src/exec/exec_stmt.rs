@@ -13,7 +13,7 @@ use crate::{
     exec::{
         environment::Environment,
         produce_val::{binary_operator_fold, ProduceVal},
-        val::{Array, Val, ValueError},
+        val::{Array, Val, ValError},
         write_val::WriteVal,
         RuntimeError,
     },
@@ -70,14 +70,14 @@ impl<'a, I, O> ExecStmt<'a, I, O> {
         ProduceVal::new(self.env)
     }
 
-    fn writer(&self, val: Val) -> WriteVal<impl FnMut(&mut Val) -> Result<(), ValueError>, I, O> {
+    fn writer(&self, val: Val) -> WriteVal<impl FnMut(&mut Val) -> Result<(), ValError>, I, O> {
         self.raw_writer(move |v| {
             *v = val.clone();
             Ok(())
         })
     }
 
-    fn raw_writer<W: FnMut(&mut Val) -> Result<(), ValueError>>(&self, w: W) -> WriteVal<W, I, O> {
+    fn raw_writer<W: FnMut(&mut Val) -> Result<(), ValError>>(&self, w: W) -> WriteVal<W, I, O> {
         WriteVal::new(self.env, w)
     }
 }
@@ -128,7 +128,7 @@ impl<'a, I: Read, O: Write> ExecStmt<'a, I, O> {
             .0
     }
 
-    fn mutation_helper<M: Fn(&mut Val, Option<Val>) -> Result<(), ValueError>>(
+    fn mutation_helper<M: Fn(&mut Val, Option<Val>) -> Result<(), ValError>>(
         &mut self,
         m: &Mutation,
         mutate: M,

@@ -1,7 +1,7 @@
 use crate::{
     exec::{
         environment::EnvironmentError,
-        val::{Array, ValueError},
+        val::{Array, ValError},
     },
     frontend::parser::Parser,
 };
@@ -70,7 +70,7 @@ fn write_array_subscript() {
     assert_eq!(write_then_read(&e, "foo at 5", Val::Null), Ok(Val::Null));
     assert_eq!(
         write_then_read(&e, "foo at 5 at 5", Val::Null),
-        Err(ValueError::NotIndexable.into())
+        Err(ValError::NotIndexable.into())
     );
 
     assert_eq!(
