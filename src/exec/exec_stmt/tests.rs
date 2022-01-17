@@ -696,3 +696,83 @@ fn function() {
         .lookup_func(&SimpleIdentifier("polly".into()).into())
         .is_ok());
 }
+
+#[test]
+fn return_statement() {
+    let ret_val = |code| {
+        let env = Environment::refcell();
+        let block = Parser::for_source_code(code).parse_block().unwrap();
+        let mut exec = ExecStmt::new(&env);
+        assert!(exec.visit_block(&block).is_ok());
+        exec.return_val()
+    };
+
+    assert_eq!(ret_val(""), Val::Undefined);
+    assert_eq!(ret_val("return null"), Val::Null);
+    assert_eq!(
+        ret_val(
+            "\
+    x is 5
+    if x is 5
+    return x
+
+    return x + 1
+    "
+        ),
+        Val::Number(5.0)
+    );
+    assert_eq!(
+        ret_val(
+            "\
+    x is 5
+    if x ain't 5
+    return x
+
+    return x + 1
+    "
+        ),
+        Val::Number(6.0)
+    );
+    assert_eq!(
+        ret_val(
+            "\
+    x is 0
+    until x is 10
+    let x be with 1
+    if x is 5
+    return x
+    "
+        ),
+        Val::Number(5.0)
+    );
+    assert_eq!(
+        ret_val(
+            "\
+    x is 0
+    until x is 10
+    let x be with 1
+    if x is 5
+    return x
+
+
+    return null
+    "
+        ),
+        Val::Number(5.0)
+    );
+    assert_eq!(
+        ret_val(
+            "\
+    x is 0
+    until x is 10
+    let x be with 1
+    if x is 15
+    return x
+    
+
+    return null
+    "
+        ),
+        Val::Null
+    );
+}

@@ -51,7 +51,7 @@ impl ControlFlowState {
 pub struct ExecStmt<'a, I, O> {
     env: &'a RefCell<Environment<I, O>>,
     control_flow_state: ControlFlowState,
-    return_val: Val,
+    return_val: Option<Val>,
 }
 
 impl<'a, I, O> ExecStmt<'a, I, O> {
@@ -59,12 +59,12 @@ impl<'a, I, O> ExecStmt<'a, I, O> {
         Self {
             env,
             control_flow_state: ControlFlowState::Normal,
-            return_val: Val::Undefined,
+            return_val: None,
         }
     }
 
     pub fn return_val(self) -> Val {
-        self.return_val
+        self.return_val.unwrap_or_else(|| Val::Undefined)
     }
 
     fn producer(&self) -> ProduceVal<I, O> {
@@ -347,7 +347,11 @@ impl<'a, I: Read, O: Write> VisitProgram for ExecStmt<'a, I, O> {
     }
 
     fn visit_return(&mut self, r: &Return) -> visit::Result<Self> {
-        todo!()
+        debug_assert!(self.return_val.is_none());
+        self.return_val = Some(self.producer().visit_expression(&r.value)?.0);
+        debug_assert!(self.control_flow_state.is_normal());
+        self.control_flow_state = ControlFlowState::Returning;
+        Ok(())
     }
 
     fn visit_function(&mut self, f: &Function) -> visit::Result<Self> {

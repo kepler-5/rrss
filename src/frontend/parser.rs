@@ -663,7 +663,7 @@ impl<'a> Parser<'a> {
         Ok(statements)
     }
 
-    fn parse_block(&mut self) -> Result<Block, ParseError<'a>> {
+    pub(crate) fn parse_block(&mut self) -> Result<Block, ParseError<'a>> {
         let loc = self.current_loc();
         let statements = self.parse_block_loop()?;
         self.expect_eol()?;
