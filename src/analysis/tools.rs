@@ -92,7 +92,7 @@ impl VisitExpr for NumericConstantFolder {
             UnaryOperator::Not => Err(WrongType),
         }
     }
-    fn visit_array_subsript(&mut self, _: &ArraySubscript) -> visit::Result<Self> {
+    fn visit_array_subscript(&mut self, _: &ArraySubscript) -> visit::Result<Self> {
         Err(UnknownValue)
     }
     fn visit_literal_expression(
@@ -169,7 +169,7 @@ impl VisitExpr for SimpleStringConstantFolder {
     fn visit_unary_expression(&mut self, _: &UnaryExpression) -> visit::Result<Self> {
         Err(WrongType)
     }
-    fn visit_array_subsript(&mut self, _: &ArraySubscript) -> visit::Result<Self> {
+    fn visit_array_subscript(&mut self, _: &ArraySubscript) -> visit::Result<Self> {
         Err(UnknownValue)
     }
     fn visit_literal_expression(

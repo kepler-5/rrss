@@ -61,7 +61,7 @@ impl<'a, I, O> VisitExpr for ProduceVal<'a, I, O> {
         }))
     }
 
-    fn visit_array_subsript(&mut self, a: &ArraySubscript) -> visit::Result<Self> {
+    fn visit_array_subscript(&mut self, a: &ArraySubscript) -> visit::Result<Self> {
         let array = self.visit_primary_expression(&a.array)?.0;
         let subscript = self.visit_primary_expression(&a.subscript)?.0;
         Ok(array

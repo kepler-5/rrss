@@ -40,7 +40,7 @@ pub trait VisitExpr: Visit {
     fn visit_assignment_lhs(&mut self, a: &AssignmentLHS) -> Result<Self> {
         match a {
             AssignmentLHS::Identifier(i) => self.visit_identifier(i),
-            AssignmentLHS::ArraySubscript(a) => self.visit_array_subsript(a),
+            AssignmentLHS::ArraySubscript(a) => self.visit_array_subscript(a),
         }
     }
     fn visit_poetic_number_assignment_rhs(
@@ -97,7 +97,7 @@ pub trait VisitExpr: Visit {
         match e {
             PrimaryExpression::Literal(e) => self.visit_literal_expression(e),
             PrimaryExpression::Identifier(i) => self.visit_identifier(i),
-            PrimaryExpression::ArraySubscript(a) => self.visit_array_subsript(a),
+            PrimaryExpression::ArraySubscript(a) => self.visit_array_subscript(a),
             PrimaryExpression::FunctionCall(f) => self.visit_function_call(f),
         }
     }
@@ -112,7 +112,7 @@ pub trait VisitExpr: Visit {
             .visit_unary_operator(e.operator)?
             .combine(self.visit_expression(&e.operand)?))
     }
-    fn visit_array_subsript(&mut self, a: &ArraySubscript) -> Result<Self> {
+    fn visit_array_subscript(&mut self, a: &ArraySubscript) -> Result<Self> {
         Ok(self
             .visit_primary_expression(&a.array)?
             .combine(self.visit_primary_expression(&a.subscript)?))
@@ -331,8 +331,8 @@ impl<T: VisitExpr> VisitExpr for ExprVisitorRunner<T> {
     fn visit_unary_expression(&mut self, e: &UnaryExpression) -> Result<Self> {
         self.inner.visit_unary_expression(e)
     }
-    fn visit_array_subsript(&mut self, a: &ArraySubscript) -> Result<Self> {
-        self.inner.visit_array_subsript(a)
+    fn visit_array_subscript(&mut self, a: &ArraySubscript) -> Result<Self> {
+        self.inner.visit_array_subscript(a)
     }
     fn visit_literal_expression(&mut self, e: &WithRange<LiteralExpression>) -> Result<Self> {
         self.inner.visit_literal_expression(e)

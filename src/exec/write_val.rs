@@ -82,7 +82,7 @@ fn subscript_val<I, O>(
 }
 
 impl<'a, W: FnMut(&mut Val) -> Result<(), ValueError>, I, O> VisitExpr for WriteVal<'a, W, I, O> {
-    fn visit_array_subsript(&mut self, a: &ArraySubscript) -> visit::Result<Self> {
+    fn visit_array_subscript(&mut self, a: &ArraySubscript) -> visit::Result<Self> {
         wrap(|| {
             // drill down through nested subscripts until we find a stopping point (an identifier)
             let mut subscripts: SmallVec<[Val; 8]> = smallvec![subscript_val(self.env, a)?];
