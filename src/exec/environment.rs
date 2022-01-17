@@ -83,6 +83,14 @@ impl<I, O> Environment<I, O> {
         self.last_access = None;
     }
 
+    pub fn push_function_scope<'a>(
+        &mut self,
+        args: impl Iterator<Item = (&'a VariableName, Val)>,
+    ) -> Result<(), EnvironmentError> {
+        self.symbols.push(SymTable::for_function_call(args)?);
+        Ok(())
+    }
+
     pub fn lookup_var(&mut self, name: &VariableName) -> Result<&Val, EnvironmentError> {
         self.last_access = Some(name.clone());
         self.lookup_var_impl(name)

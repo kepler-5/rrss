@@ -121,6 +121,60 @@ fn lookup_wrong_type() {
 }
 
 #[test]
+fn push_function_scope() {
+    let mut e = Environment::new();
+    assert!(e.push_function_scope([].into_iter()).is_ok());
+    assert!(e
+        .push_function_scope([(&SimpleIdentifier("foo".into()).into(), Val::Null)].into_iter())
+        .is_ok());
+    assert_eq!(
+        e.last_access(),
+        Err(EnvironmentError::MissingPronounReferent)
+    );
+    assert_eq!(
+        e.lookup_var(&SimpleIdentifier("foo".into()).into()),
+        Ok(&Val::Null)
+    );
+    assert!(e
+        .push_function_scope(
+            [
+                (&SimpleIdentifier("foo".into()).into(), Val::Undefined),
+                (&SimpleIdentifier("bar".into()).into(), Val::Null)
+            ]
+            .into_iter()
+        )
+        .is_ok());
+    assert_eq!(
+        e.lookup_var(&SimpleIdentifier("foo".into()).into()),
+        Ok(&Val::Undefined)
+    );
+    assert_eq!(
+        e.lookup_var(&SimpleIdentifier("bar".into()).into()),
+        Ok(&Val::Null)
+    );
+    e.pop_scope();
+    assert_eq!(
+        e.lookup_var(&SimpleIdentifier("foo".into()).into()),
+        Ok(&Val::Null)
+    );
+    assert_eq!(
+        e.lookup_var(&SimpleIdentifier("bar".into()).into()),
+        Err(SymTableError::NameNotFound(SimpleIdentifier("bar".into()).into()).into())
+    );
+
+    assert_eq!(
+        e.push_function_scope(
+            [
+                (&SimpleIdentifier("foo".into()).into(), Val::Undefined),
+                (&SimpleIdentifier("foo".into()).into(), Val::Null)
+            ]
+            .into_iter()
+        ),
+        Err(SymTableError::DuplicateFunctionArgName(SimpleIdentifier("foo".into()).into()).into())
+    );
+}
+
+#[test]
 fn output() {
     let mut output = Vec::new();
     let mut e = Environment::raw(stdin(), &mut output);

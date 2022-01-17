@@ -23,6 +23,7 @@ pub enum SymTableError {
     ExpectedVarFoundFunc(VariableName),
     ExpectedFuncFoundVar(VariableName),
     DuplicateSymbol(VariableName),
+    DuplicateFunctionArgName(VariableName),
 }
 
 #[derive(Debug, From, PartialEq)]
@@ -212,6 +213,17 @@ impl SymTable {
         Default::default()
     }
 
+    pub fn for_function_call<'a>(
+        args: impl Iterator<Item = (&'a VariableName, Val)>,
+    ) -> Result<Self, SymTableError> {
+        let mut this = Self::new();
+        for (name, val) in args {
+            this.emplace_var_impl(name, val.into())
+                .map_err(|_| SymTableError::DuplicateFunctionArgName(name.clone()))?;
+        }
+        Ok(this)
+    }
+
     fn lookup(&self, name: &VariableName) -> Result<&SymTableEntry, SymTableError> {
         match name {
             VariableName::Simple(name) => self.simple.lookup(name),
@@ -226,8 +238,12 @@ impl SymTable {
             VariableName::Proper(name) => self.proper.lookup_mut(name),
         }
     }
-    pub fn emplace_var(&mut self, name: &VariableName) -> Result<&mut Val, SymTableError> {
-        let val = Val::default().into();
+    fn emplace_var_impl(
+        &mut self,
+        name: &VariableName,
+        val: Val,
+    ) -> Result<&mut Val, SymTableError> {
+        let val = val.into();
         let entry = match name {
             VariableName::Simple(name) => self.simple.emplace(name, val),
             VariableName::Common(name) => self.common.emplace(name, val),
@@ -235,6 +251,9 @@ impl SymTable {
         }?
         .as_var_mut();
         Ok(unsafe { entry.unchecked_unwrap() })
+    }
+    pub fn emplace_var(&mut self, name: &VariableName) -> Result<&mut Val, SymTableError> {
+        self.emplace_var_impl(name, Val::default())
     }
     pub fn emplace_func(
         &mut self,
