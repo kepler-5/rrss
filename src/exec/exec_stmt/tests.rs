@@ -15,7 +15,11 @@ fn parse_expr(code: &str) -> Expression {
     Parser::for_source_code(code).parse_expression().unwrap()
 }
 
-fn expr_val<I, O>(e: &RefCell<Environment<I, O>>, code: &str) -> Result<Val, RuntimeError> {
+fn expr_val<I, O>(e: &RefCell<Environment<I, O>>, code: &str) -> Result<Val, RuntimeError>
+where
+    I: Read,
+    O: Write,
+{
     ProduceVal::new(e)
         .visit_expression(&parse_expr(code))
         .map(|pvo| pvo.0)
@@ -768,11 +772,56 @@ fn return_statement() {
     let x be with 1
     if x is 15
     return x
-    
+
 
     return null
     "
         ),
         Val::Null
+    );
+}
+
+#[test]
+fn function_call() {
+    let exec = |code| {
+        let mut output = Vec::new();
+        let e = Environment::refcell_raw(stdin(), &mut output);
+        exec(&e, code).map(|_| output)
+    };
+    let capture_output = |code| {
+        let output = exec(code).unwrap();
+        std::str::from_utf8(&output).unwrap().to_owned()
+    };
+
+    assert_eq!(
+        capture_output(
+            "
+    Polly wants a cracker
+    Cheese is delicious
+    Put a cracker with cheese into your mouth
+    Give it back
+
+
+    shout polly taking 5
+    shout polly taking 15
+    put -9 into x
+    shout polly taking x
+    "
+        ),
+        "14\n24\n0\n"
+    );
+
+    assert_eq!(
+        capture_output(
+            "
+    Multiply takes X, and Y
+    return x * y
+
+
+    shout multiply taking 3, and 5
+    shout multiply taking \"3\", and 5
+    "
+        ),
+        "15\n33333\n"
     );
 }

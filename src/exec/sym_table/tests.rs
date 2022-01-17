@@ -2,21 +2,21 @@ use crate::frontend::ast::{Block, Continue, WithRange};
 
 use super::*;
 
-fn some_func_data() -> FunctionData {
-    FunctionData {
+fn some_func_data() -> Arc<FunctionData> {
+    Arc::new(FunctionData {
         params: vec![],
         body: Block::Empty((0, 0).into()),
-    }
+    })
 }
-fn other_func_data() -> FunctionData {
+fn other_func_data() -> Arc<FunctionData> {
     let bogus_range = || ((0, 0), (0, 0)).into();
-    FunctionData {
+    Arc::new(FunctionData {
         params: ["foo", "bar"]
             .into_iter()
             .map(|s| WithRange(SimpleIdentifier(s.into()).into(), bogus_range()))
             .collect(),
         body: Block::NonEmpty(vec![Continue(bogus_range()).into()]),
-    }
+    })
 }
 
 #[test]
@@ -132,10 +132,7 @@ fn emplace_and_lookup_var() {
     );
 
     assert!(table
-        .emplace_func(
-            &SimpleIdentifier("func".into()).into(),
-            Arc::new(some_func_data()),
-        )
+        .emplace_func(&SimpleIdentifier("func".into()).into(), some_func_data(),)
         .is_ok());
     assert_eq!(
         table.lookup_var(&SimpleIdentifier("func".into()).into()),
@@ -149,28 +146,22 @@ fn emplace_and_lookup_var() {
 fn emplace_and_lookup_func() {
     let mut table = SymTable::new();
     assert!(table
-        .emplace_func(
-            &SimpleIdentifier("func".into()).into(),
-            Arc::new(some_func_data()),
-        )
+        .emplace_func(&SimpleIdentifier("func".into()).into(), some_func_data(),)
         .is_ok());
     assert_eq!(
         table.lookup_func(&SimpleIdentifier("func".into()).into()),
-        Ok(&some_func_data())
+        Ok(some_func_data())
     );
     assert!(table
-        .emplace_func(
-            &SimpleIdentifier("func2".into()).into(),
-            Arc::new(other_func_data()),
-        )
+        .emplace_func(&SimpleIdentifier("func2".into()).into(), other_func_data(),)
         .is_ok());
     assert_eq!(
         table.lookup_func(&SimpleIdentifier("func2".into()).into()),
-        Ok(&other_func_data())
+        Ok(other_func_data())
     );
     assert_eq!(
         table.lookup_func(&SimpleIdentifier("func".into()).into()),
-        Ok(&some_func_data())
+        Ok(some_func_data())
     );
 
     assert!(table

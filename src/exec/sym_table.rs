@@ -45,10 +45,10 @@ impl SymTableEntry {
             SymTableEntry::Func(_) => None,
         }
     }
-    fn as_func(&self) -> Option<&FunctionData> {
+    fn as_func(&self) -> Option<Arc<FunctionData>> {
         match self {
             SymTableEntry::Var(_) => None,
-            SymTableEntry::Func(f) => Some(&f),
+            SymTableEntry::Func(f) => Some(Arc::clone(f)),
         }
     }
 }
@@ -259,15 +259,14 @@ impl SymTable {
         &mut self,
         name: &VariableName,
         func: Arc<FunctionData>,
-    ) -> Result<&FunctionData, SymTableError> {
+    ) -> Result<(), SymTableError> {
         let func = func.into();
-        let entry = match name {
+        match name {
             VariableName::Simple(name) => self.simple.emplace(name, func),
             VariableName::Common(name) => self.common.emplace(name, func),
             VariableName::Proper(name) => self.proper.emplace(name, func),
-        }?
-        .as_func();
-        Ok(unsafe { entry.unchecked_unwrap() })
+        }?;
+        Ok(())
     }
 
     pub fn lookup_var(&self, name: &VariableName) -> Result<&Val, SymTableError> {
@@ -281,7 +280,7 @@ impl SymTable {
             .ok_or_else(|| SymTableError::ExpectedVarFoundFunc(name.clone()))
     }
 
-    pub fn lookup_func(&self, name: &VariableName) -> Result<&FunctionData, SymTableError> {
+    pub fn lookup_func(&self, name: &VariableName) -> Result<Arc<FunctionData>, SymTableError> {
         self.lookup(name)?
             .as_func()
             .ok_or_else(|| SymTableError::ExpectedFuncFoundVar(name.clone()))

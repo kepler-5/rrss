@@ -1,4 +1,7 @@
-use std::cell::RefCell;
+use std::{
+    cell::RefCell,
+    io::{Read, Write},
+};
 
 use derive_more::From;
 
@@ -79,11 +82,20 @@ macro_rules! lookup_or_create {
 fn subscript_val<I, O>(
     e: &RefCell<Environment<I, O>>,
     a: &ArraySubscript,
-) -> Result<Val, RuntimeError> {
+) -> Result<Val, RuntimeError>
+where
+    I: Read,
+    O: Write,
+{
     Ok(ProduceVal::new(e).visit_primary_expression(&a.subscript)?.0)
 }
 
-impl<'a, W: FnMut(&mut Val) -> Result<(), ValError>, I, O> VisitExpr for WriteVal<'a, W, I, O> {
+impl<'a, W, I, O> VisitExpr for WriteVal<'a, W, I, O>
+where
+    I: Read,
+    O: Write,
+    W: FnMut(&mut Val) -> Result<(), ValError>,
+{
     fn visit_array_subscript(&mut self, a: &ArraySubscript) -> visit::Result<Self> {
         wrap(|| {
             // drill down through nested subscripts until we find a stopping point (an identifier)

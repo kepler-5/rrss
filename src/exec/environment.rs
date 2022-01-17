@@ -141,7 +141,7 @@ impl<I, O> Environment<I, O> {
             .map_err(Into::into)
     }
 
-    pub fn lookup_func(&self, name: &VariableName) -> Result<&FunctionData, EnvironmentError> {
+    pub fn lookup_func(&self, name: &VariableName) -> Result<Arc<FunctionData>, EnvironmentError> {
         self.symbols
             .iter()
             .rev()
@@ -157,7 +157,7 @@ impl<I, O> Environment<I, O> {
         &mut self,
         name: &VariableName,
         data: Arc<FunctionData>,
-    ) -> Result<&FunctionData, EnvironmentError> {
+    ) -> Result<(), EnvironmentError> {
         self.symbols
             .last_mut()
             .unwrap()

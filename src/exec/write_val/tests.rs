@@ -12,7 +12,11 @@ fn parse_expr(code: &str) -> Expression {
     Parser::for_source_code(code).parse_expression().unwrap()
 }
 
-fn expr_val<I, O>(e: &RefCell<Environment<I, O>>, code: &str) -> Result<Val, RuntimeError> {
+fn expr_val<I, O>(e: &RefCell<Environment<I, O>>, code: &str) -> Result<Val, RuntimeError>
+where
+    I: Read,
+    O: Write,
+{
     ProduceVal::new(e)
         .visit_expression(&parse_expr(code))
         .map(|pvo| pvo.0)
@@ -22,7 +26,11 @@ fn write_then_read<I, O>(
     e: &RefCell<Environment<I, O>>,
     code: &str,
     new_val: Val,
-) -> Result<Val, RuntimeError> {
+) -> Result<Val, RuntimeError>
+where
+    I: Read,
+    O: Write,
+{
     WriteVal::new(e, |val| {
         *val = new_val.clone();
         Ok(())

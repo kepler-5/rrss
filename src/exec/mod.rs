@@ -1,7 +1,8 @@
 use derive_more::From;
 
 use self::{
-    environment::EnvironmentError, exec_stmt::ExecError, val::ValError, write_val::WriteValError,
+    environment::EnvironmentError, exec_stmt::ExecError, produce_val::ProduceValError,
+    val::ValError, write_val::WriteValError,
 };
 
 pub mod environment;
@@ -18,4 +19,5 @@ pub enum RuntimeError {
     ValError(ValError),
     WriteValError(WriteValError),
     ExecError(ExecError),
+    ProduceValError(ProduceValError),
 }

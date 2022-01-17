@@ -362,6 +362,7 @@ impl<'a, I: Read, O: Write> VisitProgram for ExecStmt<'a, I, O> {
     }
 
     fn visit_function_call_statement(&mut self, f: &FunctionCall) -> visit::Result<Self> {
-        todo!()
+        self.producer().visit_function_call(f)?;
+        Ok(())
     }
 }

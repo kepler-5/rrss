@@ -1,12 +1,25 @@
-use std::{cell::RefCell, cmp::Ordering, iter::once};
+use std::{
+    cell::RefCell,
+    cmp::Ordering,
+    io::{Read, Write},
+    iter::once,
+};
 
 use derive_more::{Constructor, From};
+use smallvec::SmallVec;
 
 use crate::{
-    analysis::visit::{self, Combine, Visit, VisitExpr},
+    analysis::visit::{self, Combine, Visit, VisitExpr, VisitProgram},
     exec::{environment::Environment, val::Val, RuntimeError},
     frontend::{ast::*, source_range::SourceRange},
 };
+
+use super::exec_stmt::ExecStmt;
+
+#[derive(Debug, PartialEq)]
+pub enum ProduceValError {
+    WrongNumberOfFunctionArguments { expected: usize, actual: usize },
+}
 
 #[cfg(test)]
 mod tests;
@@ -36,7 +49,11 @@ impl<'a, I, O> Visit for ProduceVal<'a, I, O> {
     type Error = RuntimeError;
 }
 
-impl<'a, I, O> VisitExpr for ProduceVal<'a, I, O> {
+impl<'a, I, O> VisitExpr for ProduceVal<'a, I, O>
+where
+    I: Read,
+    O: Write,
+{
     fn visit_poetic_number_literal(&mut self, p: &PoeticNumberLiteral) -> visit::Result<Self> {
         Ok(Val::Number(p.compute_value()).into())
     }
@@ -81,8 +98,27 @@ impl<'a, I, O> VisitExpr for ProduceVal<'a, I, O> {
         }
     }
 
-    fn visit_function_call(&mut self, _: &FunctionCall) -> visit::Result<Self> {
-        todo!("statement execution not yet supported!")
+    fn visit_function_call(&mut self, f: &FunctionCall) -> visit::Result<Self> {
+        let data = self.env.borrow().lookup_func(&f.name.0)?;
+        if data.params.len() != f.args.len() {
+            return Err(ProduceValError::WrongNumberOfFunctionArguments {
+                expected: data.params.len(),
+                actual: f.args.len(),
+            }
+            .into());
+        }
+        let mut args = SmallVec::<[Val; 8]>::new();
+        for arg in &f.args {
+            args.push(self.visit_primary_expression(arg)?.0);
+        }
+
+        self.env
+            .borrow_mut()
+            .push_function_scope(data.params.iter().map(|a| &a.0).zip(args.into_iter()))?;
+        let mut exec = ExecStmt::new(self.env);
+        exec.visit_block(&data.body)?;
+        self.env.borrow_mut().pop_scope();
+        Ok(ProduceValOutput(exec.return_val()))
     }
 
     fn visit_pronoun(&mut self, _: SourceRange) -> visit::Result<Self> {
