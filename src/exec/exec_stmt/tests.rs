@@ -814,7 +814,7 @@ fn function_call() {
     assert_eq!(
         capture_output(
             "
-    Multiply takes X, and Y
+    Multiply takes X and Y
     return x * y
 
 
