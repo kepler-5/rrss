@@ -2,6 +2,7 @@ use std::{hint::unreachable_unchecked, sync::Arc};
 
 use derive_more::{Constructor, From};
 use itertools::Itertools;
+use unchecked_unwrap::UncheckedUnwrap;
 
 use crate::frontend::{ast::*, lexer::*};
 
@@ -76,6 +77,8 @@ pub enum ParseErrorCode<'a> {
     ExpectedSpaceAfterSays(Token<'a>),
     UnexpectedToken,
     UnexpectedEndOfTokens,
+    PoeticLiteralEndingWithHyphen,
+    PoeticLiteralStartingWithHyphen,
 }
 
 #[derive(Clone, Debug, From, PartialEq)]
@@ -760,6 +763,11 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_poetic_number_literal(&mut self) -> Result<PoeticNumberLiteral, ParseError<'a>> {
+        if let Some(tok) = self.current() {
+            if (tok.id, tok.spelling) == (TokenType::Minus, "-") {
+                return Err(self.new_parse_error(ParseErrorCode::PoeticLiteralStartingWithHyphen));
+            }
+        }
         let elems = self.match_and_consume_while(
             Self::is_poetic_number_literal_token,
             |tok, myself| match (tok.id, tok.spelling) {
@@ -770,7 +778,7 @@ impl<'a> Parser<'a> {
                 )),
                 (TokenType::Minus, "-") => {
                     let next_token = myself.lexer.next().ok_or_else(|| {
-                        myself.new_parse_error(ParseErrorCode::UnexpectedEndOfTokens)
+                        myself.new_parse_error(ParseErrorCode::PoeticLiteralEndingWithHyphen)
                     })?;
                     if is_word(next_token.spelling) {
                         Ok(Some(PoeticNumberLiteralElem::WordSuffix(
@@ -791,10 +799,19 @@ impl<'a> Parser<'a> {
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedPoeticNumberLiteral))
     }
 
+    fn is_current_negative_number(&self) -> bool {
+        let mut lexer = self.lexer.clone();
+        debug_assert!(lexer.clone().next().is_some());
+        let first = unsafe { lexer.next().unchecked_unwrap() };
+        first.id.is_minus()
+            && first.spelling == "-"
+            && lexer.next().map(|tok| tok.id.is_number()).unwrap_or(false)
+    }
+
     fn parse_poetic_number_assignment_rhs(
         &mut self,
     ) -> Result<PoeticNumberAssignmentRHS, ParseError<'a>> {
-        is_literal_word(self.current_or_error()?.id)
+        (is_literal_word(self.current_or_error()?.id) || self.is_current_negative_number())
             .then(|| self.parse_expression().map(Into::into))
             .unwrap_or_else(|| self.parse_poetic_number_literal().map(Into::into))
     }

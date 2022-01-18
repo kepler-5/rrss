@@ -137,6 +137,8 @@ impl Display for ParseError<'_> {
                 write!(f, "Unexpected token `{}`", tok.as_ref().unwrap())
             }
             ParseErrorCode::UnexpectedEndOfTokens => f.write_str("Unexpected end of tokens"),
+            ParseErrorCode::PoeticLiteralEndingWithHyphen => f.write_str("Poetic literal ending with hyphen"),
+            ParseErrorCode::PoeticLiteralStartingWithHyphen => f.write_str("Poetic literal starting with hyphen"),
         }
     }
 }

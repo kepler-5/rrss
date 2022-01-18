@@ -1338,7 +1338,6 @@ fn parse_poetic_assignment() {
 }
 
 #[test]
-#[ignore = "currently fails, and causes unreachable code to be reached during exec"]
 fn poetic_literal_negative_bug() {
     let parse = |text| {
         Parser::for_source_code(text)
@@ -1346,12 +1345,33 @@ fn poetic_literal_negative_bug() {
             .map(|s| s.unwrap())
     };
     assert_eq!(
+        parse("Variable is -"),
+        Err(ParseError::new(
+            ParseErrorCode::PoeticLiteralStartingWithHyphen,
+            ParseErrorLocation::Token(Token::new(TokenType::Minus, "-", ((1, 12), (1, 13)).into()))
+        ))
+    );
+    assert_eq!(
         parse("Variable is -1"),
         Ok(PoeticNumberAssignment {
             dest: WithRange(SimpleIdentifier("Variable".into()), line_range(0, 8)).into(),
-            rhs: WithRange(LiteralExpression::Number(-1.0), line_range(12, 13)).into(),
+            rhs: UnaryExpression {
+                operator: UnaryOperator::Minus,
+                operand: boxed_expr(WithRange(
+                    LiteralExpression::Number(1.0),
+                    line_range(13, 14).into()
+                ))
+            }
+            .into(),
         }
         .into())
+    );
+    assert_eq!(
+        parse("Variable is -x"),
+        Err(ParseError::new(
+            ParseErrorCode::PoeticLiteralStartingWithHyphen,
+            ParseErrorLocation::Token(Token::new(TokenType::Minus, "-", ((1, 12), (1, 13)).into()))
+        ))
     );
 }
 
@@ -1492,7 +1512,7 @@ fn parse_poetic_assignment_errors() {
     assert_eq!(
         parse("My world is without-"),
         Err(ParseError {
-            code: ParseErrorCode::UnexpectedEndOfTokens,
+            code: ParseErrorCode::PoeticLiteralEndingWithHyphen,
             loc: 1.into()
         })
     );
@@ -3102,6 +3122,17 @@ fn parse_error_to_string() {
         ParseErrorCode::UnexpectedEndOfTokens,
         "Parse error (line 1): Unexpected end of tokens",
         "Parse error (line 1): Unexpected end of tokens"
+    );
+
+    check!(
+        ParseErrorCode::PoeticLiteralStartingWithHyphen,
+        "Parse error (line 1): Poetic literal starting with hyphen",
+        "Parse error (line 1): Poetic literal starting with hyphen"
+    );
+    check!(
+        ParseErrorCode::PoeticLiteralEndingWithHyphen,
+        "Parse error (line 1): Poetic literal ending with hyphen",
+        "Parse error (line 1): Poetic literal ending with hyphen"
     );
 }
 
