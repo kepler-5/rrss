@@ -1,5 +1,6 @@
 use std::{hint::unreachable_unchecked, sync::Arc};
 
+use arrayvec::ArrayVec;
 use derive_more::{Constructor, From};
 use itertools::Itertools;
 use unchecked_unwrap::UncheckedUnwrap;
@@ -573,7 +574,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_rest_of_function_call(&mut self) -> Result<Vec<PrimaryExpression>, ParseError<'a>> {
-        self.parse_parameter_list(|p| p.parse_primary_expression())
+        self.parse_parameter_list(|p| p.parse_primary_expression(), true)
     }
 
     fn parse_function_call(
@@ -858,19 +859,31 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_parameter_list<R, P: FnMut(&mut Parser<'a>) -> Result<R, ParseError<'a>>>(
+    fn parameter_seps(require_comma: bool) -> impl AsRef<[TokenType<'a>]> {
+        let mut seps: ArrayVec<_, 4> = [
+            TokenType::Ampersand,
+            TokenType::Comma,
+            TokenType::ApostropheNApostrophe,
+        ]
+        .into_iter()
+        .collect();
+        if !require_comma {
+            unsafe { seps.push_unchecked(TokenType::And) };
+        }
+        seps
+    }
+
+    fn parse_parameter_list<R, P>(
         &mut self,
         mut p: P,
-    ) -> Result<Vec<R>, ParseError<'a>> {
+        require_comma: bool,
+    ) -> Result<Vec<R>, ParseError<'a>>
+    where
+        P: FnMut(&mut Parser<'a>) -> Result<R, ParseError<'a>>,
+    {
         let mut params = vec![p(self)?];
-        while let Some(sep) = self.match_and_consume(
-            [
-                TokenType::Ampersand,
-                TokenType::Comma,
-                TokenType::ApostropheNApostrophe,
-            ]
-            .as_ref(),
-        ) {
+        let seps = Self::parameter_seps(require_comma);
+        while let Some(sep) = self.match_and_consume(seps.as_ref()) {
             if sep.id == TokenType::Comma {
                 self.match_and_consume(TokenType::And);
             }
@@ -884,7 +897,7 @@ impl<'a> Parser<'a> {
         name: WithRange<VariableName>,
     ) -> Result<Function, ParseError<'a>> {
         self.consume(TokenType::Takes);
-        let params = self.parse_parameter_list(|p| p.expect_variable_name())?;
+        let params = self.parse_parameter_list(|p| p.expect_variable_name(), false)?;
         self.expect_eol()?;
         let body = self.parse_block()?;
         let data = Arc::new(FunctionData { params, body });

@@ -2821,13 +2821,12 @@ Give Back X minus 1
 }
 
 #[test]
-#[ignore = "fails because a comma is currently required after X before 'and', but shouldn't be"]
-fn parse_function_args_and_without_commas() {
+fn parse_function_params_and_without_commas() {
     let parse = |text| Parser::for_source_code(text).parse_statement();
     assert_eq!(
         parse(
-            "
-Multiply taking X and Y
+            "\
+Multiply takes X and Y
 return X
     "
         ),
@@ -2841,7 +2840,7 @@ return X
                 data: Arc::new(FunctionData {
                     params: vec![
                         WithRange(SimpleIdentifier("X".into()), range_on_line(1, (15, 16))).into(),
-                        WithRange(SimpleIdentifier("B".into()), range_on_line(1, (21, 22))).into()
+                        WithRange(SimpleIdentifier("Y".into()), range_on_line(1, (21, 22))).into()
                     ],
                     body: Block::NonEmpty(vec![Return {
                         value: WithRange(SimpleIdentifier("X".into()), range_on_line(2, (7, 8)))
