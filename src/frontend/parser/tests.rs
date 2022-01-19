@@ -2990,6 +2990,124 @@ let Z be Z
             ]
         })
     );
+
+    assert_eq!(
+        parse(
+            "\
+if x is 5,
+x is 6
+
+if x is 5,
+x is 6
+        "
+        ),
+        Ok(Program {
+            code: vec![Block::NonEmpty(vec![
+                If {
+                    condition: BinaryExpression {
+                        operator: BinaryOperator::Eq,
+                        lhs: boxed_expr(WithRange(
+                            SimpleIdentifier("x".into()),
+                            range_on_line(1, (3, 4))
+                        )),
+                        rhs: boxed_expr(WithRange(
+                            LiteralExpression::Number(5.0),
+                            range_on_line(1, (8, 9))
+                        ))
+                    }
+                    .into(),
+                    then_block: Block::NonEmpty(vec![PoeticNumberAssignment {
+                        dest: WithRange(SimpleIdentifier("x".into()), range_on_line(2, (0, 1)))
+                            .into(),
+                        rhs: WithRange(LiteralExpression::Number(6.0), range_on_line(2, (5, 6)))
+                            .into()
+                    }
+                    .into()]),
+                    else_block: None,
+                }
+                .into(),
+                If {
+                    condition: BinaryExpression {
+                        operator: BinaryOperator::Eq,
+                        lhs: boxed_expr(WithRange(
+                            SimpleIdentifier("x".into()),
+                            range_on_line(4, (3, 4))
+                        )),
+                        rhs: boxed_expr(WithRange(
+                            LiteralExpression::Number(5.0),
+                            range_on_line(4, (8, 9))
+                        ))
+                    }
+                    .into(),
+                    then_block: Block::NonEmpty(vec![PoeticNumberAssignment {
+                        dest: WithRange(SimpleIdentifier("x".into()), range_on_line(5, (0, 1)))
+                            .into(),
+                        rhs: WithRange(LiteralExpression::Number(6.0), range_on_line(5, (5, 6)))
+                            .into()
+                    }
+                    .into()]),
+                    else_block: None,
+                }
+                .into()
+            ])]
+        })
+    );
+
+    assert_eq!(
+        parse(
+            "\
+Echo takes X
+say X
+
+Echo takes X
+say X
+            "
+        ),
+        Ok(Program {
+            code: vec![Block::NonEmpty(vec![
+                Function {
+                    name: WithRange(SimpleIdentifier("Echo".into()), range_on_line(1, (0, 4)))
+                        .into(),
+                    data: Arc::new(FunctionData {
+                        params: vec![WithRange(
+                            SimpleIdentifier("X".into()),
+                            range_on_line(1, (11, 12))
+                        )
+                        .into()],
+                        body: Block::NonEmpty(vec![Output {
+                            value: WithRange(
+                                SimpleIdentifier("X".into()),
+                                range_on_line(2, (4, 5))
+                            )
+                            .into()
+                        }
+                        .into()])
+                    })
+                }
+                .into(),
+                Function {
+                    name: WithRange(SimpleIdentifier("Echo".into()), range_on_line(4, (0, 4)))
+                        .into(),
+                    data: Arc::new(FunctionData {
+                        params: vec![WithRange(
+                            SimpleIdentifier("X".into()),
+                            range_on_line(4, (11, 12))
+                        )
+                        .into()],
+                        body: Block::NonEmpty(vec![Output {
+                            value: WithRange(
+                                SimpleIdentifier("X".into()),
+                                range_on_line(5, (4, 5))
+                            )
+                            .into()
+                        }
+                        .into()])
+                    })
+                }
+                .into()
+            ]),]
+        })
+    );
 }
 
 #[test]
