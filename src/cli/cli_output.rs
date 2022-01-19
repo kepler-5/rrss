@@ -7,6 +7,9 @@ pub struct CLIOutput {
 }
 
 impl CLIOutput {
+    pub fn empty() -> Self {
+        Self::new(Vec::new())
+    }
     pub fn one(s: ColoredString) -> Self {
         Self::new(vec![s])
     }

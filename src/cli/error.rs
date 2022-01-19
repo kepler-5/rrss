@@ -2,7 +2,7 @@ use colored::Colorize;
 use derive_more::Constructor;
 use std::fmt;
 
-use crate::frontend::parser::ParseError;
+use crate::{exec::RuntimeError, frontend::parser::ParseError};
 
 use super::cli_output::CLIOutput;
 
@@ -22,8 +22,17 @@ impl std::error::Error for Error {}
 impl From<ParseError<'_>> for Error {
     fn from(p: ParseError) -> Self {
         Error::new(CLIOutput::new(vec![
-            "Error: ".red().bold(),
+            "Parse error: ".red().bold(),
             p.to_string().normal(),
+        ]))
+    }
+}
+
+impl From<RuntimeError> for Error {
+    fn from(r: RuntimeError) -> Self {
+        Error::new(CLIOutput::new(vec![
+            "Runtime error: ".red().bold(),
+            r.to_string().normal(),
         ]))
     }
 }
