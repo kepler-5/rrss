@@ -824,4 +824,98 @@ fn function_call() {
         ),
         "15\n33333\n"
     );
+
+    // some of the below are copied from the official rockstar test suite
+    // https://github.com/RockstarLang/rockstar/tree/main/tests/fixtures/functions
+
+    assert_eq!(
+        capture_output(
+            "
+    Echo takes X
+    say X
+    (end function)
+    Echo taking true
+    Echo taking \"hello world\"
+    put 5 into Temp
+    Echo taking Temp
+
+    AddAndPrint takes X, and Y
+    put X plus Y into Value
+    say Value
+    Give back Value
+    (end function)
+    say AddAndPrint taking 3, 4
+
+    AddOrSub takes X, and B
+    if B
+    Give Back X plus 1
+    (end if)
+    say \"else\"
+    Give Back X minus 1
+    (end function)
+    say AddOrSub taking 4, true
+    say AddOrSub taking 4, false"
+        ),
+        "true\nhello world\n5\n7\n7\n5\nelse\n3\n"
+    );
+
+    // nested function scopes
+    assert_eq!(
+        capture_output(
+            "
+    OuterFunction takes X and Y
+    SameNameFunction takes X
+    Give back X with \"NESTED\"
+    
+    Put SameNameFunction taking X into ResultX
+    Put SameNameFunction taking Y into ResultY
+    Put ResultX with ResultY into ResultXY
+    Give back ResultXY
+    
+    SameNameFunction takes X
+    Give back X with \"GLOBAL\"
+    
+    Shout OuterFunction taking \"foo\", \"bar\" (should print \"fooNESTEDbarNESTED\")
+    Shout SameNameFunction taking \"foo\" (should print \"fooGLOBAL\")"
+        ),
+        "fooNESTEDbarNESTED\nfooGLOBAL\n"
+    );
+
+    // array arguments
+    assert_eq!(
+        capture_output(
+            "
+    the function takes array
+    shout \"The parameters that were passed:\"
+    shout array at 0
+    shout array at 1
+    shout array
+    
+    let param at 0 be 3
+    let param at 1 be 4
+    shout \"The parameters to be passed:\"
+    shout param at 0
+    shout param at 1
+    shout param
+    the function taking param"
+        ),
+        "The parameters to be passed:\n3\n4\n2\nThe parameters that were passed:\n3\n4\n2\n"
+    );
+
+    // recursion
+    assert_eq!(
+        capture_output(
+            "
+    Decrement takes X
+    If X is nothing
+    Give back X
+    Else
+    Put X minus 1 into NewX
+    Give back Decrement taking NewX
+    
+    
+    Say Decrement taking 5"
+        ),
+        "0\n"
+    );
 }
