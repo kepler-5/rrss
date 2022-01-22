@@ -132,7 +132,7 @@ pub trait VisitExpr: Visit {
     fn visit_function_call(&mut self, f: &FunctionCall) -> Result<Self> {
         combine_all(
             iter::once(self.visit_variable_name(f.name.as_ref()))
-                .chain(f.args.iter().map(|e| self.visit_primary_expression(e))),
+                .chain(f.args.iter().map(|e| self.visit_expression(e))),
         )
     }
 

@@ -821,9 +821,10 @@ fn function_call() {
     shout polly taking 15
     put -9 into x
     shout polly taking x
+    shout polly taking -9
     "
         ),
-        "14\n24\n0\n"
+        "14\n24\n0\n0\n"
     );
 
     assert_eq!(

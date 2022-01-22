@@ -122,7 +122,7 @@ where
         }
         let mut args = SmallVec::<[Val; 8]>::new();
         for arg in &f.args {
-            args.push(self.visit_primary_expression(arg)?.0);
+            args.push(self.visit_expression(arg)?.0);
         }
 
         self.env

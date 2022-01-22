@@ -573,8 +573,8 @@ impl<'a> Parser<'a> {
             .or_else(|| self.parse_pronoun().map(Into::into)))
     }
 
-    fn parse_rest_of_function_call(&mut self) -> Result<Vec<PrimaryExpression>, ParseError<'a>> {
-        self.parse_parameter_list(|p| p.parse_primary_expression(), true)
+    fn parse_rest_of_function_call(&mut self) -> Result<Vec<Expression>, ParseError<'a>> {
+        self.parse_parameter_list(|p| p.parse_unary_expression(), true)
     }
 
     fn parse_function_call(

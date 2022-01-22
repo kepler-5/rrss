@@ -132,7 +132,7 @@ pub struct ArraySubscript {
 #[derive(Clone, Debug, PartialEq)]
 pub struct FunctionCall {
     pub name: WithRange<VariableName>,
-    pub args: Vec<PrimaryExpression>,
+    pub args: Vec<Expression>,
 }
 
 #[derive(Clone, Debug, From, PartialEq)]

@@ -2937,27 +2937,25 @@ fn parse_function_call_statement() {
 }
 
 #[test]
-#[ignore = "currently fails; I think function parameters just need to be UnaryExpressions, not PrimaryExpressions"]
 fn function_call_negative_number_bug() {
     let parse = |text| Parser::for_source_code(text).parse_statement();
-    assert!(parse("F taking -1").is_ok());
-    // assert_eq!(
-    //     parse("F taking -1"),
-    //     Ok(Some(
-    //         FunctionCall {
-    //             name: WithRange(SimpleIdentifier("F".into()), line_range(0, 1)).into(),
-    //             args: vec![UnaryExpression {
-    //                 operator: UnaryOperator::Minus,
-    //                 operand: boxed_expr(WithRange(
-    //                     LiteralExpression::Number(1.0),
-    //                     line_range(10, 11)
-    //                 ))
-    //             }
-    //             .into()]
-    //         }
-    //         .into()
-    //     ))
-    // );
+    assert_eq!(
+        parse("F taking -1"),
+        Ok(Some(
+            FunctionCall {
+                name: WithRange(SimpleIdentifier("F".into()), line_range(0, 1)).into(),
+                args: vec![UnaryExpression {
+                    operator: UnaryOperator::Minus,
+                    operand: boxed_expr(WithRange(
+                        LiteralExpression::Number(1.0),
+                        line_range(10, 11)
+                    ))
+                }
+                .into()]
+            }
+            .into()
+        ))
+    );
 }
 
 #[test]
