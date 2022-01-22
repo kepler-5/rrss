@@ -7,10 +7,11 @@ use std::{
 
 use derive_more::{Constructor, From};
 use smallvec::SmallVec;
+use unchecked_unwrap::UncheckedUnwrap;
 
 use crate::{
     analysis::visit::{self, Combine, Visit, VisitExpr, VisitProgram},
-    exec::{environment::Environment, val::Val, RuntimeError},
+    exec::{environment::Environment, val::Val, write_val::WriteVal, RuntimeError},
     frontend::{ast::*, source_range::SourceRange},
 };
 
@@ -60,6 +61,18 @@ where
 
     fn visit_array_push_rhs(&mut self, _: &ArrayPushRHS) -> visit::Result<Self> {
         unimplemented!("expression list arm must be handled by ExecStmt")
+    }
+
+    fn visit_array_pop_expr(&mut self, a: &ArrayPopExpr) -> visit::Result<Self> {
+        let mut back = None;
+        WriteVal::new(self.env, |val| {
+            back = Some(val.pop()?);
+            Ok(())
+        })
+        .visit_primary_expression(&a.array)
+        .unwrap()
+        .0?;
+        Ok(ProduceValOutput(unsafe { back.unchecked_unwrap() }))
     }
 
     fn visit_binary_expression(&mut self, e: &BinaryExpression) -> visit::Result<Self> {

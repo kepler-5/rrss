@@ -45,7 +45,7 @@ fn find_all_constant_assignments() {
     }
     impl VisitProgram for ConstantAssignmentFinder {
         fn visit_assignment(&mut self, a: &Assignment) -> visit::Result<Self> {
-            Self::capture(NumericConstantFolder.visit_expression_list(&a.value))
+            Self::capture(NumericConstantFolder.visit_assignment_rhs(&a.value))
         }
         fn visit_poetic_number_assignment(
             &mut self,
@@ -119,7 +119,7 @@ fn find_all_constant_string_assignments() {
         fn visit_assignment(&mut self, a: &Assignment) -> visit::Result<Self> {
             Self::capture(
                 SimpleStringConstantFolder
-                    .visit_expression_list(&a.value)
+                    .visit_assignment_rhs(&a.value)
                     .ok()
                     .map(|c| c.value),
             )

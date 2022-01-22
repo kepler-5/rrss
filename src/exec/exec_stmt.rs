@@ -7,7 +7,6 @@ use std::{
 
 use derive_more::IsVariant;
 use smallvec::SmallVec;
-use unchecked_unwrap::UncheckedUnwrap;
 
 use crate::{
     analysis::visit::{self, Visit, VisitExpr, VisitProgram},
@@ -177,24 +176,27 @@ impl<'a, I: Read, O: Write> VisitProgram for ExecStmt<'a, I, O> {
     }
 
     fn visit_assignment(&mut self, a: &Assignment) -> visit::Result<Self> {
-        if let Some(op) = a.operator {
-            let lhs = self.producer().visit_assignment_lhs(&a.dest)?.0;
-            let rhs = once(&a.value.first)
-                .chain(a.value.rest.iter())
-                .map(|e| self.producer().visit_expression(e).map(|p| p.0));
-            let new_val = binary_operator_fold(op, lhs, rhs)?;
-            self.writer(new_val)
-                .visit_assignment_lhs(&a.dest)
-                .unwrap()
-                .0?;
-            Ok(())
-        } else if a.value.has_multiple() {
-            Err(ExecError::NonCompoundAssignmentExpressionListInvalid.into())
-        } else {
-            let rhs = self.producer().visit_expression(&a.value.first)?.0;
-            self.writer(rhs).visit_assignment_lhs(&a.dest).unwrap().0?;
-            Ok(())
-        }
+        let new_val = match &a.value {
+            AssignmentRHS::ExpressionList(e) => {
+                if let Some(op) = a.operator {
+                    let lhs = self.producer().visit_assignment_lhs(&a.dest)?.0;
+                    let rhs = e
+                        .iter()
+                        .map(|e| self.producer().visit_expression(e).map(|p| p.0));
+                    binary_operator_fold(op, lhs, rhs)?
+                } else if e.has_multiple() {
+                    return Err(ExecError::NonCompoundAssignmentExpressionListInvalid.into());
+                } else {
+                    self.producer().visit_expression(&e.first)?.0
+                }
+            }
+            AssignmentRHS::ArrayPop(a) => self.producer().visit_array_pop_expr(&a)?.0,
+        };
+        self.writer(new_val)
+            .visit_assignment_lhs(&a.dest)
+            .unwrap()
+            .0?;
+        Ok(())
     }
 
     fn visit_poetic_number_assignment(
@@ -329,19 +331,9 @@ impl<'a, I: Read, O: Write> VisitProgram for ExecStmt<'a, I, O> {
     }
 
     fn visit_array_pop(&mut self, a: &ArrayPop) -> visit::Result<Self> {
-        let mut back = None;
-        self.raw_writer(|val| {
-            back = Some(val.pop()?);
-            Ok(())
-        })
-        .visit_primary_expression(&a.array)
-        .unwrap()
-        .0?;
+        let back = self.producer().visit_array_pop_expr(&a.expr)?.0;
         if let Some(dest) = &a.dest {
-            self.writer(unsafe { back.unchecked_unwrap() })
-                .visit_assignment_lhs(dest)
-                .unwrap()
-                .0?
+            self.writer(back).visit_assignment_lhs(dest).unwrap().0?
         }
         Ok(())
     }

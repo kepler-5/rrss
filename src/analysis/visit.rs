@@ -43,6 +43,12 @@ pub trait VisitExpr: Visit {
             AssignmentLHS::ArraySubscript(a) => self.visit_array_subscript(a),
         }
     }
+    fn visit_assignment_rhs(&mut self, a: &AssignmentRHS) -> Result<Self> {
+        match a {
+            AssignmentRHS::ExpressionList(e) => self.visit_expression_list(e),
+            AssignmentRHS::ArrayPop(a) => self.visit_array_pop_expr(a),
+        }
+    }
     fn visit_poetic_number_assignment_rhs(
         &mut self,
         p: &PoeticNumberAssignmentRHS,
@@ -69,6 +75,9 @@ pub trait VisitExpr: Visit {
             ArrayPushRHS::ExpressionList(e) => self.visit_expression_list(e),
             ArrayPushRHS::PoeticNumberLiteral(p) => self.visit_poetic_number_literal(p),
         }
+    }
+    fn visit_array_pop_expr(&mut self, a: &ArrayPopExpr) -> Result<Self> {
+        self.visit_primary_expression(&a.array)
     }
 
     // Operators
@@ -294,6 +303,9 @@ impl<T: VisitExpr> VisitExpr for ExprVisitorRunner<T> {
     fn visit_assignment_lhs(&mut self, a: &AssignmentLHS) -> Result<Self> {
         self.inner.visit_assignment_lhs(a)
     }
+    fn visit_assignment_rhs(&mut self, a: &AssignmentRHS) -> Result<Self> {
+        self.inner.visit_assignment_rhs(a)
+    }
     fn visit_poetic_number_assignment_rhs(
         &mut self,
         p: &PoeticNumberAssignmentRHS,
@@ -308,6 +320,9 @@ impl<T: VisitExpr> VisitExpr for ExprVisitorRunner<T> {
     }
     fn visit_array_push_rhs(&mut self, a: &ArrayPushRHS) -> Result<Self> {
         self.inner.visit_array_push_rhs(a)
+    }
+    fn visit_array_pop_expr(&mut self, a: &ArrayPopExpr) -> Result<Self> {
+        self.inner.visit_array_pop_expr(a)
     }
 
     // Operators
@@ -373,7 +388,7 @@ impl<T: VisitExpr> VisitProgram for ExprVisitorRunner<T> {
                 a.operator
                     .map_or_else(|| leaf(()), |o| self.visit_binary_operator(o))?,
             )
-            .combine(self.visit_expression_list(&a.value)?))
+            .combine(self.visit_assignment_rhs(&a.value)?))
     }
     fn visit_poetic_assignment(&mut self, p: &PoeticAssignment) -> Result<Self> {
         match p {
@@ -457,7 +472,7 @@ impl<T: VisitExpr> VisitProgram for ExprVisitorRunner<T> {
         ))
     }
     fn visit_array_pop(&mut self, a: &ArrayPop) -> Result<Self> {
-        Ok(self.visit_primary_expression(&a.array)?.combine(
+        Ok(self.visit_array_pop_expr(&a.expr)?.combine(
             a.dest
                 .as_ref()
                 .map_or_else(|| leaf(()), |dest| self.visit_assignment_lhs(dest))?,

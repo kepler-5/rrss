@@ -239,9 +239,29 @@ impl<T: Into<Identifier>> From<WithRange<T>> for AssignmentLHS {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct ArrayPopExpr {
+    pub array: PrimaryExpression,
+}
+
+impl<P: Into<PrimaryExpression>> From<P> for ArrayPopExpr {
+    fn from(p: P) -> Self {
+        Self { array: p.into() }
+    }
+}
+
+#[derive(Clone, Debug, From, PartialEq)]
+pub enum AssignmentRHS {
+    #[from(ignore)]
+    ExpressionList(ExpressionList),
+    ArrayPop(ArrayPopExpr),
+}
+
+bridging_from!(for AssignmentRHS: ExpressionList);
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Assignment {
     pub dest: AssignmentLHS,
-    pub value: ExpressionList,
+    pub value: AssignmentRHS,
     pub operator: Option<BinaryOperator>, // for compound assignments
 }
 
@@ -385,7 +405,7 @@ pub struct ArrayPush {
 
 #[derive(Debug, PartialEq)]
 pub struct ArrayPop {
-    pub array: PrimaryExpression,
+    pub expr: ArrayPopExpr,
     pub dest: Option<AssignmentLHS>,
 }
 
@@ -634,6 +654,21 @@ impl Range for AssignmentLHS {
     }
 }
 
+impl Range for ArrayPopExpr {
+    fn range(&self) -> SourceRange {
+        self.array.range()
+    }
+}
+
+impl Range for AssignmentRHS {
+    fn range(&self) -> SourceRange {
+        match self {
+            AssignmentRHS::ExpressionList(e) => e.range(),
+            AssignmentRHS::ArrayPop(p) => p.range(),
+        }
+    }
+}
+
 /////////////// impl Line
 
 impl Line for Statement {
@@ -765,7 +800,7 @@ impl Line for ArrayPush {
 
 impl Line for ArrayPop {
     fn line(&self) -> u32 {
-        self.array.line()
+        self.expr.line()
     }
 }
 

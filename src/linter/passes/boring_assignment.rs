@@ -161,12 +161,12 @@ impl VisitProgram for BoringAssignmentPass {
         Ok(if a.operator.is_some() {
             Self::Output::Empty
         } else {
-            match NumericConstantFolder.visit_expression_list(&a.value) {
+            match NumericConstantFolder.visit_assignment_rhs(&a.value) {
                 Ok(x) => build_numeric_diag(&a.dest, x, a.line()),
                 Err(ConstantFoldingError::WrongType) => maybe_build_string_diag(
                     &a.dest,
                     SimpleStringConstantFolder
-                        .visit_expression_list(&a.value)
+                        .visit_assignment_rhs(&a.value)
                         .ok(),
                     a.line(),
                 ),

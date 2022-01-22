@@ -564,6 +564,21 @@ fn array_pop() {
         ),
         "4\n5\nmysterious\n6\n"
     );
+
+    assert_eq!(
+        capture_output(
+            "
+        Rock ints with 1, 2, 3
+        Let the first be roll ints
+        Let the second be roll ints
+        Let the third be roll ints
+        Shout the first
+        Shout the second
+        Shout the third
+    "
+        ),
+        "1\n2\n3\n"
+    );
 }
 
 #[test]

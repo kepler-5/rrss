@@ -1027,14 +1027,28 @@ fn parse_assignment() {
 }
 
 #[test]
-#[ignore = "this doesn't currently pass"]
 fn roll_in_assignments() {
     let parse = |text| {
         Parser::for_source_code(text)
             .parse_statement()
             .map(|s| s.unwrap())
     };
-    assert!(parse("let the first be roll ints").is_ok());
+    assert_eq!(
+        parse("let the first be roll ints"),
+        Ok(Assignment {
+            dest: WithRange(
+                CommonIdentifier("the".into(), "first".into()),
+                line_range(4, 13)
+            )
+            .into(),
+            value: ArrayPopExpr {
+                array: WithRange(SimpleIdentifier("ints".into()), line_range(22, 26)).into()
+            }
+            .into(),
+            operator: None
+        }
+        .into())
+    );
 }
 
 #[test]
@@ -2526,7 +2540,7 @@ fn parse_array_push_pop() {
         parse("roll ints"),
         Ok(Some(
             ArrayPop {
-                array: WithRange(SimpleIdentifier("ints".into()), line_range(5, 9)).into(),
+                expr: WithRange(SimpleIdentifier("ints".into()), line_range(5, 9)).into(),
                 dest: None
             }
             .into()
@@ -2536,7 +2550,7 @@ fn parse_array_push_pop() {
         parse("roll ints into it"),
         Ok(Some(
             ArrayPop {
-                array: WithRange(SimpleIdentifier("ints".into()), line_range(5, 9)).into(),
+                expr: WithRange(SimpleIdentifier("ints".into()), line_range(5, 9)).into(),
                 dest: Some(WithRange(Identifier::Pronoun, line_range(15, 17)).into())
             }
             .into()
@@ -2546,7 +2560,7 @@ fn parse_array_push_pop() {
         parse("roll ints at night"),
         Ok(Some(
             ArrayPop {
-                array: ArraySubscript {
+                expr: ArraySubscript {
                     array: boxed_expr(WithRange(SimpleIdentifier("ints".into()), line_range(5, 9))),
                     subscript: boxed_expr(WithRange(
                         SimpleIdentifier("night".into()),

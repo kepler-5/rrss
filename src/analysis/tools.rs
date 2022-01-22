@@ -71,6 +71,9 @@ impl VisitExpr for NumericConstantFolder {
             .then(|| self.visit_expression(&e.first))
             .unwrap_or(Err(NeedMoreInfo))
     }
+    fn visit_array_pop_expr(&mut self, _: &ArrayPopExpr) -> visit::Result<Self> {
+        Err(UnknownValue)
+    }
     fn visit_binary_expression(&mut self, e: &BinaryExpression) -> visit::Result<Self> {
         let lhs = self.visit_expression(&e.lhs)?;
         let mut rhs = iter::once(&e.rhs.first)
@@ -162,6 +165,9 @@ impl VisitExpr for SimpleStringConstantFolder {
             .is_empty()
             .then(|| self.visit_expression(&e.first))
             .unwrap_or(Err(NeedMoreInfo))
+    }
+    fn visit_array_pop_expr(&mut self, _: &ArrayPopExpr) -> visit::Result<Self> {
+        Err(UnknownValue)
     }
     fn visit_binary_expression(&mut self, _: &BinaryExpression) -> visit::Result<Self> {
         Err(PossibleValueIgnored)

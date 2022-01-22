@@ -710,9 +710,22 @@ impl<'a> Parser<'a> {
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedIdentifier))
     }
 
+    fn parse_array_pop_expr(&mut self) -> Result<Option<ArrayPopExpr>, ParseError<'a>> {
+        self.match_and_consume(TokenType::Roll)
+            .map(|_| {
+                self.parse_primary_expression()
+                    .map(|e| ArrayPopExpr::from(e))
+            })
+            .transpose()
+    }
+
     fn parse_put_assignment(&mut self) -> Result<Assignment, ParseError<'a>> {
         self.consume(TokenType::Put);
-        let value = self.parse_expression()?.into();
+        let value = if let Some(pop) = self.parse_array_pop_expr()? {
+            pop.into()
+        } else {
+            self.parse_expression()?.into()
+        };
         self.expect_token(TokenType::Into)?;
         let dest = self.parse_assignment_lhs()?;
         Ok(Assignment {
@@ -737,7 +750,11 @@ impl<'a> Parser<'a> {
                 .as_ref(),
             )
             .map(|tok| get_binary_operator(tok.id).unwrap());
-        let value = self.parse_toplevel_expression_list()?;
+        let value = if let Some(pop) = self.parse_array_pop_expr()? {
+            pop.into()
+        } else {
+            self.parse_toplevel_expression_list()?.into()
+        };
         Ok(Assignment {
             dest,
             value,
@@ -1106,12 +1123,12 @@ impl<'a> Parser<'a> {
 
     fn parse_array_pop(&mut self) -> Result<ArrayPop, ParseError<'a>> {
         self.consume(TokenType::Roll);
-        let array = self.parse_primary_expression()?;
+        let expr = self.parse_primary_expression()?.into();
         let dest = self
             .match_and_consume(TokenType::Into)
             .map(|_| self.parse_assignment_lhs())
             .transpose()?;
-        Ok(ArrayPop { array, dest })
+        Ok(ArrayPop { expr, dest })
     }
 
     fn parse_return(&mut self) -> Result<Return, ParseError<'a>> {
