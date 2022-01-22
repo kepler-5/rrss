@@ -182,7 +182,8 @@ fn take_first<T>(vec: Vec<T>) -> T {
 fn is_literal_word(token: TokenType) -> bool {
     matches!(
         token,
-        TokenType::Null
+        TokenType::Mysterious
+            | TokenType::Null
             | TokenType::Number(_)
             | TokenType::StringLiteral(_)
             | TokenType::Empty
@@ -487,6 +488,7 @@ impl<'a> Parser<'a> {
     fn parse_literal_expression(&mut self) -> Option<WithRange<LiteralExpression>> {
         self.current().and_then(|token| {
             match token.id {
+                TokenType::Mysterious => Some(LiteralExpression::Mysterious),
                 TokenType::Null => Some(LiteralExpression::Null),
                 TokenType::Number(n) => Some(LiteralExpression::Number(n)),
                 TokenType::StringLiteral(s) => Some(LiteralExpression::String(s.to_owned())),

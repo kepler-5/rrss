@@ -18,6 +18,10 @@ fn line_range(start: u32, end: u32) -> SourceRange {
 fn parse_literal_expression() {
     let parse = |text| Parser::for_source_code(text).parse_literal_expression();
     assert_eq!(
+        parse("mysterious"),
+        Some(WithRange(LiteralExpression::Mysterious, line_range(0, 10)))
+    );
+    assert_eq!(
         parse("null"),
         Some(WithRange(LiteralExpression::Null, line_range(0, 4)))
     );

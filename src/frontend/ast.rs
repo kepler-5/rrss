@@ -56,6 +56,7 @@ pub struct Program {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum LiteralExpression {
+    Mysterious,
     Boolean(bool),
     Null,
     Number(f64),

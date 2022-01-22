@@ -104,6 +104,7 @@ where
         e: &WithRange<LiteralExpression>,
     ) -> visit::Result<Self> {
         match &e.0 {
+            LiteralExpression::Mysterious => Ok(Val::Undefined.into()),
             LiteralExpression::Boolean(b) => Ok(Val::Boolean(*b).into()),
             LiteralExpression::Null => Ok(Val::Null.into()),
             LiteralExpression::Number(n) => Ok(Val::Number(*n).into()),
