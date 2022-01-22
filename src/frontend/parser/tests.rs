@@ -3127,13 +3127,7 @@ say X
 }
 
 #[test]
-#[ignore = "read the comment; not sure about this yet"]
 fn how_do_blocks_end_anyway() {
-    // this is an official test in the rockstar test suite, verbatim.
-    // the blank line after the else block is supposed to close both
-    // the function and the else block. I'm not sure how that's supposed to
-    // work; that means you can never close an else block and then write more
-    // code after it when you're inside a function?
     let p = super::parse(
         "
     Decrement takes X
@@ -3147,7 +3141,6 @@ fn how_do_blocks_end_anyway() {
     )
     .unwrap();
     let block = inner!(p.code.first().unwrap(), if Block::NonEmpty);
-    println!("{:#?}", block);
     assert_eq!(block.len(), 2);
 }
 

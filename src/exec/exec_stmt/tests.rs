@@ -816,7 +816,6 @@ fn function_call() {
     Put a cracker with cheese into your mouth
     Give it back
 
-
     shout polly taking 5
     shout polly taking 15
     put -9 into x
@@ -832,7 +831,6 @@ fn function_call() {
             "
     Multiply takes X and Y
     return x * y
-
 
     shout multiply taking 3, and 5
     shout multiply taking \"3\", and 5
@@ -928,7 +926,6 @@ fn function_call() {
     Else
     Put X minus 1 into NewX
     Give back Decrement taking NewX
-    
     
     Say Decrement taking 5"
         ),

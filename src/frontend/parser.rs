@@ -192,6 +192,18 @@ fn is_literal_word(token: TokenType) -> bool {
     )
 }
 
+fn is_function_terminator(s: &Statement) -> bool {
+    matches!(
+        s,
+        Statement::If(If {
+            condition: _,
+            then_block: _,
+            else_block: Some(_)
+        }) | Statement::While(_)
+            | Statement::Until(_)
+    )
+}
+
 impl<'a> Parser<'a> {
     fn current(&self) -> Option<Token<'a>> {
         self.lexer.clone().next()
@@ -660,6 +672,23 @@ impl<'a> Parser<'a> {
         self.expect_token_or_end(TokenType::Newline).map(|_| ())
     }
 
+    fn parse_function_block(&mut self) -> Result<Block, ParseError<'a>> {
+        let loc = self.current_loc();
+        let mut statements = Vec::new();
+        if self.match_and_consume(TokenType::Newline).is_none() {
+            while let Some(s) = self.parse_statement()? {
+                let at_end = is_function_terminator(&s);
+                statements.push(s);
+                if at_end {
+                    break;
+                } else {
+                    self.expect_eol()?;
+                }
+            }
+        }
+        Ok(Block::new(loc, statements))
+    }
+
     pub(crate) fn parse_block(&mut self) -> Result<Block, ParseError<'a>> {
         let loc = self.current_loc();
         let mut statements = Vec::new();
@@ -914,7 +943,7 @@ impl<'a> Parser<'a> {
         self.consume(TokenType::Takes);
         let params = self.parse_parameter_list(|p| p.expect_variable_name(), false)?;
         self.expect_eol()?;
-        let body = self.parse_block()?;
+        let body = self.parse_function_block()?;
         let data = Arc::new(FunctionData { params, body });
         Ok(Function { name, data })
     }
