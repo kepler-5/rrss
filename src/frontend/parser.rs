@@ -667,7 +667,7 @@ impl<'a> Parser<'a> {
     }
 
     fn expect_eol(&mut self) -> Result<(), ParseError<'a>> {
-        self.match_and_consume(TokenType::Comma);
+        self.match_and_consume([TokenType::Comma, TokenType::Dot].as_ref());
         self.expect_token_or_end(TokenType::Newline).map(|_| ())
     }
 
