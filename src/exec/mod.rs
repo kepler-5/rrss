@@ -27,6 +27,15 @@ pub enum RuntimeError {
     ProduceValError(ProduceValError),
 }
 
+pub fn exec_using<In, Out>(input: In, output: Out, program: &Program) -> Result<(), RuntimeError>
+where
+    In: std::io::Read,
+    Out: std::io::Write,
+{
+    let env = Environment::refcell_raw(input, output);
+    ExecStmt::new(&env).visit_program(program)
+}
+
 pub fn exec(program: &Program) -> Result<(), RuntimeError> {
     let env = Environment::refcell();
     ExecStmt::new(&env).visit_program(program)

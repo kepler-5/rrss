@@ -4,9 +4,11 @@ pub mod exec;
 pub mod linter;
 pub mod parser;
 
+pub use error::Error;
+
 use std::{ffi::OsString, fs::read_to_string};
 
-use self::{cli_output::CLIOutput, error::Error};
+use self::cli_output::CLIOutput;
 
 // no tests because this API is just a rough draft
 
