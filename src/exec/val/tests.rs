@@ -913,3 +913,59 @@ fn cast() {
         Err(ValError::InvalidOperationForType)
     );
 }
+
+#[test]
+fn display() {
+    assert_eq!(format!("{}", Val::Undefined), "mysterious");
+    assert_eq!(format!("{}", Val::Null), "null");
+    assert_eq!(format!("{}", Val::Boolean(false)), "false");
+    assert_eq!(format!("{}", Val::Number(5.0)), "5");
+    assert_eq!(format!("{}", Val::from("string")), "\"string\"");
+
+    assert_eq!(format!("{}", Array::new()), "[]");
+    assert_eq!(
+        format!(
+            "{}",
+            Array::with_arr(
+                [Val::Null, Val::Boolean(true), Val::from("hello")]
+                    .into_iter()
+                    .collect()
+            )
+        ),
+        "[null, true, \"hello\"]"
+    );
+    assert_eq!(
+        format!(
+            "{}",
+            Array::with_arr_and_dict(
+                [Val::Null, Val::Boolean(true), Val::from("hello")]
+                    .into_iter()
+                    .collect(),
+                [
+                    (DictKey::Null, Val::Undefined),
+                    (DictKey::String("text".into()), Array::new().into())
+                ]
+                .into_iter()
+                .collect()
+            )
+        ),
+        "[null, true, \"hello\", \"text\": [], null: mysterious]"
+    );
+    assert_eq!(
+        format!(
+            "{}",
+            Array::with_arr_and_dict(
+                [Val::Null, Val::Boolean(true), Array::with_arr_and_dict([Val::Null].into_iter().collect(), [(DictKey::Undefined, Val::Number(0.0))].into_iter().collect()).into()]
+                    .into_iter()
+                    .collect(),
+                [
+                    (DictKey::Null, Val::Undefined),
+                    (DictKey::String("text".into()), Array::with_arr_and_dict([Val::Undefined].into_iter().collect(), [(DictKey::Boolean(true), Val::from("str"))].into_iter().collect()).into())
+                ]
+                .into_iter()
+                .collect()
+            )
+        ),
+        "[null, true, [null, mysterious: 0], \"text\": [mysterious, true: \"str\"], null: mysterious]"
+    );
+}

@@ -14,6 +14,7 @@ use itertools::{repeat_n, Itertools};
 use std::iter;
 use unchecked_unwrap::UncheckedUnwrap;
 
+pub mod display;
 #[cfg(test)]
 mod tests;
 
@@ -255,7 +256,7 @@ impl Val {
         self.array_coerce();
         match self {
             Val::Array(a) => Ok(Rc::make_mut(a).push(vals)),
-            _ => Err(ValError::InvalidOperationForType),
+            _ => unsafe { unreachable_unchecked() },
         }
     }
     pub fn pop(&mut self) -> Result<Val, ValError> {
