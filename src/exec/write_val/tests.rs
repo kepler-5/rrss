@@ -78,7 +78,7 @@ fn write_array_subscript() {
     assert_eq!(write_then_read(&e, "foo at 5", Val::Null), Ok(Val::Null));
     assert_eq!(
         write_then_read(&e, "foo at 5 at 5", Val::Null),
-        Err(ValError::NotIndexable.into())
+        Err(ValError::NotIndexable(Val::Null).into())
     );
 
     assert_eq!(

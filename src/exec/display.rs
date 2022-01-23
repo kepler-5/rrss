@@ -48,29 +48,35 @@ impl std::fmt::Display for EnvironmentError {
 impl std::fmt::Display for ValError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ValError::NotIndexable => f.write_str("value not indexable"),
-            ValError::InvalidKey => f.write_str("invalid key"),
-            ValError::NoValueForKey => f.write_str("no value for key"),
-            ValError::IndexOutOfBounds => f.write_str("index out of bounds"),
-            ValError::IndexNotAssignable => f.write_str("index not assignable"),
-            ValError::InvalidOperationForType => f.write_str("invalid operation for type"),
-            ValError::InvalidComparison => f.write_str("invalid comparison"),
-            ValError::InvalidSplitDelimiter => f.write_str("invalid split delimiter"),
-            ValError::InvalidJoinDelimiter => f.write_str("invalid join delimiter"),
-            ValError::InvalidArrayElementForJoin(_) => {
-                f.write_str("invalid array element for join")
+            ValError::NotIndexable(v) => write!(f, "value {} not indexable", v),
+            ValError::InvalidKey(v) => write!(f, "invalid key {}", v),
+            ValError::NoValueForKey(k, v) => write!(f, "no value for key {} in {}", k, v),
+            ValError::IndexOutOfBounds(k, v) => write!(f, "index {} out of bounds for {}", k, v),
+            ValError::IndexNotAssignable(k, v) => write!(f, "index {} not assignable for {}", k, v),
+            ValError::InvalidOperationForType(v) => write!(f, "invalid operation for {}", v),
+            ValError::InvalidComparison(a, b) => {
+                write!(f, "invalid comparison between {} and {}", a, b)
             }
-            ValError::ParsingStringAsNumberFailed(_) => {
-                f.write_str("parsing string as number failed")
+            ValError::InvalidSplitDelimiter(v) => write!(f, "invalid split delimiter {}", v),
+            ValError::InvalidJoinDelimiter(v) => write!(f, "invalid join delimiter {}", v),
+            ValError::InvalidArrayElementForJoin(v) => {
+                write!(f, "invalid array element for join {}", v)
             }
-            ValError::InvalidStringToIntegerRadix(_) => {
-                f.write_str("invalid string-to-integer radix")
+            ValError::ParsingStringAsNumberFailed(v) => {
+                write!(f, "parsing {} as number failed", v)
             }
-            ValError::ConvertingNumberToCharacterFailed(_) => {
-                f.write_str("converting number to character failed")
+            ValError::InvalidStringToIntegerRadix(v) => {
+                write!(f, "invalid string-to-integer radix {}", v)
             }
-            ValError::UnexpectedParameterToNumberToCharacterCast(_) => {
-                f.write_str("converting number to character shouldn't take a parameter")
+            ValError::ConvertingNumberToCharacterFailed(v) => {
+                write!(f, "converting {} to character failed", v)
+            }
+            ValError::UnexpectedParameterToNumberToCharacterCast(v) => {
+                write!(
+                    f,
+                    "converting number to character shouldn't take a parameter, found {}",
+                    v
+                )
             }
         }
     }

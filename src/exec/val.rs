@@ -20,15 +20,15 @@ mod tests;
 
 #[derive(Debug, PartialEq)]
 pub enum ValError {
-    NotIndexable,
-    InvalidKey,
-    NoValueForKey,
-    IndexOutOfBounds,
-    IndexNotAssignable,
-    InvalidOperationForType,
-    InvalidComparison,
-    InvalidSplitDelimiter,
-    InvalidJoinDelimiter,
+    NotIndexable(Val),
+    InvalidKey(Val),
+    NoValueForKey(String, Val),
+    IndexOutOfBounds(usize, Val),
+    IndexNotAssignable(Val, Val),
+    InvalidOperationForType(Val),
+    InvalidComparison(Val, Val),
+    InvalidSplitDelimiter(Val),
+    InvalidJoinDelimiter(Val),
     InvalidArrayElementForJoin(Val),
     ParsingStringAsNumberFailed(String),
     InvalidStringToIntegerRadix(Val),
@@ -93,6 +93,7 @@ enum DictKeyRef<'a> {
 
 trait Key {
     fn to_key(&self) -> DictKeyRef<'_>;
+    fn to_string(&self) -> String;
 }
 
 impl Hash for dyn Key + '_ {
@@ -111,10 +112,16 @@ impl Key for DictKey {
     fn to_key(&self) -> DictKeyRef<'_> {
         self.as_ref()
     }
+    fn to_string(&self) -> String {
+        ToString::to_string(self)
+    }
 }
 impl Key for DictKeyRef<'_> {
     fn to_key(&self) -> DictKeyRef<'_> {
         *self
+    }
+    fn to_string(&self) -> String {
+        ToString::to_string(self)
     }
 }
 
@@ -159,14 +166,18 @@ impl Array {
             Val::Null => self.index_dict(&DictKeyRef::Null),
             Val::Boolean(b) => self.index_dict(&DictKeyRef::Boolean(*b)),
             Val::String(s) => self.index_dict(&DictKeyRef::String(s)),
-            Val::Array(_) => Err(ValError::InvalidKey),
+            Val::Array(_) => Err(ValError::InvalidKey(val.clone())),
         }
     }
     fn index_arr(&self, i: usize) -> Result<&Val, ValError> {
-        self.arr.get(i).ok_or(ValError::IndexOutOfBounds)
+        self.arr
+            .get(i)
+            .ok_or(ValError::IndexOutOfBounds(i, self.clone().into()))
     }
     fn index_dict(&self, k: &dyn Key) -> Result<&Val, ValError> {
-        self.dict.get(k).ok_or(ValError::NoValueForKey)
+        self.dict
+            .get(k)
+            .ok_or(ValError::NoValueForKey(k.to_string(), self.clone().into()))
     }
 
     fn index_or_insert(&mut self, val: &Val) -> Result<&mut Val, ValError> {
@@ -176,7 +187,7 @@ impl Array {
             Val::Null => Ok(self.index_dict_or_insert(DictKey::Null)),
             Val::Boolean(b) => Ok(self.index_dict_or_insert(DictKey::Boolean(*b))),
             Val::String(s) => Ok(self.index_dict_or_insert(DictKey::String((**s).clone()))),
-            Val::Array(_) => Err(ValError::InvalidKey),
+            Val::Array(_) => Err(ValError::InvalidKey(val.clone())),
         }
     }
     fn index_arr_or_insert(&mut self, i: usize) -> &mut Val {
@@ -208,14 +219,14 @@ impl Array {
 fn index_string(s: &str, i: usize) -> Result<Val, ValError> {
     s.chars()
         .nth(i)
-        .ok_or(ValError::IndexOutOfBounds)
+        .ok_or_else(|| ValError::IndexOutOfBounds(i, Val::from(s)))
         .map(Into::into)
 }
 
 fn index_string_with(s: &str, val: &Val) -> Result<Val, ValError> {
     match val {
         Val::Number(n) => index_string(s, *n as usize),
-        _ => Err(ValError::InvalidKey),
+        _ => Err(ValError::InvalidKey(val.clone())),
     }
 }
 
@@ -224,7 +235,7 @@ impl Val {
         match self {
             Val::String(s) => index_string_with(s, val).map(Cow::Owned),
             Val::Array(a) => a.index(val).map(Cow::Borrowed),
-            _ => Err(ValError::NotIndexable),
+            _ => Err(ValError::NotIndexable(self.clone())),
         }
     }
 
@@ -234,8 +245,8 @@ impl Val {
         }
         match self {
             Val::Array(a) => Rc::make_mut(a).index_or_insert(val),
-            Val::String(_) => Err(ValError::IndexNotAssignable),
-            _ => Err(ValError::NotIndexable),
+            Val::String(_) => Err(ValError::IndexNotAssignable(val.clone(), self.clone())),
+            _ => Err(ValError::NotIndexable(self.clone())),
         }
     }
 
@@ -262,7 +273,7 @@ impl Val {
     pub fn pop(&mut self) -> Result<Val, ValError> {
         match self {
             Val::Array(a) => Ok(Rc::make_mut(a).pop()),
-            _ => Err(ValError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType(self.clone())),
         }
     }
 }
@@ -350,7 +361,10 @@ impl Val {
         self.cmp_coerced(other)
             .and_then(|(a, b)| {
                 if discriminant(a.as_ref()) != discriminant(b.as_ref()) {
-                    Some(Err(ValError::InvalidComparison))
+                    Some(Err(ValError::InvalidComparison(
+                        self.clone(),
+                        other.clone(),
+                    )))
                 } else {
                     match a.as_ref() {
                         Val::Undefined => Some(Ok(Ordering::Equal)),
@@ -359,8 +373,14 @@ impl Val {
                         Val::Number(n) => n.partial_cmp(inner!(b.as_ref(), if Val::Number)).map(Ok),
                         Val::String(s) => Some(Ok(s.cmp(inner!(b.as_ref(), if Val::String)))),
 
-                        Val::Boolean(_) => Some(Err(ValError::InvalidComparison)),
-                        Val::Array(_) => Some(Err(ValError::InvalidComparison)),
+                        Val::Boolean(_) => Some(Err(ValError::InvalidComparison(
+                            self.clone(),
+                            other.clone(),
+                        ))),
+                        Val::Array(_) => Some(Err(ValError::InvalidComparison(
+                            self.clone(),
+                            other.clone(),
+                        ))),
                     }
                 }
             })
@@ -383,7 +403,7 @@ impl Val {
                 Ok(())
             }
 
-            _ => Err(ValError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType(self.clone())),
         }
     }
 
@@ -420,7 +440,7 @@ impl Val {
             }
             (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a + b)),
 
-            _ => Err(ValError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType(self.clone())),
         }
     }
 
@@ -433,27 +453,27 @@ impl Val {
                     .collect::<String>(),
             )),
 
-            _ => Err(ValError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType(self.clone())),
         }
     }
 
     pub fn subtract(&self, other: &Val) -> Result<Val, ValError> {
         match (self, other) {
             (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a - b)),
-            _ => Err(ValError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType(self.clone())),
         }
     }
     pub fn divide(&self, other: &Val) -> Result<Val, ValError> {
         match (self, other) {
             (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a / b)),
-            _ => Err(ValError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType(self.clone())),
         }
     }
 
     pub fn negate(&self) -> Result<Val, ValError> {
         match self {
             Val::Number(n) => Ok(Val::Number(-n)),
-            _ => Err(ValError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType(self.clone())),
         }
     }
 
@@ -463,7 +483,7 @@ impl Val {
                 *f = f.ceil();
                 Ok(())
             }
-            _ => Err(ValError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType(self.clone())),
         }
     }
     pub fn round_down(&mut self) -> Result<(), ValError> {
@@ -472,7 +492,7 @@ impl Val {
                 *f = f.floor();
                 Ok(())
             }
-            _ => Err(ValError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType(self.clone())),
         }
     }
     pub fn round_nearest(&mut self) -> Result<(), ValError> {
@@ -481,7 +501,7 @@ impl Val {
                 *f = f.round();
                 Ok(())
             }
-            _ => Err(ValError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType(self.clone())),
         }
     }
 
@@ -491,7 +511,7 @@ impl Val {
                 let delim = match &delim {
                     Some(d) => match &d {
                         Val::String(d) => d,
-                        _ => return Err(ValError::InvalidSplitDelimiter),
+                        _ => return Err(ValError::InvalidSplitDelimiter(d.clone())),
                     },
                     None => "",
                 };
@@ -506,13 +526,13 @@ impl Val {
             Val::String(s) if s.is_empty() => {
                 if let Some(d) = &delim {
                     if !d.is_string() {
-                        return Err(ValError::InvalidSplitDelimiter);
+                        return Err(ValError::InvalidSplitDelimiter(d.clone()));
                     }
                 }
                 *self = Array::new().into();
                 Ok(())
             }
-            _ => Err(ValError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType(self.clone())),
         }
     }
 
@@ -522,7 +542,7 @@ impl Val {
                 let delim = match &delim {
                     Some(d) => match &d {
                         Val::String(s) => s,
-                        _ => return Err(ValError::InvalidJoinDelimiter),
+                        _ => return Err(ValError::InvalidJoinDelimiter(d.clone())),
                     },
                     None => "",
                 };
@@ -545,13 +565,13 @@ impl Val {
             Val::Array(a) if a.is_empty() => {
                 if let Some(d) = &delim {
                     if !d.is_string() {
-                        return Err(ValError::InvalidJoinDelimiter);
+                        return Err(ValError::InvalidJoinDelimiter(d.clone()));
                     }
                 }
                 *self = String::new().into();
                 Ok(())
             }
-            _ => Err(ValError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType(self.clone())),
         }
     }
 
@@ -598,7 +618,7 @@ impl Val {
                 }
             }
 
-            _ => Err(ValError::InvalidOperationForType),
+            _ => Err(ValError::InvalidOperationForType(self.clone())),
         }
     }
 }

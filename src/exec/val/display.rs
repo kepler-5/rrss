@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use super::{Array, DictKey, Val};
+use super::{Array, DictKey, DictKeyRef, Val};
 use std::fmt::{Display, Write};
 
 impl Display for Val {
@@ -17,18 +17,24 @@ impl Display for Val {
     }
 }
 
-impl Display for DictKey {
+impl<'a> Display for DictKeyRef<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self {
-            DictKey::Undefined => f.write_str("mysterious"),
-            DictKey::Null => f.write_str("null"),
-            DictKey::Boolean(b) => f.write_str(if *b { "true" } else { "false" }),
-            DictKey::String(s) => {
+        match self {
+            DictKeyRef::Undefined => f.write_str("mysterious"),
+            DictKeyRef::Null => f.write_str("null"),
+            DictKeyRef::Boolean(b) => f.write_str(if *b { "true" } else { "false" }),
+            DictKeyRef::String(s) => {
                 f.write_char('"')?;
-                f.write_str(&s)?;
+                f.write_str(s)?;
                 f.write_char('"')
             }
         }
+    }
+}
+
+impl Display for DictKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.as_ref().fmt(f)
     }
 }
 
