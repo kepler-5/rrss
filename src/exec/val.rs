@@ -25,7 +25,6 @@ pub enum ValError {
     IndexOutOfBounds,
     IndexNotAssignable,
     InvalidOperationForType,
-    PopOnEmptyArray,
     InvalidComparison,
     InvalidSplitDelimiter,
     InvalidJoinDelimiter,
@@ -192,8 +191,8 @@ impl Array {
     fn push(&mut self, vals: impl Iterator<Item = Val>) {
         self.arr.extend(vals)
     }
-    fn pop(&mut self) -> Result<Val, ValError> {
-        self.arr.pop_front().ok_or(ValError::PopOnEmptyArray)
+    fn pop(&mut self) -> Val {
+        self.arr.pop_front().unwrap_or(Val::Undefined)
     }
 
     fn val_iter(&self) -> impl Iterator<Item = &Val> {
@@ -261,7 +260,7 @@ impl Val {
     }
     pub fn pop(&mut self) -> Result<Val, ValError> {
         match self {
-            Val::Array(a) => Rc::make_mut(a).pop(),
+            Val::Array(a) => Ok(Rc::make_mut(a).pop()),
             _ => Err(ValError::InvalidOperationForType),
         }
     }

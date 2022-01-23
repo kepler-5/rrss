@@ -101,7 +101,7 @@ fn array_push_pop() {
     assert_eq!(arr.decay(), Cow::Owned(Val::Number(0.0)));
 
     let err = arr.pop();
-    assert_eq!(err, Err(ValError::PopOnEmptyArray));
+    assert_eq!(err, Ok(Val::Undefined));
 
     let ok = arr.push([Val::Null, Val::Boolean(true)].into_iter());
     assert!(ok.is_ok());

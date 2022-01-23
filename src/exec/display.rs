@@ -54,7 +54,6 @@ impl std::fmt::Display for ValError {
             ValError::IndexOutOfBounds => f.write_str("index out of bounds"),
             ValError::IndexNotAssignable => f.write_str("index not assignable"),
             ValError::InvalidOperationForType => f.write_str("invalid operation for type"),
-            ValError::PopOnEmptyArray => f.write_str("pop on empty array"),
             ValError::InvalidComparison => f.write_str("invalid comparison"),
             ValError::InvalidSplitDelimiter => f.write_str("invalid split delimiter"),
             ValError::InvalidJoinDelimiter => f.write_str("invalid join delimiter"),
