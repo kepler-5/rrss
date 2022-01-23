@@ -199,8 +199,7 @@ fn is_function_terminator(s: &Statement) -> bool {
             condition: _,
             then_block: _,
             else_block: Some(_)
-        }) | Statement::While(_)
-            | Statement::Until(_)
+        })
     )
 }
 
@@ -588,7 +587,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_rest_of_function_call(&mut self) -> Result<Vec<Expression>, ParseError<'a>> {
-        self.parse_parameter_list(|p| p.parse_unary_expression(), true)
+        self.parse_parameter_list(|p| p.parse_unary_expression(), false)
     }
 
     fn parse_function_call(
