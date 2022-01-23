@@ -18,12 +18,12 @@ fn array_index() {
     );
 
     assert_eq!(
-        arr.index(&Val::Number(100.0)),
-        Err(ValError::IndexOutOfBounds(100, arr.clone()))
+        arr.index(&Val::Number(100.0)).unwrap().as_ref(),
+        &Val::Undefined
     );
     assert_eq!(
-        arr.index(&"100.0".into()),
-        Err(ValError::NoValueForKey("\"100.0\"".into(), arr.clone()))
+        arr.index(&"100.0".into()).unwrap().as_ref(),
+        &Val::Undefined
     );
 }
 
@@ -65,10 +65,7 @@ fn string_index() {
     assert_eq!(s.index(&Val::Number(0.0)), Ok(Cow::Owned("b".into())));
     assert_eq!(s.index(&Val::Number(1.0)), Ok(Cow::Owned("a".into())));
     assert_eq!(s.index(&Val::Number(2.0)), Ok(Cow::Owned("r".into())));
-    assert_eq!(
-        s.index(&Val::Number(3.0)),
-        Err(ValError::IndexOutOfBounds(3, s.clone()))
-    );
+    assert_eq!(s.index(&Val::Number(3.0)), Ok(Cow::Owned(Val::Undefined)));
     assert_eq!(s.index(&Val::Null), Err(ValError::InvalidKey(Val::Null)));
 
     let cloned = s.clone();

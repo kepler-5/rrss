@@ -22,8 +22,6 @@ mod tests;
 pub enum ValError {
     NotIndexable(Val),
     InvalidKey(Val),
-    NoValueForKey(String, Val),
-    IndexOutOfBounds(usize, Val),
     IndexNotAssignable(Val, Val),
     InvalidOperationForType(&'static str, Val),
     InvalidBinaryOperationForType(&'static str, Val, Val),
@@ -160,25 +158,25 @@ impl Array {
         self.arr.len() + self.dict.len()
     }
 
-    fn index(&self, val: &Val) -> Result<&Val, ValError> {
+    fn index(&self, val: &Val) -> Result<Cow<'_, Val>, ValError> {
         match val {
-            Val::Number(n) => self.index_arr(*n as usize),
-            Val::Undefined => self.index_dict(&DictKeyRef::Undefined),
-            Val::Null => self.index_dict(&DictKeyRef::Null),
-            Val::Boolean(b) => self.index_dict(&DictKeyRef::Boolean(*b)),
-            Val::String(s) => self.index_dict(&DictKeyRef::String(s)),
+            Val::Number(n) => Ok(self.index_arr(*n as usize)),
+            Val::Undefined => Ok(self.index_dict(&DictKeyRef::Undefined)),
+            Val::Null => Ok(self.index_dict(&DictKeyRef::Null)),
+            Val::Boolean(b) => Ok(self.index_dict(&DictKeyRef::Boolean(*b))),
+            Val::String(s) => Ok(self.index_dict(&DictKeyRef::String(s))),
             Val::Array(_) => Err(ValError::InvalidKey(val.clone())),
         }
     }
-    fn index_arr(&self, i: usize) -> Result<&Val, ValError> {
+    fn index_arr(&self, i: usize) -> Cow<'_, Val> {
         self.arr
             .get(i)
-            .ok_or(ValError::IndexOutOfBounds(i, self.clone().into()))
+            .map_or_else(|| Cow::Owned(Val::Undefined), Cow::Borrowed)
     }
-    fn index_dict(&self, k: &dyn Key) -> Result<&Val, ValError> {
+    fn index_dict(&self, k: &dyn Key) -> Cow<'_, Val> {
         self.dict
             .get(k)
-            .ok_or(ValError::NoValueForKey(k.to_string(), self.clone().into()))
+            .map_or_else(|| Cow::Owned(Val::Undefined), Cow::Borrowed)
     }
 
     fn index_or_insert(&mut self, val: &Val) -> Result<&mut Val, ValError> {
@@ -217,16 +215,13 @@ impl Array {
     }
 }
 
-fn index_string(s: &str, i: usize) -> Result<Val, ValError> {
-    s.chars()
-        .nth(i)
-        .ok_or_else(|| ValError::IndexOutOfBounds(i, Val::from(s)))
-        .map(Into::into)
+fn index_string(s: &str, i: usize) -> Val {
+    s.chars().nth(i).map_or(Val::Undefined, Val::from)
 }
 
 fn index_string_with(s: &str, val: &Val) -> Result<Val, ValError> {
     match val {
-        Val::Number(n) => index_string(s, *n as usize),
+        Val::Number(n) => Ok(index_string(s, *n as usize)),
         _ => Err(ValError::InvalidKey(val.clone())),
     }
 }
@@ -235,7 +230,7 @@ impl Val {
     pub fn index<'a>(&'a self, val: &Val) -> Result<Cow<'a, Val>, ValError> {
         match self {
             Val::String(s) => index_string_with(s, val).map(Cow::Owned),
-            Val::Array(a) => a.index(val).map(Cow::Borrowed),
+            Val::Array(a) => a.index(val),
             _ => Err(ValError::NotIndexable(self.clone())),
         }
     }

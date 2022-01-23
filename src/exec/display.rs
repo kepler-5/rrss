@@ -50,8 +50,6 @@ impl std::fmt::Display for ValError {
         match self {
             ValError::NotIndexable(v) => write!(f, "value {} not indexable", v),
             ValError::InvalidKey(v) => write!(f, "invalid key {}", v),
-            ValError::NoValueForKey(k, v) => write!(f, "no value for key {} in {}", k, v),
-            ValError::IndexOutOfBounds(k, v) => write!(f, "index {} out of bounds for {}", k, v),
             ValError::IndexNotAssignable(k, v) => write!(f, "index {} not assignable for {}", k, v),
             ValError::InvalidOperationForType(op, v) => write!(f, "cannot {} value {}", op, v),
             ValError::InvalidBinaryOperationForType(op, a, b) => {
