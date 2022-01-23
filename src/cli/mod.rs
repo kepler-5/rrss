@@ -18,7 +18,7 @@ pub enum Command {
 
 fn dump_output(output: Result<CLIOutput, Error>) {
     match output {
-        Ok(o) => println!("{}", o),
+        Ok(o) => print!("{}", o),
         Err(e) => eprintln!("{}", e),
     }
 }

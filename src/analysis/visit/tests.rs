@@ -143,11 +143,11 @@ fn count_xs() {
     }
 
     assert_eq!(
-        ExprVisitorRunner::new(CountXs).visit_program(&Program { code: vec![] }),
+        ExprVisitorRunner::with_inner(CountXs).visit_program(&Program { code: vec![] }),
         Ok(0.into())
     );
     assert_eq!(
-        ExprVisitorRunner::new(CountXs).visit_program(&Program {
+        ExprVisitorRunner::with_inner(CountXs).visit_program(&Program {
             code: vec![
                 Block::Empty(bogus_loc()),
                 Block::Empty(bogus_loc()),
@@ -158,7 +158,7 @@ fn count_xs() {
     );
 
     assert_eq!(
-        ExprVisitorRunner::new(CountXs).visit_program(
+        ExprVisitorRunner::with_inner(CountXs).visit_program(
             &parse(
                 "
         put 5 into x
@@ -180,7 +180,7 @@ fn count_xs() {
     );
 
     assert_eq!(
-        ExprVisitorRunner::new(CountXs).visit_program(
+        ExprVisitorRunner::with_inner(CountXs).visit_program(
             &parse(
                 "
         put 5 into y
@@ -274,7 +274,7 @@ fn collect_all_number_literals_functional() {
         }
     }
     assert_eq!(
-        ExprVisitorRunner::new(CollectAllNumberLiterals).visit_program(
+        ExprVisitorRunner::with_inner(CollectAllNumberLiterals).visit_program(
             &parse(
                 "
         put 5 into x
@@ -326,7 +326,7 @@ fn collect_all_number_literals_stateful() {
         }
     }
     let literals = {
-        let mut c = ExprVisitorRunner::new(CollectAllNumberLiterals::default());
+        let mut c = ExprVisitorRunner::with_inner(CollectAllNumberLiterals::default());
         c.visit_program(
             &parse(
                 "

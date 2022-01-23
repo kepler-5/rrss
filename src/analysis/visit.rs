@@ -1,7 +1,5 @@
 use std::iter;
 
-use derive_more::Constructor;
-
 use crate::frontend::{ast::*, source_range::SourceRange};
 
 #[cfg(test)]
@@ -282,12 +280,14 @@ pub trait VisitProgram: Visit {
 
 pub type Result<T> = std::result::Result<<T as Visit>::Output, <T as Visit>::Error>;
 
-#[derive(Constructor)]
 pub struct ExprVisitorRunner<T: VisitExpr> {
     inner: T,
 }
 
 impl<T: VisitExpr> ExprVisitorRunner<T> {
+    pub fn with_inner(inner: T) -> Self {
+        Self { inner }
+    }
     pub fn inner(self) -> T {
         self.inner
     }

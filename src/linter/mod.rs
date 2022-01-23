@@ -5,7 +5,7 @@ use derive_more::{Constructor, IsVariant};
 use crate::{
     analysis::visit::{combine_all, Combine, VisitProgram},
     frontend::ast::Program,
-    linter::passes::boring_assignment::BoringAssignmentPass,
+    linter::{passes::*, render::Render},
 };
 
 pub mod display;
@@ -82,9 +82,14 @@ pub struct LinterResult {
     pub diags: Vec<Diag>,
 }
 
+fn postprocess(mut diags: Vec<Diag>) -> LinterResult {
+    diags.sort_by_key(|diag| diag.line);
+    LinterResult::new(diags)
+}
+
 impl Linter {
     pub fn run(&mut self, program: &Program) -> LinterResult {
-        LinterResult::new(
+        postprocess(
             combine_all(self.passes.iter_mut().map(|p| p.visit_program(&program)))
                 .unwrap_or_default()
                 .build(),
@@ -93,7 +98,10 @@ impl Linter {
 }
 
 pub fn standard_passes() -> Passes {
-    vec![Box::new(BoringAssignmentPass)]
+    vec![
+        Box::new(BoringAssignmentPass),
+        Box::new(MissedPronounPass::new()),
+    ]
 }
 
 pub fn standard_linter() -> Linter {

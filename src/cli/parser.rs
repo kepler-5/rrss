@@ -12,5 +12,5 @@ pub fn run(source_code: &str) -> Result<CLIOutput, cli::error::Error> {
 }
 
 fn prettify(program: Program) -> CLIOutput {
-    CLIOutput::one_str(&format!("{:#?}", program))
+    CLIOutput::one_str(&format!("{:#?}\n", program))
 }

@@ -23,6 +23,7 @@ fn colorized(diag: Diag) -> Vec<ColoredString> {
                 .map(|s| once("\n\t".normal()).chain(once(s.normal())))
                 .flatten(),
         )
+        .chain(once("\n".normal()))
         .collect()
 }
 
