@@ -1584,7 +1584,7 @@ fn poetic_number_literal_compute_value() {
     assert_eq!(val("Tommy was a big bad brother"), 1337.0);
     assert_eq!(val("Tommy was a big bad brother."), 1337.0);
     assert_eq!(val("Tommy is a rockstar!"), 18.0);
-    assert_eq!(val("Tommy is a rockstar's rockstar!"), 108.0);
+    assert_eq!(val("Tommy is a rockstar's rockstar!"), 198.0);
     assert_eq!(val("Tommy was a lovestruck ladykiller"), 100.0);
     assert_eq!(val("Tommy was a dancer"), 16.0);
     assert_eq!(val("Tommy is on the loose"), 235.0);
@@ -1600,8 +1600,8 @@ fn poetic_number_literal_compute_value() {
     assert_eq!(val("Tommy was hunky-dory"), 0.0);
     assert_eq!(val("Tommy was hunky-dory-dory"), 5.0);
     assert_eq!(val("Tommy was hunky-dory-dory-dor"), 9.0);
-    assert_eq!(val("Tommy was a mommy's-boy"), 11.0);
-    assert_eq!(val("Tommy was Obi-Wan's pal"), 93.0);
+    assert_eq!(val("Tommy was a mommy's-boy"), 10.0);
+    assert_eq!(val("Tommy was Obi-Wan's pal"), 83.0);
 }
 
 fn range_on_line(line: u32, range: (u32, u32)) -> SourceRange {

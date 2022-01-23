@@ -564,6 +564,10 @@ impl PoeticNumberLiteral {
         10.0f64.powi(n)
     }
 
+    fn word_len(s: &str) -> usize {
+        s.chars().filter(|c| *c != '\'').count()
+    }
+
     pub fn compute_value(&self) -> f64 {
         let exponent =
             position_or_end(self.iter(), |e| *e == PoeticNumberLiteralIteratorItem::Dot) as i32 - 1;
@@ -573,10 +577,11 @@ impl PoeticNumberLiteral {
             .map(|(idx, item)| {
                 let length = match item {
                     PoeticNumberLiteralIteratorItem::Dot => unsafe { unreachable_unchecked() },
-                    PoeticNumberLiteralIteratorItem::Word(s) => s.len(),
-                    PoeticNumberLiteralIteratorItem::SuffixedWord(s0, s1) => {
-                        s1.iter().map(|x| x.len()).fold(s0.len(), |a, b| a + b)
-                    }
+                    PoeticNumberLiteralIteratorItem::Word(s) => Self::word_len(s),
+                    PoeticNumberLiteralIteratorItem::SuffixedWord(s0, s1) => s1
+                        .iter()
+                        .map(|x| Self::word_len(x))
+                        .fold(Self::word_len(s0), |a, b| a + b),
                 };
                 (length % 10) as f64 * Self::ten_to_the(exponent - idx as i32)
             })
