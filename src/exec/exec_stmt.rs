@@ -1,7 +1,7 @@
 use std::{
     cell::RefCell,
     io::{Read, Write},
-    iter::once,
+    iter::{self, once},
     sync::Arc,
 };
 
@@ -13,7 +13,7 @@ use crate::{
     exec::{
         environment::Environment,
         produce_val::{binary_operator_fold, ProduceVal},
-        val::{Array, Val, ValError},
+        val::{Val, ValError},
         write_val::WriteVal,
         RuntimeError,
     },
@@ -322,7 +322,7 @@ impl<'a, I: Read, O: Write> VisitProgram for ExecStmt<'a, I, O> {
                 ),
             },
             None => {
-                self.writer(Val::from(Array::new()))
+                self.raw_writer(|val| val.push(iter::empty()))
                     .visit_primary_expression(&a.array)
                     .unwrap()
                     .0

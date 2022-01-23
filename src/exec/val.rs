@@ -11,6 +11,7 @@ use std::{
 use derive_more::IsVariant;
 use inner::inner;
 use itertools::{repeat_n, Itertools};
+use std::iter;
 use unchecked_unwrap::UncheckedUnwrap;
 
 #[cfg(test)]
@@ -238,10 +239,21 @@ impl Val {
         }
     }
 
-    pub fn push(&mut self, vals: impl Iterator<Item = Val>) -> Result<(), ValError> {
-        if self.is_undefined() {
-            *self = Array::new().into();
+    pub fn array_coerce(&mut self) {
+        if self.is_array() {
+            return;
         }
+        let old = std::mem::replace(self, Array::new().into());
+        if !old.is_undefined() {
+            match self {
+                Val::Array(a) => Rc::make_mut(a).push(iter::once(old)),
+                _ => unsafe { unreachable_unchecked() },
+            };
+        }
+    }
+
+    pub fn push(&mut self, vals: impl Iterator<Item = Val>) -> Result<(), ValError> {
+        self.array_coerce();
         match self {
             Val::Array(a) => Ok(Rc::make_mut(a).push(vals)),
             _ => Err(ValError::InvalidOperationForType),

@@ -112,9 +112,12 @@ fn array_push_pop() {
     );
     assert_eq!(arr.decay(), Cow::Owned(Val::Number(2.0)));
 
+    let mut coerce = Val::Null;
+    assert!(coerce.push(once(Val::Undefined)).is_ok());
+    assert!(coerce.is_array());
     assert_eq!(
-        Val::Null.push(once(Val::Null)),
-        Err(ValError::InvalidOperationForType)
+        coerce,
+        Array::with_arr([Val::Null, Val::Undefined].into_iter().collect()).into()
     );
     assert_eq!(Val::Null.pop(), Err(ValError::InvalidOperationForType));
 }
