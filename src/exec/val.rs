@@ -155,7 +155,7 @@ impl Array {
     }
 
     fn len(&self) -> usize {
-        self.arr.len() + self.dict.len()
+        self.arr.len()
     }
 
     fn index(&self, val: &Val) -> Result<Cow<'_, Val>, ValError> {

@@ -150,11 +150,11 @@ fn decay() {
     let mut arr = Val::from(Array::new());
 
     *arr.index_or_insert(&Val::Null).unwrap() = Val::Boolean(true);
-    assert_eq!(arr.decay(), Cow::Owned(Val::Number(1.0)));
+    assert_eq!(arr.decay(), Cow::Owned(Val::Number(0.0)));
     *arr.index_or_insert(&Val::Boolean(false)).unwrap() = Val::Number(0.0);
-    assert_eq!(arr.decay(), Cow::Owned(Val::Number(2.0)));
+    assert_eq!(arr.decay(), Cow::Owned(Val::Number(0.0)));
     *arr.index_or_insert(&Val::Number(0.0)).unwrap() = Val::Number(1.0);
-    assert_eq!(arr.decay(), Cow::Owned(Val::Number(3.0)));
+    assert_eq!(arr.decay(), Cow::Owned(Val::Number(1.0)));
 }
 
 #[test]
@@ -185,11 +185,11 @@ fn to_string_for_output() {
     let mut arr = Val::from(Array::new());
 
     *arr.index_or_insert(&Val::Null).unwrap() = Val::Boolean(true);
-    assert_eq!(arr.to_string_for_output().into_owned(), "1");
+    assert_eq!(arr.to_string_for_output().into_owned(), "0");
     *arr.index_or_insert(&Val::Boolean(false)).unwrap() = Val::Number(0.0);
-    assert_eq!(arr.to_string_for_output().into_owned(), "2");
+    assert_eq!(arr.to_string_for_output().into_owned(), "0");
     *arr.index_or_insert(&Val::Number(0.0)).unwrap() = Val::Number(1.0);
-    assert_eq!(arr.to_string_for_output().into_owned(), "3");
+    assert_eq!(arr.to_string_for_output().into_owned(), "1");
 }
 
 #[test]
