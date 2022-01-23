@@ -25,7 +25,8 @@ pub enum ValError {
     NoValueForKey(String, Val),
     IndexOutOfBounds(usize, Val),
     IndexNotAssignable(Val, Val),
-    InvalidOperationForType(Val),
+    InvalidOperationForType(&'static str, Val),
+    InvalidBinaryOperationForType(&'static str, Val, Val),
     InvalidComparison(Val, Val),
     InvalidSplitDelimiter(Val),
     InvalidJoinDelimiter(Val),
@@ -273,7 +274,7 @@ impl Val {
     pub fn pop(&mut self) -> Result<Val, ValError> {
         match self {
             Val::Array(a) => Ok(Rc::make_mut(a).pop()),
-            _ => Err(ValError::InvalidOperationForType(self.clone())),
+            _ => Err(ValError::InvalidOperationForType("pop", self.clone())),
         }
     }
 }
@@ -403,7 +404,10 @@ impl Val {
                 Ok(())
             }
 
-            _ => Err(ValError::InvalidOperationForType(self.clone())),
+            _ => Err(ValError::InvalidOperationForType(
+                if x >= 0 { "increment" } else { "decrement" },
+                self.clone(),
+            )),
         }
     }
 
@@ -440,7 +444,11 @@ impl Val {
             }
             (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a + b)),
 
-            _ => Err(ValError::InvalidOperationForType(self.clone())),
+            _ => Err(ValError::InvalidBinaryOperationForType(
+                "add",
+                self.clone(),
+                other.clone(),
+            )),
         }
     }
 
@@ -453,27 +461,39 @@ impl Val {
                     .collect::<String>(),
             )),
 
-            _ => Err(ValError::InvalidOperationForType(self.clone())),
+            _ => Err(ValError::InvalidBinaryOperationForType(
+                "multiply",
+                self.clone(),
+                other.clone(),
+            )),
         }
     }
 
     pub fn subtract(&self, other: &Val) -> Result<Val, ValError> {
         match (self, other) {
             (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a - b)),
-            _ => Err(ValError::InvalidOperationForType(self.clone())),
+            _ => Err(ValError::InvalidBinaryOperationForType(
+                "subtract",
+                self.clone(),
+                other.clone(),
+            )),
         }
     }
     pub fn divide(&self, other: &Val) -> Result<Val, ValError> {
         match (self, other) {
             (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a / b)),
-            _ => Err(ValError::InvalidOperationForType(self.clone())),
+            _ => Err(ValError::InvalidBinaryOperationForType(
+                "divide",
+                self.clone(),
+                other.clone(),
+            )),
         }
     }
 
     pub fn negate(&self) -> Result<Val, ValError> {
         match self {
             Val::Number(n) => Ok(Val::Number(-n)),
-            _ => Err(ValError::InvalidOperationForType(self.clone())),
+            _ => Err(ValError::InvalidOperationForType("negate", self.clone())),
         }
     }
 
@@ -483,7 +503,7 @@ impl Val {
                 *f = f.ceil();
                 Ok(())
             }
-            _ => Err(ValError::InvalidOperationForType(self.clone())),
+            _ => Err(ValError::InvalidOperationForType("round up", self.clone())),
         }
     }
     pub fn round_down(&mut self) -> Result<(), ValError> {
@@ -492,7 +512,10 @@ impl Val {
                 *f = f.floor();
                 Ok(())
             }
-            _ => Err(ValError::InvalidOperationForType(self.clone())),
+            _ => Err(ValError::InvalidOperationForType(
+                "round down",
+                self.clone(),
+            )),
         }
     }
     pub fn round_nearest(&mut self) -> Result<(), ValError> {
@@ -501,7 +524,10 @@ impl Val {
                 *f = f.round();
                 Ok(())
             }
-            _ => Err(ValError::InvalidOperationForType(self.clone())),
+            _ => Err(ValError::InvalidOperationForType(
+                "round nearest",
+                self.clone(),
+            )),
         }
     }
 
@@ -532,7 +558,7 @@ impl Val {
                 *self = Array::new().into();
                 Ok(())
             }
-            _ => Err(ValError::InvalidOperationForType(self.clone())),
+            _ => Err(ValError::InvalidOperationForType("split", self.clone())),
         }
     }
 
@@ -571,7 +597,7 @@ impl Val {
                 *self = String::new().into();
                 Ok(())
             }
-            _ => Err(ValError::InvalidOperationForType(self.clone())),
+            _ => Err(ValError::InvalidOperationForType("join", self.clone())),
         }
     }
 
@@ -618,7 +644,7 @@ impl Val {
                 }
             }
 
-            _ => Err(ValError::InvalidOperationForType(self.clone())),
+            _ => Err(ValError::InvalidOperationForType("cast", self.clone())),
         }
     }
 }
