@@ -256,12 +256,24 @@ fn equals() {
     commutative_equals!(Val::Number(1.0), Val::Boolean(true));
     commutative_equals!(Val::Number(0.0), Val::Null);
     commutative_notequals!(Val::Number(1.0), Val::Null);
-    commutative_notequals!(Val::Number(0.0), Val::from(Array::new()));
+    commutative_equals!(Val::Number(0.0), Val::from(Array::new()));
+    commutative_equals!(
+        Val::Number(1.0),
+        Val::from(Array::with_arr([Val::Null].into_iter().collect()))
+    );
+    commutative_notequals!(Val::Number(1.0), Val::from(Array::new()));
 
     // boolean mixed equality
     commutative_equals!(Val::Boolean(false), Val::Null);
     commutative_notequals!(Val::Boolean(true), Val::Null);
     commutative_notequals!(Val::Boolean(false), Val::from(Array::new()));
+
+    // null mixed equality
+    commutative_equals!(Val::Null, Val::from(Array::new()));
+    commutative_notequals!(
+        Val::Null,
+        Val::from(Array::with_arr([Val::Null].into_iter().collect()))
+    );
 }
 
 #[test]
@@ -314,11 +326,21 @@ fn compare() {
     // number mixed cmp
     commutative_invalid!(Val::Number(10.0), Val::Boolean(false));
     commutative_less!(Val::Number(-1.0), Val::Null);
-    commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
+    commutative_less!(Val::Number(-1.0), Val::from(Array::new()));
+    commutative_less!(
+        Val::Number(0.0),
+        Val::from(Array::with_arr([Val::Null].into_iter().collect()))
+    );
 
-    // boolean mixed equality
+    // boolean mixed cmp
     commutative_invalid!(Val::Boolean(false), Val::Null);
     commutative_invalid!(Val::Boolean(false), Val::from(Array::new()));
+
+    // null mixed cmp
+    commutative_less!(
+        Val::Null,
+        Val::from(Array::with_arr([Val::Null].into_iter().collect()))
+    );
 }
 
 #[test]

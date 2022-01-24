@@ -313,7 +313,10 @@ impl Val {
         } else {
             match self {
                 Val::Undefined => Some((Cow::Borrowed(self), Cow::Borrowed(other))),
-                Val::Array(_) => Some((Cow::Borrowed(self), Cow::Borrowed(other))),
+                Val::Array(_) => match other {
+                    Val::Null => Some((self.decay(), Cow::Owned(Val::Number(0.0)))),
+                    _ => Some((self.decay(), Cow::Borrowed(other))),
+                },
 
                 Val::Null => other.cmp_coerced(self).map(|x| (x.1, x.0)),
 
