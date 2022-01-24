@@ -242,8 +242,10 @@ fn is_ignorable_punctuation(c: char) -> bool {
 }
 
 pub fn is_word(text: &str) -> bool {
-    text.chars()
-        .all(|c| !(c.is_whitespace() || is_ignorable_punctuation(c)))
+    !text.is_empty()
+        && text
+            .chars()
+            .all(|c| !(c.is_whitespace() || is_ignorable_punctuation(c)))
 }
 
 fn find_word_start<'a>(

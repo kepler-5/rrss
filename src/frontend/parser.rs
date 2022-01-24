@@ -529,7 +529,7 @@ impl<'a> Parser<'a> {
             .map(|tok| (tok.spelling, tok.range))
         {
             let (next_word, next_range) = self
-                .match_and_consume([TokenType::Word, TokenType::CapitalizedWord].as_ref()) // capitalized words are invalid, but we want to match them for good error messages
+                .match_and_consume(|tok: &Token| is_word(tok.spelling))
                 .map(|tok| (tok.spelling, tok.range))
                 .ok_or_else(|| {
                     self.new_parse_error(ParseErrorCode::MissingIDAfterCommonPrefix(prefix.into()))
@@ -552,7 +552,9 @@ impl<'a> Parser<'a> {
         let mut range = AccumulatedRange::new();
         let names = self
             .match_and_consume_while(
-                |tok: &Token| tok.id == TokenType::CapitalizedWord,
+                |tok: &Token| {
+                    is_word(tok.spelling) && tok.spelling.chars().next().unwrap().is_uppercase()
+                },
                 |tok, _| {
                     range.acc(tok.range.clone());
                     Ok(Some(tok.spelling.to_owned()))

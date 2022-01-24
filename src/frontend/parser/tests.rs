@@ -649,13 +649,11 @@ fn parse_identifier() {
         ))
     );
     assert_eq!(
-        // parse("Distance In KM"), // this example is from the official spec, but I think it's broken: 'in' is a language keyword
-        parse("Distance Out KM"),
+        parse("Distance In KM"),
         Ok(Some(
-            // ProperIdentifier(vec!["Distance".into(), "In".into(), "KM".into()]).into()
             WithRange(
-                ProperIdentifier(vec!["Distance".into(), "Out".into(), "KM".into()]),
-                line_range(0, 15)
+                ProperIdentifier(vec!["Distance".into(), "In".into(), "KM".into()]),
+                line_range(0, 14)
             )
             .into()
         ))
