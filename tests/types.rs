@@ -3,7 +3,7 @@ mod util;
 use util::*;
 
 #[test]
-fn complex_comments() {
+fn parsing() {
     assert_eq!(
         run(
             Code(
