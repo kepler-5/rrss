@@ -246,8 +246,8 @@ fn lex_words_and_newlines() {
     assert_eq!(
         lex("Hello World world"),
         [
-            Token::new(TokenType::CapitalizedWord, "Hello", line_range(0, 5)),
-            Token::new(TokenType::CapitalizedWord, "World", line_range(6, 11)),
+            Token::new(TokenType::Word, "Hello", line_range(0, 5)),
+            Token::new(TokenType::Word, "World", line_range(6, 11)),
             Token::new(TokenType::Word, "world", line_range(12, 17)),
         ]
     );

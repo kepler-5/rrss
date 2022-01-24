@@ -544,7 +544,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_simple_identifier(&mut self) -> Option<WithRange<SimpleIdentifier>> {
-        self.match_and_consume([TokenType::Word, TokenType::CapitalizedWord].as_ref())
+        self.match_and_consume(TokenType::Word)
             .map(|tok| WithRange(SimpleIdentifier(tok.spelling.into()), tok.range))
     }
 
@@ -621,10 +621,9 @@ impl<'a> Parser<'a> {
                 match current_token.id {
                     TokenType::Put => Some(self.parse_put_assignment().map(Into::into)),
                     TokenType::Let => Some(self.parse_let_assignment().map(Into::into)),
-                    TokenType::Word
-                    | TokenType::CapitalizedWord
-                    | TokenType::CommonVariablePrefix
-                    | TokenType::Pronoun => Some(self.parse_statement_starting_with_word()),
+                    TokenType::Word | TokenType::CommonVariablePrefix | TokenType::Pronoun => {
+                        Some(self.parse_statement_starting_with_word())
+                    }
 
                     TokenType::If => Some(self.parse_if_statement().map(Into::into)),
 

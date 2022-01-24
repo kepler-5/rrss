@@ -16,7 +16,6 @@ pub struct ErrorMessage(&'static str);
 #[derive(Clone, Copy, Debug, IsVariant, PartialEq)]
 pub enum TokenType<'a> {
     Word,
-    CapitalizedWord,
     StringLiteral(&'a str),
     Number(f64),
     Mysterious,
@@ -387,14 +386,7 @@ impl<'a> Lexer<'a> {
 
     fn find_word_type(&self, word: &'a str) -> TokenType<'a> {
         debug_assert!(!word.is_empty());
-        match_keyword(word).unwrap_or_else(|| {
-            word.chars()
-                .next()
-                .unwrap()
-                .is_uppercase()
-                .then(|| TokenType::CapitalizedWord)
-                .unwrap_or(TokenType::Word)
-        })
+        match_keyword(word).unwrap_or(TokenType::Word)
     }
 
     fn last_n(text: &str, n: usize) -> &str {
