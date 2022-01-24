@@ -180,10 +180,10 @@ impl<'a, I: Read, O: Write> VisitProgram for ExecStmt<'a, I, O> {
             AssignmentRHS::ExpressionList(e) => {
                 if let Some(op) = a.operator {
                     let lhs = self.producer().visit_assignment_lhs(&a.dest)?.0;
-                    let rhs = e
-                        .iter()
-                        .map(|e| self.producer().visit_expression(e).map(|p| p.0));
-                    binary_operator_fold(op, lhs, rhs)?
+                    let rhs = e.iter().map(|e| {
+                        |this: &mut Self| this.producer().visit_expression(e).map(|p| p.0)
+                    });
+                    binary_operator_fold(op, lhs, rhs, self)?
                 } else if e.has_multiple() {
                     return Err(ExecError::NonCompoundAssignmentExpressionListInvalid.into());
                 } else {

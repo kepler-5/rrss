@@ -79,8 +79,8 @@ where
         let lhs = self.visit_expression(&e.lhs)?.0;
         let rhs = once(&e.rhs.first)
             .chain(e.rhs.rest.iter())
-            .map(|e| self.visit_expression(e).map(|p| p.0));
-        binary_operator_fold(e.operator, lhs, rhs).map(ProduceValOutput)
+            .map(|e| |this: &mut Self| this.visit_expression(e).map(|p| p.0));
+        binary_operator_fold(e.operator, lhs, rhs, self).map(ProduceValOutput)
     }
 
     fn visit_unary_expression(&mut self, e: &UnaryExpression) -> visit::Result<Self> {
@@ -152,44 +152,54 @@ where
     }
 }
 
-pub fn binary_operator_fold(
+pub fn binary_operator_fold<This>(
     operator: BinaryOperator,
     lhs: Val,
-    mut rhs: impl Iterator<Item = Result<Val, RuntimeError>>,
+    mut rhs: impl Iterator<Item = impl FnMut(&mut This) -> Result<Val, RuntimeError>>,
+    this: &mut This,
 ) -> Result<Val, RuntimeError> {
-    let op = |a: Val, b: Result<Val, RuntimeError>| match operator {
-        BinaryOperator::Plus => Ok(a.plus(&b?)),
-        BinaryOperator::Minus => Ok(a.subtract(&b?)),
-        BinaryOperator::Multiply => Ok(a.multiply(&b?)),
-        BinaryOperator::Divide => Ok(a.divide(&b?)),
+    // this is written so weirdly to allow the logical operators to short-circuit,
+    // i.e. not evaluate 'b' unless 'a' necessitates it
+    fn op<This>(
+        operator: BinaryOperator,
+        a: Val,
+        mut b: impl FnMut(&mut This) -> Result<Val, RuntimeError>,
+        this: &mut This,
+    ) -> Result<Val, RuntimeError> {
+        match operator {
+            BinaryOperator::Plus => Ok(a.plus(&b(this)?)),
+            BinaryOperator::Minus => Ok(a.subtract(&b(this)?)),
+            BinaryOperator::Multiply => Ok(a.multiply(&b(this)?)),
+            BinaryOperator::Divide => Ok(a.divide(&b(this)?)),
 
-        BinaryOperator::And => Ok(Val::Boolean(a.is_truthy() && b?.is_truthy())),
-        BinaryOperator::Or => Ok(Val::Boolean(a.is_truthy() || b?.is_truthy())),
-        BinaryOperator::Nor => Ok(Val::Boolean(!a.is_truthy() && !b?.is_truthy())),
+            BinaryOperator::And => Ok(Val::Boolean(a.is_truthy() && b(this)?.is_truthy())),
+            BinaryOperator::Or => Ok(Val::Boolean(a.is_truthy() || b(this)?.is_truthy())),
+            BinaryOperator::Nor => Ok(Val::Boolean(!a.is_truthy() && !b(this)?.is_truthy())),
 
-        BinaryOperator::Eq => Ok(Val::Boolean(a.equals(&b?))),
-        BinaryOperator::NotEq => Ok(Val::Boolean(!a.equals(&b?))),
+            BinaryOperator::Eq => Ok(Val::Boolean(a.equals(&b(this)?))),
+            BinaryOperator::NotEq => Ok(Val::Boolean(!a.equals(&b(this)?))),
 
-        BinaryOperator::Greater => Ok(Val::Boolean(
-            a.compare(&b?)?
-                .map(|o| o == Ordering::Greater)
-                .unwrap_or(false),
-        )),
-        BinaryOperator::GreaterEq => Ok(Val::Boolean(
-            a.compare(&b?)?
-                .map(|o| o != Ordering::Less)
-                .unwrap_or(false),
-        )),
-        BinaryOperator::Less => Ok(Val::Boolean(
-            a.compare(&b?)?
-                .map(|o| o == Ordering::Less)
-                .unwrap_or(false),
-        )),
-        BinaryOperator::LessEq => Ok(Val::Boolean(
-            a.compare(&b?)?
-                .map(|o| o != Ordering::Greater)
-                .unwrap_or(false),
-        )),
-    };
-    rhs.try_fold(lhs, op)
+            BinaryOperator::Greater => Ok(Val::Boolean(
+                a.compare(&b(this)?)?
+                    .map(|o| o == Ordering::Greater)
+                    .unwrap_or(false),
+            )),
+            BinaryOperator::GreaterEq => Ok(Val::Boolean(
+                a.compare(&b(this)?)?
+                    .map(|o| o != Ordering::Less)
+                    .unwrap_or(false),
+            )),
+            BinaryOperator::Less => Ok(Val::Boolean(
+                a.compare(&b(this)?)?
+                    .map(|o| o == Ordering::Less)
+                    .unwrap_or(false),
+            )),
+            BinaryOperator::LessEq => Ok(Val::Boolean(
+                a.compare(&b(this)?)?
+                    .map(|o| o != Ordering::Greater)
+                    .unwrap_or(false),
+            )),
+        }
+    }
+    rhs.try_fold(lhs, |a, b| op(operator, a, b, this))
 }
