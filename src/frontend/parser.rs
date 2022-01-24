@@ -530,7 +530,7 @@ impl<'a> Parser<'a> {
                 })?;
             let identifier = next_word
                 .chars()
-                .all(|c| c.is_ascii_lowercase())
+                .all(|c| c.is_lowercase())
                 .then(|| next_word)
                 .ok_or_else(|| {
                     self.new_parse_error(ParseErrorCode::UppercaseAfterCommonPrefix(
@@ -625,9 +625,8 @@ impl<'a> Parser<'a> {
                     TokenType::Let => Some(self.parse_let_assignment().map(Into::into)),
                     TokenType::Word
                     | TokenType::CapitalizedWord
-                    | TokenType::CommonVariablePrefix => {
-                        Some(self.parse_statement_starting_with_word())
-                    }
+                    | TokenType::CommonVariablePrefix
+                    | TokenType::Pronoun => Some(self.parse_statement_starting_with_word()),
 
                     TokenType::If => Some(self.parse_if_statement().map(Into::into)),
 
@@ -882,9 +881,9 @@ impl<'a> Parser<'a> {
 
     fn parse_poetic_assignment(
         &mut self,
-        name: WithRange<VariableName>,
+        name: WithRange<Identifier>,
     ) -> Result<PoeticAssignment, ParseError<'a>> {
-        let dest = self.parse_assignment_lhs_with(name.into())?;
+        let dest = self.parse_assignment_lhs_with(name)?;
 
         match self.expect_any(&[
             TokenType::Is,
@@ -947,15 +946,29 @@ impl<'a> Parser<'a> {
         Ok(Function { name, data })
     }
 
+    fn as_variable_name(
+        &self,
+        ident: WithRange<Identifier>,
+    ) -> Result<WithRange<VariableName>, ParseError<'a>> {
+        match ident.0 {
+            Identifier::VariableName(v) => Ok(WithRange(v, ident.1)),
+            Identifier::Pronoun => Err(self.new_parse_error(ParseErrorCode::ExpectedIdentifier)),
+        }
+    }
+
     fn parse_statement_starting_with_word(&mut self) -> Result<Statement, ParseError<'a>> {
-        let name = self
-            .parse_variable_name()?
+        let ident = self
+            .parse_identifier()?
             .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedIdentifier))?;
         match self.current().map(|tok| tok.id) {
-            Some(TokenType::Takes) => self.parse_function(name).map(Into::into),
-            Some(TokenType::Taking) => self.parse_function_call(name).map(Into::into),
+            Some(TokenType::Takes) => self
+                .parse_function(self.as_variable_name(ident)?)
+                .map(Into::into),
+            Some(TokenType::Taking) => self
+                .parse_function_call(self.as_variable_name(ident)?)
+                .map(Into::into),
 
-            _ => self.parse_poetic_assignment(name).map(Into::into),
+            _ => self.parse_poetic_assignment(ident).map(Into::into),
         }
     }
 
