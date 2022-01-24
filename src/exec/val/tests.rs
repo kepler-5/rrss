@@ -372,22 +372,8 @@ fn inc_dec() {
 fn plus() {
     macro_rules! commutative_invalid {
         ($a:expr, $b:expr) => {
-            assert_eq!(
-                $a.plus(&$b),
-                Err(ValError::InvalidBinaryOperationForType(
-                    "add",
-                    $a.clone(),
-                    $b.clone()
-                ))
-            );
-            assert_eq!(
-                $b.plus(&$a),
-                Err(ValError::InvalidBinaryOperationForType(
-                    "add",
-                    $b.clone(),
-                    $a.clone()
-                ))
-            );
+            assert_eq!($a.plus(&$b), Val::Undefined);
+            assert_eq!($b.plus(&$a), Val::Undefined);
         };
     }
     commutative_invalid!(Val::Undefined, Val::Null);
@@ -396,55 +382,46 @@ fn plus() {
     commutative_invalid!(Val::Undefined, Val::from(Array::new()));
 
     commutative_invalid!(Val::Boolean(false), Val::Boolean(true));
-    assert_eq!(
-        Val::Number(1.0).plus(&Val::Number(10.0)),
-        Ok(Val::Number(11.0))
-    );
+    assert_eq!(Val::Number(1.0).plus(&Val::Number(10.0)), Val::Number(11.0));
     assert_eq!(
         Val::from("aardvark").plus(&Val::from("bar")),
-        Ok(Val::from("aardvarkbar"))
+        Val::from("aardvarkbar")
     );
     assert_eq!(
         Val::from("bar").plus(&Val::from("aardvark")),
-        Ok(Val::from("baraardvark"))
+        Val::from("baraardvark")
     );
     commutative_invalid!(Val::from(Array::new()), Val::from(Array::new()));
 
     // string mixed plus
-    assert_eq!(Val::from("0").plus(&Val::Number(1.0)), Ok(Val::from("01")));
-    assert_eq!(Val::Number(1.0).plus(&Val::from("0")), Ok(Val::from("10")));
+    assert_eq!(Val::from("0").plus(&Val::Number(1.0)), Val::from("01"));
+    assert_eq!(Val::Number(1.0).plus(&Val::from("0")), Val::from("10"));
     assert_eq!(
         Val::from("x").plus(&Val::Boolean(false)),
-        Ok(Val::from("xfalse"))
+        Val::from("xfalse")
     );
-    assert_eq!(
-        Val::from("x").plus(&Val::Boolean(true)),
-        Ok(Val::from("xtrue"))
-    );
+    assert_eq!(Val::from("x").plus(&Val::Boolean(true)), Val::from("xtrue"));
     assert_eq!(
         Val::Boolean(false).plus(&Val::from("x")),
-        Ok(Val::from("falsex"))
+        Val::from("falsex")
     );
-    assert_eq!(
-        Val::Boolean(true).plus(&Val::from("x")),
-        Ok(Val::from("truex"))
-    );
-    assert_eq!(Val::from("x").plus(&Val::Null), Ok(Val::from("xnull")));
-    assert_eq!(Val::Null.plus(&Val::from("x")), Ok(Val::from("nullx")));
+    assert_eq!(Val::Boolean(true).plus(&Val::from("x")), Val::from("truex"));
+    assert_eq!(Val::from("x").plus(&Val::Null), Val::from("xnull"));
+    assert_eq!(Val::Null.plus(&Val::from("x")), Val::from("nullx"));
     assert_eq!(
         Val::from("x").plus(&Val::Undefined),
-        Ok(Val::from("xmysterious"))
+        Val::from("xmysterious")
     );
     assert_eq!(
         Val::Undefined.plus(&Val::from("x")),
-        Ok(Val::from("mysteriousx"))
+        Val::from("mysteriousx")
     );
     commutative_invalid!(Val::from("x"), Val::from(Array::new()));
 
     // number mixed plus
     commutative_invalid!(Val::Number(10.0), Val::Boolean(false));
-    assert_eq!(Val::Number(-1.0).plus(&Val::Null), Ok(Val::Number(-1.0)));
-    assert_eq!(Val::Null.plus(&Val::Number(-1.0)), Ok(Val::Number(-1.0)));
+    assert_eq!(Val::Number(-1.0).plus(&Val::Null), Val::Number(-1.0));
+    assert_eq!(Val::Null.plus(&Val::Number(-1.0)), Val::Number(-1.0));
     commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
 
     // boolean mixed plus
@@ -456,22 +433,8 @@ fn plus() {
 fn multiply() {
     macro_rules! commutative_invalid {
         ($a:expr, $b:expr) => {
-            assert_eq!(
-                $a.multiply(&$b),
-                Err(ValError::InvalidBinaryOperationForType(
-                    "multiply",
-                    $a.clone(),
-                    $b.clone()
-                ))
-            );
-            assert_eq!(
-                $b.multiply(&$a),
-                Err(ValError::InvalidBinaryOperationForType(
-                    "multiply",
-                    $b.clone(),
-                    $a.clone()
-                ))
-            );
+            assert_eq!($a.multiply(&$b), Val::Undefined);
+            assert_eq!($b.multiply(&$a), Val::Undefined);
         };
     }
     commutative_invalid!(Val::Undefined, Val::Null);
@@ -483,24 +446,15 @@ fn multiply() {
     commutative_invalid!(Val::Boolean(false), Val::Boolean(true));
     assert_eq!(
         Val::Number(2.0).multiply(&Val::Number(10.0)),
-        Ok(Val::Number(20.0))
+        Val::Number(20.0)
     );
     commutative_invalid!(Val::from("aardvark"), Val::from("bar"));
     commutative_invalid!(Val::from(Array::new()), Val::from(Array::new()));
 
     // string mixed multiply
-    assert_eq!(
-        Val::from("0").multiply(&Val::Number(1.0)),
-        Ok(Val::from("0"))
-    );
-    assert_eq!(
-        Val::from("0").multiply(&Val::Number(3.0)),
-        Ok(Val::from("000"))
-    );
-    assert_eq!(
-        Val::from("0").multiply(&Val::Number(0.0)),
-        Ok(Val::from(""))
-    );
+    assert_eq!(Val::from("0").multiply(&Val::Number(1.0)), Val::from("0"));
+    assert_eq!(Val::from("0").multiply(&Val::Number(3.0)), Val::from("000"));
+    assert_eq!(Val::from("0").multiply(&Val::Number(0.0)), Val::from(""));
     commutative_invalid!(Val::from("0"), &Val::Number(-1.0));
     commutative_invalid!(Val::from("x"), Val::Boolean(false));
     commutative_invalid!(Val::from("x"), Val::Null);
@@ -508,8 +462,8 @@ fn multiply() {
 
     // number mixed multiply
     commutative_invalid!(Val::Number(10.0), Val::Boolean(false));
-    assert_eq!(Val::Number(-1.0).multiply(&Val::Null), Ok(Val::Number(0.0)));
-    assert_eq!(Val::Null.multiply(&Val::Number(-1.0)), Ok(Val::Number(0.0)));
+    assert_eq!(Val::Number(-1.0).multiply(&Val::Null), Val::Number(0.0));
+    assert_eq!(Val::Null.multiply(&Val::Number(-1.0)), Val::Number(0.0));
     commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
 
     // boolean mixed multiply
@@ -521,22 +475,8 @@ fn multiply() {
 fn subtract() {
     macro_rules! commutative_invalid {
         ($a:expr, $b:expr) => {
-            assert_eq!(
-                $a.subtract(&$b),
-                Err(ValError::InvalidBinaryOperationForType(
-                    "subtract",
-                    $a.clone(),
-                    $b.clone()
-                ))
-            );
-            assert_eq!(
-                $b.subtract(&$a),
-                Err(ValError::InvalidBinaryOperationForType(
-                    "subtract",
-                    $b.clone(),
-                    $a.clone()
-                ))
-            );
+            assert_eq!($a.subtract(&$b), Val::Undefined);
+            assert_eq!($b.subtract(&$a), Val::Undefined);
         };
     }
     commutative_invalid!(Val::Undefined, Val::Null);
@@ -548,7 +488,7 @@ fn subtract() {
     commutative_invalid!(Val::Boolean(false), Val::Boolean(true));
     assert_eq!(
         Val::Number(2.0).subtract(&Val::Number(10.0)),
-        Ok(Val::Number(-8.0))
+        Val::Number(-8.0)
     );
     commutative_invalid!(Val::from("aardvark"), Val::from("bar"));
     commutative_invalid!(Val::from(Array::new()), Val::from(Array::new()));
@@ -562,11 +502,8 @@ fn subtract() {
 
     // number mixed subtract
     commutative_invalid!(Val::Number(10.0), Val::Boolean(false));
-    assert_eq!(
-        Val::Number(-1.0).subtract(&Val::Null),
-        Ok(Val::Number(-1.0))
-    );
-    assert_eq!(Val::Null.subtract(&Val::Number(-1.0)), Ok(Val::Number(1.0)));
+    assert_eq!(Val::Number(-1.0).subtract(&Val::Null), Val::Number(-1.0));
+    assert_eq!(Val::Null.subtract(&Val::Number(-1.0)), Val::Number(1.0));
     commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
 
     // boolean mixed subtract
@@ -578,22 +515,8 @@ fn subtract() {
 fn divide() {
     macro_rules! commutative_invalid {
         ($a:expr, $b:expr) => {
-            assert_eq!(
-                $a.divide(&$b),
-                Err(ValError::InvalidBinaryOperationForType(
-                    "divide",
-                    $a.clone(),
-                    $b.clone()
-                ))
-            );
-            assert_eq!(
-                $b.divide(&$a),
-                Err(ValError::InvalidBinaryOperationForType(
-                    "divide",
-                    $b.clone(),
-                    $a.clone()
-                ))
-            );
+            assert_eq!($a.divide(&$b), Val::Undefined);
+            assert_eq!($b.divide(&$a), Val::Undefined);
         };
     }
     commutative_invalid!(Val::Undefined, Val::Null);
@@ -605,7 +528,7 @@ fn divide() {
     commutative_invalid!(Val::Boolean(false), Val::Boolean(true));
     assert_eq!(
         Val::Number(2.0).divide(&Val::Number(10.0)),
-        Ok(Val::Number(0.2))
+        Val::Number(0.2)
     );
     commutative_invalid!(Val::from("aardvark"), Val::from("bar"));
     commutative_invalid!(Val::from(Array::new()), Val::from(Array::new()));
@@ -621,9 +544,9 @@ fn divide() {
     commutative_invalid!(Val::Number(10.0), Val::Boolean(false));
     assert_eq!(
         Val::Number(-1.0).divide(&Val::Null),
-        Ok(Val::Number(f64::NEG_INFINITY))
+        Val::Number(f64::NEG_INFINITY)
     );
-    assert_eq!(Val::Null.divide(&Val::Number(-1.0)), Ok(Val::Number(0.0)));
+    assert_eq!(Val::Null.divide(&Val::Number(-1.0)), Val::Number(0.0));
     commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
 
     // boolean mixed divide

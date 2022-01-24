@@ -158,10 +158,10 @@ pub fn binary_operator_fold(
     mut rhs: impl Iterator<Item = Result<Val, RuntimeError>>,
 ) -> Result<Val, RuntimeError> {
     let op = |a: Val, b: Result<Val, RuntimeError>| match operator {
-        BinaryOperator::Plus => Ok(a.plus(&b?)?),
-        BinaryOperator::Minus => Ok(a.subtract(&b?)?),
-        BinaryOperator::Multiply => Ok(a.multiply(&b?)?),
-        BinaryOperator::Divide => Ok(a.divide(&b?)?),
+        BinaryOperator::Plus => Ok(a.plus(&b?)),
+        BinaryOperator::Minus => Ok(a.subtract(&b?)),
+        BinaryOperator::Multiply => Ok(a.multiply(&b?)),
+        BinaryOperator::Divide => Ok(a.divide(&b?)),
 
         BinaryOperator::And => Ok(Val::Boolean(a.is_truthy() && b?.is_truthy())),
         BinaryOperator::Or => Ok(Val::Boolean(a.is_truthy() || b?.is_truthy())),

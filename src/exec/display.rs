@@ -52,9 +52,6 @@ impl std::fmt::Display for ValError {
             ValError::InvalidKey(v) => write!(f, "invalid key {}", v),
             ValError::IndexNotAssignable(k, v) => write!(f, "index {} not assignable for {}", k, v),
             ValError::InvalidOperationForType(op, v) => write!(f, "cannot {} value {}", op, v),
-            ValError::InvalidBinaryOperationForType(op, a, b) => {
-                write!(f, "cannot {} values {} and {}", op, a, b)
-            }
             ValError::InvalidComparison(a, b) => {
                 write!(f, "invalid comparison between {} and {}", a, b)
             }

@@ -24,7 +24,6 @@ pub enum ValError {
     InvalidKey(Val),
     IndexNotAssignable(Val, Val),
     InvalidOperationForType(&'static str, Val),
-    InvalidBinaryOperationForType(&'static str, Val, Val),
     InvalidComparison(Val, Val),
     InvalidSplitDelimiter(Val),
     InvalidJoinDelimiter(Val),
@@ -434,19 +433,15 @@ impl Val {
         }
     }
 
-    pub fn plus(&self, other: &Val) -> Result<Val, ValError> {
+    pub fn plus(&self, other: &Val) -> Val {
         let (a, b) = self.plus_coerced(other);
         match (a.as_ref(), b.as_ref()) {
             (Val::String(a), Val::String(b)) => {
-                Ok(Val::from(a.chars().chain(b.chars()).collect::<String>()))
+                Val::from(a.chars().chain(b.chars()).collect::<String>())
             }
-            (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a + b)),
+            (Val::Number(a), Val::Number(b)) => Val::Number(a + b),
 
-            _ => Err(ValError::InvalidBinaryOperationForType(
-                "add",
-                self.clone(),
-                other.clone(),
-            )),
+            _ => Val::Undefined,
         }
     }
 
@@ -459,44 +454,32 @@ impl Val {
         }
     }
 
-    pub fn multiply(&self, other: &Val) -> Result<Val, ValError> {
+    pub fn multiply(&self, other: &Val) -> Val {
         let (a, b) = self.arith_coerced(other);
         match (a.as_ref(), b.as_ref()) {
-            (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a * b)),
-            (Val::String(a), Val::Number(b)) if *b >= 0.0 => Ok(Val::from(
+            (Val::Number(a), Val::Number(b)) => Val::Number(a * b),
+            (Val::String(a), Val::Number(b)) if *b >= 0.0 => Val::from(
                 repeat_n(a.chars(), *b as usize)
                     .flatten()
                     .collect::<String>(),
-            )),
+            ),
 
-            _ => Err(ValError::InvalidBinaryOperationForType(
-                "multiply",
-                self.clone(),
-                other.clone(),
-            )),
+            _ => Val::Undefined,
         }
     }
 
-    pub fn subtract(&self, other: &Val) -> Result<Val, ValError> {
+    pub fn subtract(&self, other: &Val) -> Val {
         let (a, b) = self.arith_coerced(other);
         match (a.as_ref(), b.as_ref()) {
-            (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a - b)),
-            _ => Err(ValError::InvalidBinaryOperationForType(
-                "subtract",
-                self.clone(),
-                other.clone(),
-            )),
+            (Val::Number(a), Val::Number(b)) => Val::Number(a - b),
+            _ => Val::Undefined,
         }
     }
-    pub fn divide(&self, other: &Val) -> Result<Val, ValError> {
+    pub fn divide(&self, other: &Val) -> Val {
         let (a, b) = self.arith_coerced(other);
         match (a.as_ref(), b.as_ref()) {
-            (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a / b)),
-            _ => Err(ValError::InvalidBinaryOperationForType(
-                "divide",
-                self.clone(),
-                other.clone(),
-            )),
+            (Val::Number(a), Val::Number(b)) => Val::Number(a / b),
+            _ => Val::Undefined,
         }
     }
 
