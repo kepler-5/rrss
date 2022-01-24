@@ -409,9 +409,13 @@ impl<'a> Lexer<'a> {
     fn tokenize_word(&mut self, word: &'a str, end: usize) -> LexResult<'a> {
         let (stripped, staged_type) = word
             .strip_suffix("'s")
+            .or_else(|| word.strip_suffix("'S"))
             .map(|stripped| (stripped, Some((TokenType::ApostropheS, 2))))
             .or_else(|| {
                 word.strip_suffix("'re")
+                    .or_else(|| word.strip_suffix("'RE"))
+                    .or_else(|| word.strip_suffix("'Re"))
+                    .or_else(|| word.strip_suffix("'rE"))
                     .map(|stripped| (stripped, Some((TokenType::ApostropheRE, 3))))
             })
             .unwrap_or_else(|| (word.trim_end_matches('\''), None));
