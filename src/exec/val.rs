@@ -427,6 +427,9 @@ impl Val {
                 (s, o)
             }
 
+            (Val::Null, Val::Number(_)) => (Cow::Owned(Val::Number(0.0)), Cow::Borrowed(other)),
+            (Val::Number(_), Val::Null) => (Cow::Borrowed(self), Cow::Owned(Val::Number(0.0))),
+
             _ => (Cow::Borrowed(self), Cow::Borrowed(other)),
         }
     }
@@ -447,8 +450,18 @@ impl Val {
         }
     }
 
-    pub fn multiply(&self, other: &Val) -> Result<Val, ValError> {
+    fn arith_coerced<'a>(&'a self, other: &'a Val) -> (Cow<'a, Val>, Cow<'a, Val>) {
         match (self, other) {
+            (Val::Null, Val::Number(_)) => (Cow::Owned(Val::Number(0.0)), Cow::Borrowed(other)),
+            (Val::Number(_), Val::Null) => (Cow::Borrowed(self), Cow::Owned(Val::Number(0.0))),
+
+            _ => (Cow::Borrowed(self), Cow::Borrowed(other)),
+        }
+    }
+
+    pub fn multiply(&self, other: &Val) -> Result<Val, ValError> {
+        let (a, b) = self.arith_coerced(other);
+        match (a.as_ref(), b.as_ref()) {
             (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a * b)),
             (Val::String(a), Val::Number(b)) if *b >= 0.0 => Ok(Val::from(
                 repeat_n(a.chars(), *b as usize)
@@ -465,7 +478,8 @@ impl Val {
     }
 
     pub fn subtract(&self, other: &Val) -> Result<Val, ValError> {
-        match (self, other) {
+        let (a, b) = self.arith_coerced(other);
+        match (a.as_ref(), b.as_ref()) {
             (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a - b)),
             _ => Err(ValError::InvalidBinaryOperationForType(
                 "subtract",
@@ -475,7 +489,8 @@ impl Val {
         }
     }
     pub fn divide(&self, other: &Val) -> Result<Val, ValError> {
-        match (self, other) {
+        let (a, b) = self.arith_coerced(other);
+        match (a.as_ref(), b.as_ref()) {
             (Val::Number(a), Val::Number(b)) => Ok(Val::Number(a / b)),
             _ => Err(ValError::InvalidBinaryOperationForType(
                 "divide",

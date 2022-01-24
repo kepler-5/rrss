@@ -443,7 +443,8 @@ fn plus() {
 
     // number mixed plus
     commutative_invalid!(Val::Number(10.0), Val::Boolean(false));
-    commutative_invalid!(Val::Number(-1.0), Val::Null);
+    assert_eq!(Val::Number(-1.0).plus(&Val::Null), Ok(Val::Number(-1.0)));
+    assert_eq!(Val::Null.plus(&Val::Number(-1.0)), Ok(Val::Number(-1.0)));
     commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
 
     // boolean mixed plus
@@ -507,7 +508,8 @@ fn multiply() {
 
     // number mixed multiply
     commutative_invalid!(Val::Number(10.0), Val::Boolean(false));
-    commutative_invalid!(Val::Number(-1.0), Val::Null);
+    assert_eq!(Val::Number(-1.0).multiply(&Val::Null), Ok(Val::Number(0.0)));
+    assert_eq!(Val::Null.multiply(&Val::Number(-1.0)), Ok(Val::Number(0.0)));
     commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
 
     // boolean mixed multiply
@@ -560,7 +562,11 @@ fn subtract() {
 
     // number mixed subtract
     commutative_invalid!(Val::Number(10.0), Val::Boolean(false));
-    commutative_invalid!(Val::Number(-1.0), Val::Null);
+    assert_eq!(
+        Val::Number(-1.0).subtract(&Val::Null),
+        Ok(Val::Number(-1.0))
+    );
+    assert_eq!(Val::Null.subtract(&Val::Number(-1.0)), Ok(Val::Number(1.0)));
     commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
 
     // boolean mixed subtract
@@ -613,7 +619,11 @@ fn divide() {
 
     // number mixed divide
     commutative_invalid!(Val::Number(10.0), Val::Boolean(false));
-    commutative_invalid!(Val::Number(-1.0), Val::Null);
+    assert_eq!(
+        Val::Number(-1.0).divide(&Val::Null),
+        Ok(Val::Number(f64::NEG_INFINITY))
+    );
+    assert_eq!(Val::Null.divide(&Val::Number(-1.0)), Ok(Val::Number(0.0)));
     commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
 
     // boolean mixed divide
