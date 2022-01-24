@@ -67,7 +67,6 @@ impl AccumulatedRange {
 pub enum ParseErrorCode<'a> {
     Generic(String),
     MissingIDAfterCommonPrefix(String),
-    UppercaseAfterCommonPrefix(String, String),
     MutationOperandMustBeIdentifier(PrimaryExpression),
     ExpectedPrimaryExpression,
     ExpectedIdentifier,
@@ -535,18 +534,8 @@ impl<'a> Parser<'a> {
                 .ok_or_else(|| {
                     self.new_parse_error(ParseErrorCode::MissingIDAfterCommonPrefix(prefix.into()))
                 })?;
-            let identifier = next_word
-                .chars()
-                .all(|c| c.is_lowercase())
-                .then(|| next_word)
-                .ok_or_else(|| {
-                    self.new_parse_error(ParseErrorCode::UppercaseAfterCommonPrefix(
-                        prefix.into(),
-                        next_word.into(),
-                    ))
-                })?;
             Ok(Some(WithRange(
-                CommonIdentifier(prefix.into(), identifier.into()),
+                CommonIdentifier(prefix.into(), next_word.into()),
                 prefix_range.concat(next_range),
             )))
         } else {

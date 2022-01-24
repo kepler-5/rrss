@@ -75,12 +75,13 @@ impl Display for ParseError<'_> {
 
         let tok = match &self.loc {
             ParseErrorLocation::Token(tok) => Some(tok),
-            _ => None
+            _ => None,
         };
 
         macro_rules! if_token {
             ($fmt:literal) => {
-                tok.as_ref().map_or_else(String::new, |tok| format!($fmt, tok))
+                tok.as_ref()
+                    .map_or_else(String::new, |tok| format!($fmt, tok))
             };
         }
         macro_rules! found_suffix {
@@ -98,14 +99,9 @@ impl Display for ParseError<'_> {
                 prefix,
                 found_suffix!()
             ),
-            ParseErrorCode::UppercaseAfterCommonPrefix(prefix, next) => write!(
-                f,
-                "Unexpected uppercase after common variable prefix; `{} {}` is an invalid common variable name",
-                prefix, next
-            ),
             ParseErrorCode::MutationOperandMustBeIdentifier(e) => write!(
-                f, 
-                "Mutation operand with no `into` destination must be identifier; found {}", 
+                f,
+                "Mutation operand with no `into` destination must be identifier; found {}",
                 expected_id_description(e)
             ),
             ParseErrorCode::ExpectedPrimaryExpression => {
@@ -123,7 +119,9 @@ impl Display for ParseError<'_> {
             ParseErrorCode::ExpectedOneOfTokens(tokens) => {
                 f.write_str("Expected ")?;
                 let result = write_list(f, tokens.iter());
-                tok.as_ref().map(|tok| write!(f, ", found `{}`", tok)).unwrap_or(result)
+                tok.as_ref()
+                    .map(|tok| write!(f, ", found `{}`", tok))
+                    .unwrap_or(result)
             }
             ParseErrorCode::ExpectedPoeticNumberLiteral => {
                 write!(f, "Expected poetic number literal{}", found_suffix!())
@@ -138,8 +136,12 @@ impl Display for ParseError<'_> {
                 write!(f, "Unexpected token `{}`", tok.as_ref().unwrap())
             }
             ParseErrorCode::UnexpectedEndOfTokens => f.write_str("Unexpected end of tokens"),
-            ParseErrorCode::PoeticLiteralEndingWithHyphen => f.write_str("Poetic literal ending with hyphen"),
-            ParseErrorCode::PoeticLiteralStartingWithHyphen => f.write_str("Poetic literal starting with hyphen"),
+            ParseErrorCode::PoeticLiteralEndingWithHyphen => {
+                f.write_str("Poetic literal ending with hyphen")
+            }
+            ParseErrorCode::PoeticLiteralStartingWithHyphen => {
+                f.write_str("Poetic literal starting with hyphen")
+            }
         }
     }
 }

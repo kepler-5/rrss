@@ -617,6 +617,26 @@ fn parse_identifier() {
             .into()
         ))
     );
+    assert_eq!(
+        parse("your Heart"),
+        Ok(Some(
+            WithRange(
+                CommonIdentifier("your".into(), "Heart".into()),
+                line_range(0, 10)
+            )
+            .into()
+        ))
+    );
+    assert_eq!(
+        parse("Your Heart"),
+        Ok(Some(
+            WithRange(
+                CommonIdentifier("Your".into(), "Heart".into()),
+                line_range(0, 10)
+            )
+            .into()
+        ))
+    );
 
     assert_eq!(
         parse("Billie Jean"),
@@ -693,42 +713,6 @@ fn parse_identifier_errors() {
         parse("your"),
         Err(ParseError::new(
             ParseErrorCode::MissingIDAfterCommonPrefix("your".into()),
-            1.into()
-        ))
-    );
-
-    assert_eq!(
-        parse("my Heart"),
-        Err(ParseError::new(
-            ParseErrorCode::UppercaseAfterCommonPrefix("my".into(), "Heart".into()).into(),
-            1.into()
-        ))
-    );
-    assert_eq!(
-        parse("your Heart"),
-        Err(ParseError::new(
-            ParseErrorCode::UppercaseAfterCommonPrefix("your".into(), "Heart".into()).into(),
-            1.into()
-        ))
-    );
-    assert_eq!(
-        parse("My Heart"),
-        Err(ParseError::new(
-            ParseErrorCode::UppercaseAfterCommonPrefix("My".into(), "Heart".into()).into(),
-            1.into()
-        ))
-    );
-    assert_eq!(
-        parse("Your Heart"),
-        Err(ParseError::new(
-            ParseErrorCode::UppercaseAfterCommonPrefix("Your".into(), "Heart".into()).into(),
-            1.into()
-        ))
-    );
-    assert_eq!(
-        parse("your heArt"),
-        Err(ParseError::new(
-            ParseErrorCode::UppercaseAfterCommonPrefix("your".into(), "heArt".into()).into(),
             1.into()
         ))
     );
@@ -3203,12 +3187,6 @@ fn parse_error_to_string() {
         ParseErrorCode::MissingIDAfterCommonPrefix("my".into()),
         "Parse error (line 1): Missing identifier after `my`",
         "Parse error (line 1): Missing identifier after `my`, found `bloop`"
-    );
-
-    check!(
-        ParseErrorCode::UppercaseAfterCommonPrefix("my".into(), "heArt".into()),
-        "Parse error (line 1): Unexpected uppercase after common variable prefix; `my heArt` is an invalid common variable name",
-        "Parse error (line 1): Unexpected uppercase after common variable prefix; `my heArt` is an invalid common variable name"
     );
 
     check!(
