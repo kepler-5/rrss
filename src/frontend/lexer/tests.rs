@@ -267,6 +267,29 @@ fn lex_words_and_newlines() {
             Token::new(TokenType::Newline, "\n", range_on_line(3, (2, 3))),
         ]
     );
+
+    // ranges are 'off' since they're byte offsets, not char offsets
+    assert_eq!(
+        lex("ümlaüts"),
+        [Token::new(TokenType::Word, "ümlaüts", line_range(0, 9))]
+    );
+    assert_eq!(
+        lex("Shout the mētäl"),
+        [
+            Token::new(TokenType::SayAlias, "Shout", line_range(0, 5)),
+            Token::new(TokenType::CommonVariablePrefix, "the", line_range(6, 9)),
+            Token::new(TokenType::Word, "mētäl", line_range(10, 17))
+        ]
+    );
+    assert_eq!(
+        lex("The mētäl is true"),
+        [
+            Token::new(TokenType::CommonVariablePrefix, "The", line_range(0, 3)),
+            Token::new(TokenType::Word, "mētäl", line_range(4, 11)),
+            Token::new(TokenType::Is, "is", line_range(12, 14)),
+            Token::new(TokenType::True, "true", line_range(15, 19))
+        ]
+    );
 }
 
 #[test]

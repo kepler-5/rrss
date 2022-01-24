@@ -3125,6 +3125,8 @@ say X
             ]),]
         })
     );
+
+    assert!(parse("The mētäl is true").is_ok());
 }
 
 #[test]

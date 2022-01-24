@@ -1,6 +1,7 @@
 use std::{collections::HashMap, iter::repeat, slice::SliceIndex, str::CharIndices};
 
 use derive_more::{Constructor, IsVariant};
+use itertools::Itertools;
 use lazy_static::lazy_static;
 
 use crate::frontend::source_range::SourceLocation;
@@ -364,6 +365,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn make_range(&self, start: usize, end: usize) -> SourceRange {
+        debug_assert!(self.buf.get(start..end).is_some());
         self.make_loc(start).to(self.make_loc(end))
     }
 
@@ -389,18 +391,12 @@ impl<'a> Lexer<'a> {
         match_keyword(word).unwrap_or(TokenType::Word)
     }
 
-    fn last_n(text: &str, n: usize) -> &str {
-        debug_assert!(text.len() >= n);
-        &text[(text.len() - n)..]
+    fn make_token_from(&self, start: usize, len: usize, id: TokenType<'a>) -> Token<'a> {
+        let end = start + len;
+        Token::new(id, self.substr(start..end), self.make_range(start, end))
     }
 
-    fn make_token_from(&self, text: &'a str, id: TokenType<'a>) -> Token<'a> {
-        let start = self.get_index_of(text.as_ptr());
-        let end = self.get_index_of(unsafe { text.as_ptr().offset(text.len() as isize) });
-        Token::new(id, text, self.make_range(start.unwrap(), end.unwrap()))
-    }
-
-    fn tokenize_word(&mut self, word: &'a str, end: usize) -> LexResult<'a> {
+    fn tokenize_word(&mut self, start: usize, word: &'a str, end: usize) -> LexResult<'a> {
         let (stripped, staged_type) = word
             .strip_suffix("'s")
             .or_else(|| word.strip_suffix("'S"))
@@ -413,9 +409,8 @@ impl<'a> Lexer<'a> {
                     .map(|stripped| (stripped, Some((TokenType::ApostropheRE, 3))))
             })
             .unwrap_or_else(|| (word.trim_end_matches('\''), None));
-        self.staged =
-            staged_type.map(|(id, len)| self.make_token_from(Self::last_n(word, len), id));
-        let token = self.make_token_from(stripped, self.find_word_type(stripped));
+        self.staged = staged_type.map(|(id, len)| self.make_token_from(end - len, len, id));
+        let token = self.make_token_from(start, stripped.len(), self.find_word_type(stripped));
         LexResult {
             token,
             end,
@@ -429,10 +424,11 @@ impl<'a> Lexer<'a> {
         let text = self.substr(start..end);
         Some(text)
             .filter(|s| s.chars().all(|c| c.is_alphabetic() || c == '\''))
-            .map(|word| self.tokenize_word(word, end))
+            .map(|word| self.tokenize_word(start, word, end))
             .unwrap_or_else(|| LexResult {
                 token: self.make_token_from(
-                    text,
+                    start,
+                    end,
                     TokenType::Error(ErrorMessage(
                         "Identifier may not contain non-alphabetic characters",
                     )),
@@ -533,10 +529,10 @@ impl<'a> Lexer<'a> {
         token_type: TokenType<'a>,
     ) -> Option<LexResult<'a>> {
         debug_assert!(!text.contains('\n'));
+        debug_assert!(text.is_ascii());
         let buf_text = self.substr(start..);
         buf_text.strip_prefix(text).map(|_| LexResult {
-            token: self
-                .make_token_from(unsafe { buf_text.get_unchecked(..text.len()) }, token_type),
+            token: self.make_token_from(start, text.len(), token_type),
             end: start + text.len(),
             newlines: 0,
             new_line_start: None,
@@ -555,18 +551,18 @@ impl<'a> Lexer<'a> {
     fn make_error_token(&self, start: usize, error: ErrorMessage) -> LexResult<'a> {
         let end = self.find_next_word_end();
         LexResult {
-            token: self.make_token_from(self.substr(start..end), TokenType::Error(error)),
+            token: self.make_token_from(start, end - start, TokenType::Error(error)),
             end,
             newlines: 0,
             new_line_start: None,
         }
     }
 
-    fn advance_to(&mut self, idx: usize, start: usize) {
-        assert!(idx > start);
-        for _ in 0..(idx - start - 1) {
-            self.char_indices.next();
-        }
+    fn advance_to(&mut self, idx: usize) {
+        debug_assert!(self.buf.is_char_boundary(idx));
+        self.char_indices
+            .take_while_ref(|&(i, _)| i != idx)
+            .for_each(drop);
     }
 
     fn next_char(&self) -> Option<char> {
@@ -574,7 +570,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn char_token(&self, token_type: TokenType<'a>, start: usize) -> LexResult<'a> {
-        let token = self.make_token_from(self.substr(start..(start + 1)), token_type);
+        let token = self.make_token_from(start, 1, token_type);
         let end = start + 1;
         match token_type {
             TokenType::Newline => LexResult {
@@ -593,7 +589,7 @@ impl<'a> Lexer<'a> {
     }
     fn two_char_token(&self, token_type: TokenType<'a>, start: usize) -> LexResult<'a> {
         LexResult {
-            token: self.make_token_from(self.substr(start..(start + 2)), token_type),
+            token: self.make_token_from(start, 2, token_type),
             end: start + 2,
             newlines: 0,
             new_line_start: None,
@@ -666,7 +662,7 @@ impl<'a> Lexer<'a> {
                         }
                     }
                 };
-                self.advance_to(end, start);
+                self.advance_to(end);
                 self.line += newlines;
                 if let Some(new) = new_line_start {
                     self.line_start = new;
