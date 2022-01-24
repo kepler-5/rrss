@@ -453,9 +453,16 @@ impl<'a> Parser<'a> {
     fn parse_non_subscript_primary_expression(
         &mut self,
     ) -> Result<PrimaryExpression, ParseError<'a>> {
-        self.parse_identifier_or_function_call()?
+        if let Some(e) = self
+            .parse_identifier_or_function_call()?
             .or_else(|| self.parse_literal_expression().map(Into::into))
-            .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedPrimaryExpression))
+        {
+            Ok(e)
+        } else {
+            self.parse_array_pop_expr()?
+                .map(|a| PrimaryExpression::from(boxed_expr(a)))
+                .ok_or_else(|| self.new_parse_error(ParseErrorCode::ExpectedPrimaryExpression))
+        }
     }
 
     fn parse_primary_expression(&mut self) -> Result<PrimaryExpression, ParseError<'a>> {
@@ -750,11 +757,7 @@ impl<'a> Parser<'a> {
 
     fn parse_put_assignment(&mut self) -> Result<Assignment, ParseError<'a>> {
         self.consume(TokenType::Put);
-        let value = if let Some(pop) = self.parse_array_pop_expr()? {
-            pop.into()
-        } else {
-            self.parse_expression()?.into()
-        };
+        let value = self.parse_expression()?.into();
         self.expect_token(TokenType::Into)?;
         let dest = self.parse_assignment_lhs()?;
         Ok(Assignment {
@@ -779,11 +782,7 @@ impl<'a> Parser<'a> {
                 .as_ref(),
             )
             .map(|tok| get_binary_operator(tok.id).unwrap());
-        let value = if let Some(pop) = self.parse_array_pop_expr()? {
-            pop.into()
-        } else {
-            self.parse_toplevel_expression_list()?.into()
-        };
+        let value = self.parse_toplevel_expression_list()?.into();
         Ok(Assignment {
             dest,
             value,

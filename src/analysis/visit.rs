@@ -44,7 +44,6 @@ pub trait VisitExpr: Visit {
     fn visit_assignment_rhs(&mut self, a: &AssignmentRHS) -> Result<Self> {
         match a {
             AssignmentRHS::ExpressionList(e) => self.visit_expression_list(e),
-            AssignmentRHS::ArrayPop(a) => self.visit_array_pop_expr(a),
         }
     }
     fn visit_poetic_number_assignment_rhs(
@@ -106,6 +105,7 @@ pub trait VisitExpr: Visit {
             PrimaryExpression::Identifier(i) => self.visit_identifier(i),
             PrimaryExpression::ArraySubscript(a) => self.visit_array_subscript(a),
             PrimaryExpression::FunctionCall(f) => self.visit_function_call(f),
+            PrimaryExpression::ArrayPop(a) => self.visit_array_pop_expr(a),
         }
     }
     fn visit_binary_expression(&mut self, e: &BinaryExpression) -> Result<Self> {

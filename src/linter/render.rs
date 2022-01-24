@@ -63,6 +63,7 @@ impl Render for PrimaryExpression {
             PrimaryExpression::Literal(_) => "<literal>".into(),
             PrimaryExpression::ArraySubscript(_) => "<expression>".into(),
             PrimaryExpression::FunctionCall(_) => "<expression>".into(),
+            PrimaryExpression::ArrayPop(_) => "<expression>".into(),
         }
     }
 }

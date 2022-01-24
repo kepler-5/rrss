@@ -190,7 +190,6 @@ impl<'a, I: Read, O: Write> VisitProgram for ExecStmt<'a, I, O> {
                     self.producer().visit_expression(&e.first)?.0
                 }
             }
-            AssignmentRHS::ArrayPop(a) => self.producer().visit_array_pop_expr(&a)?.0,
         };
         self.writer(new_val)
             .visit_assignment_lhs(&a.dest)

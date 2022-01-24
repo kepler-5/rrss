@@ -143,6 +143,7 @@ pub enum PrimaryExpression {
     Identifier(WithRange<Identifier>),
     ArraySubscript(ArraySubscript),
     FunctionCall(FunctionCall),
+    ArrayPop(Box<ArrayPopExpr>),
 }
 
 impl<T: Into<Identifier>> From<WithRange<T>> for PrimaryExpression {
@@ -244,17 +245,15 @@ pub struct ArrayPopExpr {
     pub array: PrimaryExpression,
 }
 
-impl<P: Into<PrimaryExpression>> From<P> for ArrayPopExpr {
-    fn from(p: P) -> Self {
-        Self { array: p.into() }
+impl<E: Into<PrimaryExpression>> From<E> for ArrayPopExpr {
+    fn from(e: E) -> Self {
+        ArrayPopExpr { array: e.into() }
     }
 }
 
-#[derive(Clone, Debug, From, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum AssignmentRHS {
-    #[from(ignore)]
     ExpressionList(ExpressionList),
-    ArrayPop(ArrayPopExpr),
 }
 
 bridging_from!(for AssignmentRHS: ExpressionList);
@@ -607,6 +606,7 @@ impl Range for PrimaryExpression {
             PrimaryExpression::Identifier(x) => x.range(),
             PrimaryExpression::ArraySubscript(x) => x.range(),
             PrimaryExpression::FunctionCall(x) => x.range(),
+            PrimaryExpression::ArrayPop(x) => x.range(),
         }
     }
 }
@@ -670,7 +670,6 @@ impl Range for AssignmentRHS {
     fn range(&self) -> SourceRange {
         match self {
             AssignmentRHS::ExpressionList(e) => e.range(),
-            AssignmentRHS::ArrayPop(p) => p.range(),
         }
     }
 }

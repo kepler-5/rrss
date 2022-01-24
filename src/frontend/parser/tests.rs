@@ -1031,6 +1031,25 @@ fn parse_assignment() {
 }
 
 #[test]
+fn roll_expression() {
+    let parse = |text| {
+        Parser::for_source_code(text)
+            .parse_statement()
+            .map(|s| s.unwrap())
+    };
+    assert_eq!(
+        parse("shout roll ints"),
+        Ok(Output {
+            value: PrimaryExpression::from(boxed_expr(ArrayPopExpr {
+                array: WithRange(SimpleIdentifier("ints".into()), line_range(11, 15)).into()
+            }))
+            .into()
+        }
+        .into())
+    );
+}
+
+#[test]
 fn roll_in_assignments() {
     let parse = |text| {
         Parser::for_source_code(text)
@@ -1045,9 +1064,9 @@ fn roll_in_assignments() {
                 line_range(4, 13)
             )
             .into(),
-            value: ArrayPopExpr {
+            value: PrimaryExpression::from(boxed_expr(ArrayPopExpr {
                 array: WithRange(SimpleIdentifier("ints".into()), line_range(22, 26)).into()
-            }
+            }))
             .into(),
             operator: None
         }

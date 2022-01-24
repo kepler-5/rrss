@@ -53,6 +53,7 @@ fn expected_id_description(e: &PrimaryExpression) -> &'static str {
         PrimaryExpression::Literal(_) => "literal",
         PrimaryExpression::ArraySubscript(_) => "array subscript expression",
         PrimaryExpression::FunctionCall(_) => "function call",
+        PrimaryExpression::ArrayPop(_) => "array pop expression",
 
         PrimaryExpression::Identifier(_) => unreachable!(),
     }
