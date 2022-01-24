@@ -173,9 +173,9 @@ fn boxed_expr<E>(x: impl Into<E>) -> Box<E> {
     Box::new(x.into())
 }
 
-fn take_first<T>(vec: Vec<T>) -> T {
-    assert!(!vec.is_empty());
-    vec.into_iter().next().unwrap()
+unsafe fn take_first<T>(vec: Vec<T>) -> T {
+    debug_assert!(!vec.is_empty());
+    vec.into_iter().next().unchecked_unwrap()
 }
 
 fn is_literal_word(token: TokenType) -> bool {
@@ -550,8 +550,8 @@ impl<'a> Parser<'a> {
 
     fn parse_capitalized_identifier(&mut self) -> Option<WithRange<VariableName>> {
         let mut range = AccumulatedRange::new();
-        let names = self
-            .match_and_consume_while(
+        let names = if self.current_matches(TokenType::Word) {
+            self.match_and_consume_while(
                 |tok: &Token| {
                     is_word(tok.spelling) && tok.spelling.chars().next().unwrap().is_uppercase()
                 },
@@ -560,10 +560,13 @@ impl<'a> Parser<'a> {
                     Ok(Some(tok.spelling.to_owned()))
                 },
             )
-            .unwrap();
+            .unwrap()
+        } else {
+            return None;
+        };
         match names.len() {
             0 => None,
-            1 => Some(SimpleIdentifier(take_first(names)).into()),
+            1 => Some(SimpleIdentifier(unsafe { take_first(names) }).into()),
             _ => Some(ProperIdentifier(names).into()),
         }
         .map(|n| WithRange(n, unsafe { range.extract_unchecked() }))
