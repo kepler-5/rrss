@@ -436,6 +436,9 @@ impl Val {
             (Val::Null, Val::Number(_)) => (Cow::Owned(Val::Number(0.0)), Cow::Borrowed(other)),
             (Val::Number(_), Val::Null) => (Cow::Borrowed(self), Cow::Owned(Val::Number(0.0))),
 
+            (Val::Array(_), _) => (self.decay(), other.decay()),
+            (_, Val::Array(_)) => (self.decay(), other.decay()),
+
             _ => (Cow::Borrowed(self), Cow::Borrowed(other)),
         }
     }
@@ -456,6 +459,9 @@ impl Val {
         match (self, other) {
             (Val::Null, Val::Number(_)) => (Cow::Owned(Val::Number(0.0)), Cow::Borrowed(other)),
             (Val::Number(_), Val::Null) => (Cow::Borrowed(self), Cow::Owned(Val::Number(0.0))),
+
+            (Val::Array(_), _) => (self.decay(), other.decay()),
+            (_, Val::Array(_)) => (self.decay(), other.decay()),
 
             _ => (Cow::Borrowed(self), Cow::Borrowed(other)),
         }

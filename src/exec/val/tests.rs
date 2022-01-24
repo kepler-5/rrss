@@ -420,7 +420,10 @@ fn plus() {
         Val::from("bar").plus(&Val::from("aardvark")),
         Val::from("baraardvark")
     );
-    commutative_invalid!(Val::from(Array::new()), Val::from(Array::new()));
+    assert_eq!(
+        Val::from(Array::new()).plus(&Val::from(Array::new())),
+        Val::Number(0.0)
+    );
 
     // string mixed plus
     assert_eq!(Val::from("0").plus(&Val::Number(1.0)), Val::from("01"));
@@ -451,7 +454,16 @@ fn plus() {
     commutative_invalid!(Val::Number(10.0), Val::Boolean(false));
     assert_eq!(Val::Number(-1.0).plus(&Val::Null), Val::Number(-1.0));
     assert_eq!(Val::Null.plus(&Val::Number(-1.0)), Val::Number(-1.0));
-    commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
+    assert_eq!(
+        Val::Number(1.0).plus(&Val::from(Array::new())),
+        Val::Number(1.0)
+    );
+    assert_eq!(
+        Val::Number(1.0).plus(&Val::from(Array::with_arr(
+            [Val::Null].into_iter().collect()
+        ))),
+        Val::Number(2.0)
+    );
 
     // boolean mixed plus
     commutative_invalid!(Val::Boolean(false), Val::Null);
@@ -478,7 +490,10 @@ fn multiply() {
         Val::Number(20.0)
     );
     commutative_invalid!(Val::from("aardvark"), Val::from("bar"));
-    commutative_invalid!(Val::from(Array::new()), Val::from(Array::new()));
+    assert_eq!(
+        Val::from(Array::new()).multiply(&Val::from(Array::new())),
+        Val::Number(0.0)
+    );
 
     // string mixed multiply
     assert_eq!(Val::from("0").multiply(&Val::Number(1.0)), Val::from("0"));
@@ -487,13 +502,31 @@ fn multiply() {
     commutative_invalid!(Val::from("0"), &Val::Number(-1.0));
     commutative_invalid!(Val::from("x"), Val::Boolean(false));
     commutative_invalid!(Val::from("x"), Val::Null);
-    commutative_invalid!(Val::from("x"), Val::from(Array::new()));
+    assert_eq!(
+        Val::from("x").multiply(&Val::from(Array::new())),
+        Val::from("")
+    );
+    assert_eq!(
+        Val::from("x").multiply(&Val::from(Array::with_arr(
+            [Val::Null, Val::Null].into_iter().collect()
+        ))),
+        Val::from("xx")
+    );
 
     // number mixed multiply
     commutative_invalid!(Val::Number(10.0), Val::Boolean(false));
     assert_eq!(Val::Number(-1.0).multiply(&Val::Null), Val::Number(0.0));
     assert_eq!(Val::Null.multiply(&Val::Number(-1.0)), Val::Number(0.0));
-    commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
+    assert_eq!(
+        Val::Number(1.0).multiply(&Val::from(Array::new())),
+        Val::Number(0.0)
+    );
+    assert_eq!(
+        Val::Number(1.0).multiply(&Val::from(Array::with_arr(
+            [Val::Null].into_iter().collect()
+        ))),
+        Val::Number(1.0)
+    );
 
     // boolean mixed multiply
     commutative_invalid!(Val::Boolean(false), Val::Null);
@@ -520,7 +553,10 @@ fn subtract() {
         Val::Number(-8.0)
     );
     commutative_invalid!(Val::from("aardvark"), Val::from("bar"));
-    commutative_invalid!(Val::from(Array::new()), Val::from(Array::new()));
+    assert_eq!(
+        Val::from(Array::new()).subtract(&Val::from(Array::new())),
+        Val::Number(0.0)
+    );
 
     // string mixed subtract
     commutative_invalid!(Val::from("0"), Val::Number(1.0));
@@ -533,7 +569,16 @@ fn subtract() {
     commutative_invalid!(Val::Number(10.0), Val::Boolean(false));
     assert_eq!(Val::Number(-1.0).subtract(&Val::Null), Val::Number(-1.0));
     assert_eq!(Val::Null.subtract(&Val::Number(-1.0)), Val::Number(1.0));
-    commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
+    assert_eq!(
+        Val::Number(1.0).subtract(&Val::from(Array::new())),
+        Val::Number(1.0)
+    );
+    assert_eq!(
+        Val::Number(1.0).subtract(&Val::from(Array::with_arr(
+            [Val::Null].into_iter().collect()
+        ))),
+        Val::Number(0.0)
+    );
 
     // boolean mixed subtract
     commutative_invalid!(Val::Boolean(false), Val::Null);
@@ -560,7 +605,9 @@ fn divide() {
         Val::Number(0.2)
     );
     commutative_invalid!(Val::from("aardvark"), Val::from("bar"));
-    commutative_invalid!(Val::from(Array::new()), Val::from(Array::new()));
+    assert!(
+        inner!(Val::from(Array::new()).divide(&Val::from(Array::new())), if Val::Number).is_nan(),
+    );
 
     // string mixed divide
     commutative_invalid!(Val::from("0"), Val::Number(1.0));
@@ -576,7 +623,16 @@ fn divide() {
         Val::Number(f64::NEG_INFINITY)
     );
     assert_eq!(Val::Null.divide(&Val::Number(-1.0)), Val::Number(0.0));
-    commutative_invalid!(Val::Number(0.0), Val::from(Array::new()));
+    assert_eq!(
+        Val::Number(1.0).divide(&Val::from(Array::new())),
+        Val::Number(f64::INFINITY)
+    );
+    assert_eq!(
+        Val::Number(1.0).divide(&Val::from(Array::with_arr(
+            [Val::Null].into_iter().collect()
+        ))),
+        Val::Number(1.0)
+    );
 
     // boolean mixed divide
     commutative_invalid!(Val::Boolean(false), Val::Null);

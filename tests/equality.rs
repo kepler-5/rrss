@@ -46,11 +46,11 @@ say "nested arrays with different contents are not equal"
             Input("")
         ),
         "\
-pass 1
-pass 2
-pass 3
-pass 4
-pass 5
+arrays of the same length but different contents are not equal
+element-wise-copied arrays are equal
+assignment-copied arrays are equal
+nested arrays with the same contents are equal
+nested arrays with different contents are not equal
 "
     );
 }
