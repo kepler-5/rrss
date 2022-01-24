@@ -550,20 +550,17 @@ impl<'a> Parser<'a> {
 
     fn parse_capitalized_identifier(&mut self) -> Option<WithRange<VariableName>> {
         let mut range = AccumulatedRange::new();
-        let names = if self.current_matches(TokenType::Word) {
-            self.match_and_consume_while(
+        let names = self
+            .match_and_consume_while(
                 |tok: &Token| {
-                    is_word(tok.spelling) && tok.spelling.chars().next().unwrap().is_uppercase()
+                    tok.id.is_word() && tok.spelling.chars().next().unwrap().is_uppercase()
                 },
                 |tok, _| {
                     range.acc(tok.range.clone());
                     Ok(Some(tok.spelling.to_owned()))
                 },
             )
-            .unwrap()
-        } else {
-            return None;
-        };
+            .unwrap();
         match names.len() {
             0 => None,
             1 => Some(SimpleIdentifier(unsafe { take_first(names) }).into()),

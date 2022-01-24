@@ -649,11 +649,11 @@ fn parse_identifier() {
         ))
     );
     assert_eq!(
-        parse("Distance In KM"),
+        parse("Distance Out KM"),
         Ok(Some(
             WithRange(
-                ProperIdentifier(vec!["Distance".into(), "In".into(), "KM".into()]),
-                line_range(0, 14)
+                ProperIdentifier(vec!["Distance".into(), "Out".into(), "KM".into()]),
+                line_range(0, 15)
             )
             .into()
         ))
