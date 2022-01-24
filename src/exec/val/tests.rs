@@ -220,7 +220,7 @@ fn equals() {
         };
     }
     commutative_equals!(Val::Undefined, Val::Undefined);
-    commutative_notequals!(Val::Undefined, Val::Null);
+    commutative_equals!(Val::Undefined, Val::Null);
     commutative_notequals!(Val::Undefined, Val::Boolean(false));
     commutative_notequals!(Val::Undefined, Val::Number(0.0));
     commutative_notequals!(Val::Undefined, Val::from(""));
@@ -248,6 +248,7 @@ fn equals() {
     commutative_notequals!(Val::from("ten"), Val::Number(0.0));
     commutative_equals!(Val::from(""), Val::Boolean(false));
     commutative_equals!(Val::from("x"), Val::Boolean(true));
+    commutative_equals!(Val::from(""), Val::Null);
     commutative_notequals!(Val::from("x"), Val::Null);
     commutative_notequals!(Val::from("x"), Val::from(Array::new()));
 
@@ -296,6 +297,12 @@ fn compare() {
             assert_ne!($b.compare(&$a), Ok(Some(Ordering::Less)));
         };
     }
+    macro_rules! commutative_equal {
+        ($a:expr, $b:expr) => {
+            assert_eq!($a.compare(&$b), Ok(Some(Ordering::Equal)));
+            assert_eq!($b.compare(&$a), Ok(Some(Ordering::Equal)));
+        };
+    }
     macro_rules! commutative_none {
         ($a:expr, $b:expr) => {
             assert_eq!($a.compare(&$b), Ok(None));
@@ -303,7 +310,7 @@ fn compare() {
         };
     }
 
-    commutative_invalid!(Val::Undefined, Val::Null);
+    commutative_equal!(Val::Undefined, Val::Null);
     commutative_invalid!(Val::Undefined, Val::Boolean(false));
     commutative_invalid!(Val::Undefined, Val::Number(0.0));
     commutative_invalid!(Val::Undefined, Val::from(""));
@@ -320,7 +327,7 @@ fn compare() {
     commutative_none!(Val::from("ten"), Val::Number(0.0));
     commutative_invalid!(Val::from(""), Val::Boolean(false));
     commutative_invalid!(Val::from("x"), Val::Boolean(true));
-    commutative_invalid!(Val::from("x"), Val::Null);
+    commutative_less!(Val::Null, Val::from("x"));
     commutative_invalid!(Val::from("x"), Val::from(Array::new()));
 
     // number mixed cmp

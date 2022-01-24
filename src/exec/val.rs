@@ -312,7 +312,10 @@ impl Val {
             Some((Cow::Borrowed(self), Cow::Borrowed(other)))
         } else {
             match self {
-                Val::Undefined => Some((Cow::Borrowed(self), Cow::Borrowed(other))),
+                Val::Undefined => match other {
+                    Val::Null => Some((Cow::Owned(Val::Null), Cow::Borrowed(other))),
+                    _ => Some((Cow::Borrowed(self), Cow::Borrowed(other))),
+                },
                 Val::Array(_) => match other {
                     Val::Null => Some((self.decay(), Cow::Owned(Val::Number(0.0)))),
                     _ => Some((self.decay(), Cow::Borrowed(other))),
@@ -343,6 +346,7 @@ impl Val {
                         Cow::Owned(Val::Boolean(!s.is_empty())),
                         Cow::Borrowed(other),
                     )),
+                    Val::Null => Some((Cow::Borrowed(self), Cow::Owned(Val::from(String::new())))),
                     _ => Some((Cow::Borrowed(self), Cow::Borrowed(other))),
                 },
             }
